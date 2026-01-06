@@ -10,8 +10,7 @@ import tempfile
 import yaml
 from dotenv import load_dotenv
 from fastmcp import FastMCP
-from kubernetes import client
-from kubernetes import config
+from kubernetes import client, config
 from kubernetes.client import Configuration
 
 mcp = FastMCP('DevOps Tools')

@@ -9,8 +9,7 @@ import argparse
 import os
 import sys
 
-from Utils import get_llm_provider
-from Utils import process_prompt
+from Utils import get_llm_provider, process_prompt
 
 # Add current directory to path for imports (allows running from project root or LLM_CI directory)
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -79,7 +78,7 @@ Examples:
 
     # Process prompt and print result
     try:
-        response = process_prompt(prompt, llm, verbose=args.verbose)
+        response = process_prompt(prompt, llm, verbose=args.verbose, usage_mode='cli')
         print(response)
     except KeyboardInterrupt:
         print('\nInterrupted by user', file=sys.stderr)

@@ -1,0 +1,12 @@
+[tool.isort]
+profile = "black"           # optional, aligns with Black if you use it
+multi_line_output = 3       # 3 = "Vertical Hanging Indent" but we disable wrapping below
+include_trailing_comma = false
+force_single_line = false
+use_parentheses = false     # 🚫 no parentheses splitting
+line_length = 120           # anything you want
+combine_as_imports = true
+combine_star = true
+
+# 🚫 absolutely no import splitting — keep everything on one line
+force_grid_wrap = 0

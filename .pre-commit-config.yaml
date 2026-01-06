@@ -71,7 +71,7 @@ repos:
 
   # YAML fixes & linting
   - repo: https://github.com/lyz-code/yamlfix/
-    rev: 1.18.0
+    rev: 1.19.0
     hooks:
       - id: yamlfix
         stages: [pre-commit]
@@ -86,7 +86,7 @@ repos:
 
   # Typos
   - repo: https://github.com/crate-ci/typos
-    rev: v1.38.1
+    rev: v1.40.0
     hooks:
       - id: typos
         stages: [pre-commit]
@@ -123,13 +123,23 @@ repos:
     hooks:
       - id: autopep8
         stages: [pre-commit]
-  - repo: https://github.com/asottile/reorder-python-imports
-    rev: v3.16.0
+  - repo: https://github.com/pycqa/isort
+    rev: 7.0.0
     hooks:
-      - id: reorder-python-imports
-        stages: [pre-commit]
-        args: [--py39-plus, --add-import, from __future__ import annotations]
-        exclude: ^(pre_commit/resources/|testing/resources/python3_hooks_repo/)
+      - id: isort
+        name: isort (no-split)
+        args: ["--settings-path=."]
+  - repo: https://github.com/PyCQA/autoflake
+    rev: v2.3.1
+    hooks:
+      - id: autoflake
+        name: autoflake (remove unused imports)
+        args:
+          - --in-place
+          - --remove-all-unused-imports
+          - --remove-unused-variables
+          - --expand-star-imports
+          - --ignore-init-module-imports
   - repo: https://github.com/PyCQA/flake8
     rev: 7.3.0
     hooks:
@@ -137,7 +147,7 @@ repos:
         stages: [pre-commit]
         exclude: server.py
   - repo: https://github.com/PyCQA/bandit
-    rev: 1.8.6
+    rev: 1.9.2
     hooks:
       - id: bandit
         stages: [pre-commit]
@@ -157,7 +167,7 @@ repos:
           - KeywordDetector
         exclude: gitleaks-report.json|charts/|helm-template-example/
   - repo: https://github.com/zricethezav/gitleaks
-    rev: v8.28.0
+    rev: v8.30.0
     hooks:
       - id: gitleaks
         stages: [pre-commit]
@@ -191,7 +201,7 @@ repos:
 
   # Terraform
   - repo: https://github.com/antonbabenko/pre-commit-terraform
-    rev: v1.102.0
+    rev: v1.104.0
     hooks:
       - id: terraform_fmt
         stages: [pre-commit]

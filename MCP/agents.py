@@ -3,9 +3,7 @@ Agent orchestration using LangChain + Ollama for MCP.
 """
 from __future__ import annotations
 
-from typing import Any
-from typing import Dict
-from typing import List
+from typing import Any, Dict, List
 
 from langchain.agents import initialize_agent
 from langchain.agents.types import AgentType

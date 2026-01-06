@@ -6,7 +6,6 @@ from dotenv import load_dotenv
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_ollama.llms import OllamaLLM
 
-
 load_dotenv()
 OllamaModel = os.getenv('OllamaModel')
 

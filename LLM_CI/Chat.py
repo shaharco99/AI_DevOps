@@ -4,15 +4,29 @@ import json
 import os
 import sys
 
-from Utils import create_tool_message
-from Utils import execute_tool
-from Utils import extract_tool_info
-from Utils import get_llm_provider
-from Utils import normalize_args
-from Utils import system_message
+from Utils import (
+    create_tool_message,
+    execute_tool,
+    extract_tool_info,
+    get_llm_provider,
+    log_usage_entry,
+    normalize_args,
+    reset_chat_usage_log,
+    system_message
+)
 
 # Initialize
 llm_provider = os.getenv('LLM_PROVIDER', '').upper()
+# If user requested GUI, try launching it and exit the CLI
+if '--gui' in sys.argv:
+    try:
+        from ChatGUI import run_gui
+        run_gui()
+        sys.exit(0)
+    except Exception as e:
+        print(f"GUI start error: {e}", file=sys.stderr)
+        # Fall back to CLI
+
 try:
     llm = get_llm_provider()
 except Exception as e:
@@ -20,6 +34,8 @@ except Exception as e:
     sys.exit(1)
 
 print(f"DevOps Chat with {llm_provider}! Type 'exit' to quit.\n", file=sys.stderr)
+
+reset_chat_usage_log()
 
 chat_history = [('system', system_message)]
 
@@ -38,10 +54,25 @@ while True:
     chat_history.append(('human', question))
 
     # Loop until final response (allows multi-step tool execution chains)
+    tool_call_count = 0
+    tool_error_count = 0
     while True:
         try:
             ai_msg = llm.invoke(chat_history)
         except Exception as e:
+            log_usage_entry(
+                mode='chat',
+                prompt=question,
+                response='',
+                ai_msg=None,
+                tool_calls=tool_call_count,
+                llm=llm,
+                extra={
+                    'conversation_turns': len(chat_history),
+                    'tool_errors': tool_error_count,
+                    'error': f"invoke_error: {e}",
+                },
+            )
             print(f"Error invoking LLM: {e}", file=sys.stderr)
             print('AI: (Error occurred, please try again)\n', file=sys.stdout)
             break
@@ -52,9 +83,24 @@ while True:
 
         if not tool_calls:
             # Final response - send to stdout for proper output separation
-            if ai_msg.content:
-                print(f"AI: {ai_msg.content}\n")
+            response_text = ai_msg.content or ''
+            if response_text:
+                print(f"AI: {response_text}\n")
+            log_usage_entry(
+                mode='chat',
+                prompt=question,
+                response=response_text,
+                ai_msg=ai_msg,
+                tool_calls=tool_call_count,
+                llm=llm,
+                extra={
+                    'conversation_turns': len(chat_history),
+                    'tool_errors': tool_error_count,
+                },
+            )
             break
+
+        tool_call_count += len(tool_calls)
 
         # Execute tool calls
         for tool_call in tool_calls:
@@ -73,6 +119,7 @@ while True:
                 # Add result to history
                 chat_history.append(create_tool_message(result, tool_id))
             except Exception as e:
+                tool_error_count += 1
                 error_msg = f"Error parsing tool call: {e}"
                 print(f"Warning: {error_msg}\n", file=sys.stderr)
                 chat_history.append(create_tool_message(error_msg, None))
