@@ -40,9 +40,8 @@ except ImportError:
     system_message = 'You are a helpful DevOps assistant.'
 
 try:
-    from database_tools import execute_query, is_safe_select_query, rag_query_and_execute, validate_and_fix_sql
+    from database_tools import execute_query, is_safe_select_query, validate_and_fix_sql
 except Exception:
-    rag_query_and_execute = None
     validate_and_fix_sql = None
     is_safe_select_query = None
     execute_query = None
@@ -89,39 +88,15 @@ class Worker(QThread):
     def run(self):
         try:
             self.thinking_started.emit()
-            # Handle DB-prefixed prompts with RAG preview/approval flow
-            if isinstance(self.prompt, str) and (self.prompt.startswith('/db ') or self.prompt.startswith('/sql ')) and rag_query_and_execute:
-                user_q = self.prompt.split(' ', 1)[1].strip()
-
-                def llm_callable(ptext: str) -> str:
-                    try:
-                        resp = process_prompt(ptext, self.llm, verbose=False, conversation_history=self.conversation_history)
-                        if isinstance(resp, tuple):
-                            return resp[0]
-                        return resp
-                    except Exception:
-                        return ''
-
-                res = rag_query_and_execute(user_q, llm_callable, auto_execute=False)
-                if res.get('success') and res.get('sql'):
-                    sql = res['sql']
-                    self.generated_sql = sql
-                    response = (
-                        'Generated SQL (preview):\n' + sql +
-                        "\n\nTo execute this query, type '/execute'. To cancel, type '/cancel'."
-                    )
-                else:
-                    response = res.get('message', 'Could not generate SQL for that request.')
-                result = response
-            else:
-                # Always pass conversation_history (may be empty list or contain prior messages)
-                result = process_prompt(
-                    self.prompt,
-                    self.llm,
-                    verbose=False,
-                    usage_mode='chat',
-                    conversation_history=self.conversation_history
-                )
+            # Database queries are now handled through tools - let the LLM use the database tools directly
+            # Always pass conversation_history (may be empty list or contain prior messages)
+            result = process_prompt(
+                self.prompt,
+                self.llm,
+                verbose=False,
+                usage_mode='chat',
+                conversation_history=self.conversation_history
+            )
 
             # Handle both return formats: (response, history) or just response
             if isinstance(result, tuple):

@@ -1,11 +1,11 @@
 """
-Improved database tools for LLM agent:
+Database tools for AI agents:
 ✔ SELECT-only enforcement
-✔ Auto-preview only when necessary
 ✔ Auto-correct SQL queries based on DB schema
 ✔ Auto-detect invalid table/column names
 ✔ Schema-aware SQL validation before execution
 ✔ SQLite schema fix (shared connection)
+✔ All functions exposed as @tool decorated functions for AI agent use
 """
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ import json
 import logging
 import os
 import re
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from langchain.tools import tool
 
@@ -240,54 +240,111 @@ def extract_query_identifiers(sql: str) -> Tuple[List[str], List[str]]:
     """
     Extract tables + columns from a SELECT query using very simple parsing.
     (LLM-generated queries are simple enough for this to work reliably)
+    Ignores SQL functions like EXTRACT(), strftime(), etc.
     """
     sql_clean = sql.replace('\n', ' ').replace('\t', ' ')
 
+    # Remove SQL functions to avoid extracting function names as columns
+    # Common functions: EXTRACT, strftime, DATE, YEAR, MONTH, DAY, etc.
+    function_patterns = [
+        r'EXTRACT\s*\([^)]*\)',
+        r'strftime\s*\([^)]*\)',
+        r'DATE\s*\([^)]*\)',
+        r'YEAR\s*\([^)]*\)',
+        r'MONTH\s*\([^)]*\)',
+        r'DAY\s*\([^)]*\)',
+        r'COUNT\s*\([^)]*\)',
+        r'SUM\s*\([^)]*\)',
+        r'AVG\s*\([^)]*\)',
+        r'MAX\s*\([^)]*\)',
+        r'MIN\s*\([^)]*\)',
+    ]
+    sql_for_parsing = sql_clean
+    for pattern in function_patterns:
+        sql_for_parsing = re.sub(pattern, '', sql_for_parsing, flags=re.IGNORECASE)
+
     # tables from FROM and JOIN clauses
     table_pattern = r'(FROM|JOIN)\s+([A-Za-z0-9_]+)'
-    tables = [m[1] for m in re.findall(table_pattern, sql_clean, flags=re.IGNORECASE)]
+    tables = [m[1] for m in re.findall(table_pattern, sql_for_parsing, flags=re.IGNORECASE)]
 
     # columns inside SELECT
-    select_match = re.search(r'SELECT(.*?)FROM', sql_clean, re.IGNORECASE)
+    select_match = re.search(r'SELECT(.*?)FROM', sql_for_parsing, re.IGNORECASE)
     columns = []
     if select_match:
         col_part = select_match.group(1)
         raw_cols = col_part.split(',')
         for c in raw_cols:
             c = c.strip()
+            # Skip if it looks like a function call
+            if '(' in c and ')' in c:
+                # Try to extract column from inside function (e.g., EXTRACT(MONTH FROM o.order_date))
+                # Look for table.column pattern inside
+                inner_match = re.search(r'([A-Za-z0-9_]+)\.([A-Za-z0-9_]+)', c)
+                if inner_match:
+                    columns.append(inner_match.group(2))
+                continue
             if '.' in c:
                 columns.append(c.split('.')[1])
             else:
-                columns.append(c)
+                # Only add if it's a valid column name (not a function)
+                if re.match(r'^[A-Za-z0-9_]+$', c):
+                    columns.append(c)
 
-    # clean column aliases
+    # clean column aliases and remove empty/function-like strings
     columns = [re.sub(r'\s+AS\s+.*', '', col, flags=re.IGNORECASE) for col in columns]
-    columns = [col for col in columns if col]
+    columns = [col for col in columns if col and re.match(r'^[A-Za-z0-9_]+$', col)]
 
     # Also extract any prefixed columns used elsewhere (WHERE, JOIN ON, etc.)
-    # e.g. c.city, o.status
-    prefixed = re.findall(r'([A-Za-z0-9_]+)\.([A-Za-z0-9_\*]+)', sql)
+    # e.g. c.city, o.status - but skip function calls
+    prefixed = re.findall(r'([A-Za-z0-9_]+)\.([A-Za-z0-9_\*]+)', sql_for_parsing)
     for alias, col in prefixed:
         # ignore table.* patterns here for missing-column checks
         if col == '*':
             continue
-        if col not in columns:
+        # Only add valid column names (not function calls)
+        if re.match(r'^[A-Za-z0-9_]+$', col) and col not in columns:
             columns.append(col)
 
     return tables, columns
 
 
 def fuzzy_match(name: str, candidates: List[str]) -> Optional[str]:
+    """Fuzzy match a name against candidates. Returns best match if score > 0.4."""
     name_low = name.lower()
     best = None
     best_score = 0
 
     for cand in candidates:
         cand_low = cand.lower()
-        score = sum(c1 == c2 for c1, c2 in zip(name_low, cand_low)) / max(len(cand_low), 1)
-
-        if score > best_score:
-            best_score = score
+        
+        # Exact match
+        if name_low == cand_low:
+            return cand
+        
+        # Character overlap score
+        char_score = sum(c1 == c2 for c1, c2 in zip(name_low, cand_low)) / max(len(cand_low), 1)
+        
+        # Substring match bonus (e.g., "customers" contains "customer" which is close to "clients")
+        substring_bonus = 0
+        if name_low in cand_low or cand_low in name_low:
+            substring_bonus = 0.2
+        
+        # Common prefix/suffix bonus
+        prefix_bonus = 0
+        suffix_bonus = 0
+        min_len = min(len(name_low), len(cand_low))
+        if min_len >= 3:
+            # Check first 3 chars
+            if name_low[:3] == cand_low[:3]:
+                prefix_bonus = 0.15
+            # Check last 3 chars
+            if len(name_low) >= 3 and len(cand_low) >= 3 and name_low[-3:] == cand_low[-3:]:
+                suffix_bonus = 0.15
+        
+        total_score = char_score + substring_bonus + prefix_bonus + suffix_bonus
+        
+        if total_score > best_score:
+            best_score = total_score
             best = cand
 
     if best_score > 0.4:
@@ -331,6 +388,38 @@ def _format_schema_preview(schema: Dict[str, List[str]], max_tables: int = 5) ->
     return '\n'.join(lines)
 
 
+def _convert_sqlite_syntax(sql: str) -> str:
+    """
+    Convert non-SQLite SQL syntax to SQLite-compatible syntax.
+    - EXTRACT(MONTH FROM date) -> strftime('%m', date)
+    - EXTRACT(YEAR FROM date) -> strftime('%Y', date)
+    - EXTRACT(DAY FROM date) -> strftime('%d', date)
+    """
+    # Convert EXTRACT(MONTH FROM ...) to strftime('%m', ...)
+    def extract_to_strftime(match):
+        extract_type = match.group(1).upper()
+        date_expr = match.group(2)
+        if extract_type == 'MONTH':
+            return f"CAST(strftime('%m', {date_expr}) AS INTEGER)"
+        elif extract_type == 'YEAR':
+            return f"CAST(strftime('%Y', {date_expr}) AS INTEGER)"
+        elif extract_type == 'DAY':
+            return f"CAST(strftime('%d', {date_expr}) AS INTEGER)"
+        else:
+            # Generic conversion
+            return f"strftime('%{extract_type[0]}', {date_expr})"
+    
+    # Pattern: EXTRACT(MONTH FROM o.order_date) or EXTRACT (MONTH FROM o.order_date)
+    sql = re.sub(
+        r'EXTRACT\s*\(\s*(\w+)\s+FROM\s+([^)]+)\s*\)',
+        extract_to_strftime,
+        sql,
+        flags=re.IGNORECASE
+    )
+    
+    return sql
+
+
 def validate_and_fix_sql(sql: str) -> Tuple[bool, str, str]:
     """
     Validate SQL against the DB schema and fix table/column names when possible.
@@ -352,10 +441,12 @@ def validate_and_fix_sql(sql: str) -> Tuple[bool, str, str]:
     if not schema:
         return False, 'Database schema is empty.', sql
 
+    # Convert SQLite-incompatible syntax first
+    fixed_sql = _convert_sqlite_syntax(sql)
+
     # We'll attempt up to N iterations to validate and auto-correct the SQL.
     # Only after exhausting all attempts will we return an error.
     max_attempts = 10
-    fixed_sql = sql
 
     for attempt in range(1, max_attempts + 1):
         tables, columns = extract_query_identifiers(fixed_sql)
@@ -584,13 +675,8 @@ def validate_and_fix_sql(sql: str) -> Tuple[bool, str, str]:
 
 
 # ================================================================
-# Retrieval-Augmented Generation (RAG) helpers
-# The functions below expect an `llm_callable(prompt: str) -> str` which
-# returns the LLM's text response. We keep the LLM dependency out of this
-# module to avoid importing third-party libraries here; the caller should
-# pass a small wrapper that calls the configured LLM.
+# HELPER FUNCTIONS (not exposed as tools)
 # ================================================================
-
 
 def _get_table_preview(table: str, limit: int = 5) -> List[Dict[str, Any]]:
     """Return a few sample rows from `table` for context (empty list on error)."""
@@ -603,192 +689,320 @@ def _get_table_preview(table: str, limit: int = 5) -> List[Dict[str, Any]]:
         return []
 
 
-def _is_suspicious_filter(sql: str, schema: Dict[str, List[str]]) -> Tuple[bool, str]:
-    """Detect filters that are likely ambiguous (e.g. two-letter token used against `country`).
-
-    Returns (is_suspicious, reason)
-    """
-    # simple heuristic: if SQL compares country/state to a short token (len<=3), flag it
-    m = re.findall(r"([A-Za-z0-9_\.]+)\s*=\s*'([^']+)'", sql)
-    for left, val in m:
-        # strip alias if present
-        if '.' in left:
-            _, col = left.split('.', 1)
-        else:
-            col = left
-        lower = col.lower()
-        # Relaxed heuristic: only flag very short tokens (<=2). This avoids
-        # flagging common 3-letter country codes like 'USA'. If you want
-        # stricter checks in the future, consider a configurable policy.
-        if lower in ('country', 'state') and len(val.strip()) <= 2:
-            return True, f"Filter {col} = '{val}' looks ambiguous: very short token against {col}."
-    return False, ''
-
-
-def generate_sql_with_rag(
-    user_question: str,
-    llm_callable: Callable[[str], str],
-    max_attempts: int = 3,
-    include_schema_preview: bool = True,
-) -> Tuple[bool, str, str]:
-    """Generate a SQL statement for `user_question` using a RAG approach.
-
-    - `llm_callable` should accept a plain-text prompt and return text.
-    - The function will provide schema + examples, ask the LLM to return ONLY SQL,
-      then validate using `validate_and_fix_sql`.
-    - On validation failure the function will retry up to `max_attempts`.
-
-    Returns (success, message, sql_or_error_message)
-    """
-    schema = get_sqlite_schema()
-    if not schema:
-        return False, 'Database schema is empty.', user_question
-
-    # Build context
-    schema_text_lines = []
-    for t, cols in schema.items():
-        schema_text_lines.append(f"{t}({', '.join(cols)})")
-    schema_text = '\n'.join(schema_text_lines[:50])
-
-    # Add small previews for top tables
-    previews = []
-    for t in list(schema.keys())[:3]:
-        rows = _get_table_preview(t, limit=3)
-        if rows:
-            previews.append(f"Sample rows from {t}: {rows}")
-
-    base_prompt = (
-        'You are given a database schema and a user question. '
-        'Return ONLY a single valid SELECT SQL query that answers the question. '
-        "DO NOT include any explanation. If you cannot produce a valid SQL, reply with 'CANNOT_GENERATE'.\n\n"
-        f"Schema:\n{schema_text}\n\n"
-    )
-    if include_schema_preview and previews:
-        base_prompt += '\n'.join(previews) + '\n\n'
-
-    base_prompt += f"User question: {user_question}\n\nSQL:"
-
-    last_error = ''
-    last_candidate = ''
-    for attempt in range(1, max_attempts + 1):
-        try:
-            llm_resp = llm_callable(base_prompt)
-        except Exception as e:
-            return False, f"LLM call failed: {e}", ''
-
-        if not llm_resp or 'CANNOT_GENERATE' in llm_resp.upper():
-            last_error = 'LLM refused to generate SQL.'
-            continue
-
-        # Extract first SQL-looking block
-        sql_candidate = llm_resp.strip().split(';')[0].strip()
-        last_candidate = sql_candidate
-        if not sql_candidate.upper().startswith('SELECT'):
-            last_error = 'LLM did not return a SELECT statement.'
-            continue
-
-        # Validate candidate
-        is_valid, msg, fixed_sql = validate_and_fix_sql(sql_candidate)
-        if is_valid:
-            # Check for suspicious filters
-            suspicious, reason = _is_suspicious_filter(fixed_sql, schema)
-            if suspicious:
-                return False, f"Suspicious filter detected: {reason} Please clarify.", fixed_sql
-
-            return True, 'OK', fixed_sql
-
-        # Provide the validation feedback to LLM and retry
-        base_prompt += f"\n-- Validation feedback: {msg}\nPlease return ONLY a corrected SQL or CANNOT_GENERATE.\nSQL:"
-        last_error = msg
-
-    # If we exhausted attempts but have a last candidate, return it for manual review
-    if last_candidate:
-        return False, f"Could not generate valid SQL: {last_error}", last_candidate
-
-    return False, f"Could not generate valid SQL: {last_error}", ''
-
-
-def rag_query_and_execute(
-    user_question: str,
-    llm_callable: Callable[[str], str],
-    auto_execute: bool = False,
-    max_attempts: int = 3,
-) -> Dict[str, Any]:
-    """High-level function: use RAG to generate SQL and optionally execute it.
-
-    Returns a dict with keys: `success` (bool), `sql` (str), `message` (str), `results` (list)
-    """
-    ok, msg, sql = generate_sql_with_rag(user_question, llm_callable, max_attempts=max_attempts)
-    if not ok:
-        # If a SQL candidate was returned despite validation failure, surface it for preview/repair
-        if sql:
-            return {'success': True, 'sql': sql, 'message': f'{msg} (validation failed; please review before executing)', 'results': []}
-        return {'success': False, 'sql': '', 'message': msg, 'results': []}
-
-    # If not auto_execute, return SQL for approval
-    if not auto_execute:
-        return {'success': True, 'sql': sql, 'message': 'SQL generated; approval required to execute.', 'results': []}
-
-    # Execute safely
-    present, _ = _is_db_file_present()
-    if not present:
-        return {'success': False, 'sql': sql, 'message': 'Database file not found.', 'results': []}
-
-    rows, err = execute_query(sql)
-    if err:
-        return {'success': False, 'sql': sql, 'message': f'Execution error: {err}', 'results': []}
-
-    return {'success': True, 'sql': sql, 'message': 'Executed successfully.', 'results': rows}
-
-
 # ================================================================
-# TOOLS FOR AGENT
+# TOOLS FOR AI AGENT
 # ================================================================
 
 @tool
-def generate_and_preview_query(user_question: str) -> str:
+def get_database_schema_info() -> str:
     """
-    Agent calls this when it needs help constructing a correct SQL SELECT query.
-    Does NOT force preview. Execution can happen directly if agent is confident.
+    Get the complete database schema including all tables and their columns.
+    Use this tool when you need to understand the database structure before writing SQL queries.
     """
-    sanitized_question = user_question.replace("'", "''")
-
     try:
         schema = get_database_schema()
+        if not schema or schema == 'No tables or views found.':
+            return 'Database schema is empty or unavailable. Please check database configuration.'
+        return schema
     except Exception as e:
-        schema = f"Schema unavailable: {e}"
+        return f"Error retrieving schema: {str(e)}"
 
-    return (
-        f"User question: {sanitized_question}\n\n"
-        f"Database Schema:\n{schema}\n\n"
-        f"Generate a SINGLE valid SELECT query that answers the question.\n"
-        f"No mutations allowed. Return ONLY the SQL, no explanations."
-    )
+
+@tool
+def get_table_preview(table_name: str, limit: int = 5) -> str:
+    """
+    Get a preview of sample rows from a specific table.
+    Use this tool to understand the data structure and sample values in a table before querying it.
+    
+    Args:
+        table_name: The name of the table to preview
+        limit: Maximum number of rows to return (default: 5)
+    """
+    try:
+        rows = _get_table_preview(table_name, limit)
+        if not rows:
+            return f"Could not retrieve preview for table '{table_name}'. Table may not exist or is empty."
+        
+        if len(rows) == 0:
+            return f"Table '{table_name}' exists but contains no rows."
+        
+        # Format the preview nicely
+        lines = [f"Preview of table '{table_name}' ({len(rows)} rows):"]
+        for i, row in enumerate(rows, 1):
+            row_str = ', '.join([f"{k}: {v}" for k, v in row.items()])
+            lines.append(f"  Row {i}: {row_str}")
+        
+        return '\n'.join(lines)
+    except Exception as e:
+        return f"Error retrieving table preview: {str(e)}"
+
+
+@tool
+def validate_sql_query(sql_query: str) -> str:
+    """
+    Validate and attempt to auto-correct a SQL SELECT query against the database schema.
+    This tool checks table/column names and can automatically fix common issues.
+    Returns validation status and any corrections made.
+    
+    Use this tool before executing queries to ensure they will work correctly.
+    """
+    try:
+        # 1) Safety check
+        ok, msg = is_safe_select_query(sql_query)
+        if not ok:
+            return json.dumps({
+                'valid': False,
+                'message': msg,
+                'query': sql_query,
+                'corrected_query': None
+            })
+
+        # 2) Validate and fix
+        is_valid, msg, fixed_sql = validate_and_fix_sql(sql_query)
+        
+        if is_valid:
+            if fixed_sql != sql_query:
+                return json.dumps({
+                    'valid': True,
+                    'message': f'Query validated and auto-corrected: {msg}',
+                    'query': sql_query,
+                    'corrected_query': fixed_sql
+                })
+            else:
+                return json.dumps({
+                    'valid': True,
+                    'message': 'Query is valid',
+                    'query': sql_query,
+                    'corrected_query': sql_query
+                })
+        else:
+            return json.dumps({
+                'valid': False,
+                'message': msg,
+                'query': sql_query,
+                'corrected_query': fixed_sql if fixed_sql != sql_query else None
+            })
+    except Exception as e:
+        return json.dumps({
+            'valid': False,
+            'message': f'Validation error: {str(e)}',
+            'query': sql_query,
+            'corrected_query': None
+        })
 
 
 @tool
 def execute_database_query(sql_query: str) -> str:
     """
-    Executes ONLY a SELECT / PRAGMA query after validating and correcting it.
+    Execute a SELECT or PRAGMA query against the database.
+    The query will be automatically validated and corrected in the background (up to 10 attempts).
+    Only returns an error if all correction attempts fail.
+    Returns the query results in JSON format.
+    
+    IMPORTANT: Only SELECT and PRAGMA queries are allowed. All other SQL operations are blocked.
+    This tool automatically fixes common issues like:
+    - Column name mismatches (e.g., client_id -> customer_id)
+    - Table name mismatches (e.g., customers -> clients)
+    - SQLite syntax conversion (e.g., EXTRACT() -> strftime())
+    All fixes happen automatically in the background.
     """
     # 1) Safety rule
     ok, msg = is_safe_select_query(sql_query)
     if not ok:
         return json.dumps({'error': msg, 'query': sql_query, 'results': []})
 
-    # 2) Validate against schema and auto-fix if needed
-    is_valid, msg, fixed_sql = validate_and_fix_sql(sql_query)
-    if not is_valid:
-        return json.dumps({'error': msg, 'query': sql_query, 'results': []})
+    # 2) Convert to SQLite syntax first (EXTRACT -> strftime, etc.)
+    current_sql = _convert_sqlite_syntax(sql_query)
+    
+    # 2.5) Check for incomplete/malformed queries
+    # Check for incomplete function calls (e.g., "EXTRACT (MONTH FROM o.o" without closing paren)
+    if re.search(r'EXTRACT\s*\([^)]*$', current_sql, re.IGNORECASE):
+        # Try to fix incomplete EXTRACT calls
+        # Look for pattern like "EXTRACT (MONTH FROM o.o" and try to complete it
+        # This is a best-effort fix
+        pass  # Let validation handle it
 
-    # 3) Execute corrected SQL
-    results, err = execute_query(fixed_sql)
-    if err:
-        return json.dumps({'error': err, 'query': fixed_sql, 'results': []})
-
+    # 3) Automatic retry and correction loop (up to 10 attempts)
+    last_error_msg = ''
+    max_retries = 10
+    schema = get_sqlite_schema()
+    
+    for attempt in range(1, max_retries + 1):
+        # Validate and attempt to fix
+        is_valid, msg, fixed_sql = validate_and_fix_sql(current_sql)
+        
+        # If validation fails due to syntax errors, try to fix common issues
+        if not is_valid and 'syntax error' in msg.lower():
+            # Try to fix incomplete queries
+            # Check for incomplete table references (e.g., "o.o" should be "o.order_date")
+            incomplete_pattern = r'(\w+)\.(\w+)?$'
+            match = re.search(incomplete_pattern, fixed_sql)
+            if match and not match.group(2):
+                # Incomplete reference like "o." - try to infer from context
+                table_alias = match.group(1)
+                # This is complex - skip for now, let it fail gracefully
+                pass
+        
+        if is_valid:
+            # Valid query found - try to execute it
+            results, err = execute_query(fixed_sql)
+            if not err:
+                # Success! Return results (only show corrected query if it changed)
+                return json.dumps({
+                    'success': True,
+                    'query': fixed_sql,
+                    'row_count': len(results),
+                    'results': results
+                })
+            else:
+                # Execution error - try to fix based on execution error
+                # Check if it's a column/table error we can fix
+                if 'no such column' in err.lower() or 'no such table' in err.lower():
+                    current_sql = fixed_sql  # Use the fixed SQL as base for next attempt
+                    last_error_msg = f"Execution error: {err}"
+                    continue
+                else:
+                    # Non-recoverable execution error
+                    return json.dumps({'error': err, 'query': fixed_sql, 'results': []})
+        else:
+            # Invalid query - try to fix more aggressively
+            if schema and attempt < max_retries:
+                # Extract identifiers and try intelligent fixes
+                tables, columns = extract_query_identifiers(current_sql)
+                made_progress = False
+                
+                # FIRST: Fix table names (e.g., customers -> clients)
+                for table_name in tables:
+                    if table_name not in schema:
+                        # Try fuzzy match
+                        match = fuzzy_match(table_name, list(schema.keys()))
+                        if match:
+                            # Replace table name in SQL (be careful with word boundaries)
+                            current_sql = re.sub(rf'\b{re.escape(table_name)}\b', match, current_sql, flags=re.IGNORECASE)
+                            made_progress = True
+                            LOG.info(f"Fixed table name {table_name} -> {match}")
+                        else:
+                            # Try substring matching (e.g., customers -> clients)
+                            table_lower = table_name.lower()
+                            for schema_table in schema.keys():
+                                schema_lower = schema_table.lower()
+                                # Check if they share significant characters
+                                if (table_lower[:3] == schema_lower[:3] or 
+                                    table_lower[-3:] == schema_lower[-3:] or
+                                    table_lower in schema_lower or schema_lower in table_lower):
+                                    if len(table_name) >= 5 and len(schema_table) >= 5:
+                                        current_sql = re.sub(rf'\b{re.escape(table_name)}\b', schema_table, current_sql, flags=re.IGNORECASE)
+                                        made_progress = True
+                                        LOG.info(f"Fixed table name {table_name} -> {schema_table} (substring match)")
+                                        break
+                
+                # Re-extract after table name fixes
+                tables, columns = extract_query_identifiers(current_sql)
+                
+                # Build alias -> table mapping
+                alias_map: Dict[str, str] = {}
+                from_join_pattern = r'(FROM|JOIN)\s+([A-Za-z0-9_]+)(?:\s+([A-Za-z0-9_]+))?'
+                for m in re.findall(from_join_pattern, current_sql, flags=re.IGNORECASE):
+                    tbl = m[1]
+                    alias = m[2] if len(m) > 2 and m[2] else None
+                    if alias:
+                        alias_map[alias] = tbl
+                    else:
+                        alias_map[tbl] = tbl  # Table name is also its own alias
+                
+                # Try to fix column names by checking actual table schemas
+                for col in columns:
+                    if col == '*':
+                        continue
+                    
+                    # Check if column exists in any table
+                    col_exists = any(col in cols for cols in schema.values())
+                    if not col_exists:
+                        # Try fuzzy matching across all tables
+                        all_cols = []
+                        for tbl_cols in schema.values():
+                            all_cols.extend(tbl_cols)
+                        
+                        match = fuzzy_match(col, all_cols)
+                        if match:
+                            # Find which table has this column
+                            for tbl_name, tbl_cols in schema.items():
+                                if match in tbl_cols:
+                                    # Replace column name in SQL
+                                    current_sql = re.sub(rf'\b{col}\b', match, current_sql, flags=re.IGNORECASE)
+                                    made_progress = True
+                                    break
+                    
+                    # Also check prefixed columns (table.column or alias.column)
+                    prefixed_pattern = rf'(\w+)\.{re.escape(col)}\b'
+                    for match_obj in re.finditer(prefixed_pattern, current_sql, flags=re.IGNORECASE):
+                        prefix = match_obj.group(1)
+                        # Resolve alias to table name
+                        actual_table = alias_map.get(prefix, prefix)
+                        if actual_table in schema:
+                            tbl_cols = schema[actual_table]
+                            if col not in tbl_cols:
+                                # Try to find similar column in this table
+                                match = fuzzy_match(col, tbl_cols)
+                                
+                                # Also check for common patterns (e.g., client_id -> customer_id)
+                                # If column ends with _id and we're in a JOIN context, check for other _id columns
+                                if not match and col.endswith('_id'):
+                                    # Get all _id columns from this table
+                                    id_cols = [c for c in tbl_cols if c.endswith('_id') and c != col]
+                                    if id_cols:
+                                        # For JOIN queries, often the foreign key has a different base name
+                                        # (e.g., orders.client_id -> orders.customer_id)
+                                        # If there's only one _id column besides 'id', prefer it
+                                        non_id_cols = [c for c in id_cols if c != 'id']
+                                        if len(non_id_cols) == 1:
+                                            match = non_id_cols[0]
+                                        elif len(non_id_cols) > 1:
+                                            # Multiple options - use fuzzy match on the _id columns
+                                            match = fuzzy_match(col, non_id_cols)
+                                
+                                if match:
+                                    # Replace with correct column
+                                    current_sql = re.sub(
+                                        rf'\b{prefix}\.{re.escape(col)}\b',
+                                        f'{prefix}.{match}',
+                                        current_sql,
+                                        flags=re.IGNORECASE
+                                    )
+                                    made_progress = True
+                                    LOG.info(f"Fixed column {prefix}.{col} -> {prefix}.{match}")
+                
+                if made_progress:
+                    last_error_msg = msg
+                    continue
+                
+                # If no progress, try using fixed_sql from validation
+                if fixed_sql != current_sql:
+                    current_sql = fixed_sql
+                    last_error_msg = msg
+                    continue
+            
+            # No more progress possible
+            last_error_msg = msg
+                
+    # All attempts exhausted - return helpful error message
+    schema_preview = ''
+    try:
+        schema = get_sqlite_schema()
+        if schema:
+            preview = _format_schema_preview(schema)
+            schema_preview = f"\n\nDatabase schema:\n{preview}"
+    except Exception:
+        pass
+    
     return json.dumps({
-        'success': True,
-        'query': fixed_sql,
-        'row_count': len(results),
-        'results': results
+        'error': (
+            f'Could not create a valid query after {max_retries} attempts. '
+            f'Last error: {last_error_msg}. '
+            f'Please improve your prompt with more specific details about which tables and columns you need. '
+            f'You can use get_database_schema_info tool to see available tables and columns.'
+            + schema_preview
+        ),
+        'query': current_sql,
+        'results': []
     })

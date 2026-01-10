@@ -7,7 +7,6 @@ import sys
 from database_tools import (
     execute_query,
     is_safe_select_query,
-    rag_query_and_execute,
     validate_and_fix_sql,
 )
 from Utils import (
@@ -152,19 +151,9 @@ while True:
                     except Exception:
                         return ''
 
-                rag_res = rag_query_and_execute(user_q, llm_callable, auto_execute=False)
-                if rag_res.get('success') and rag_res.get('sql'):
-                    pending_sql = rag_res['sql']
-                    ai_msg = type('A', (), {})()
-                    ai_msg.content = (
-                        'Generated SQL (preview):\n' + pending_sql +
-                        "\n\nTo execute this query, type '/execute'. To cancel, type '/cancel'."
-                    )
-                    ai_msg.tool_calls = []
-                else:
-                    ai_msg = type('A', (), {})()
-                    ai_msg.content = rag_res.get('message', 'Could not generate SQL for that request.')
-                    ai_msg.tool_calls = []
+                # Database queries are now handled through tools - let the LLM generate SQL using tools
+                # The LLM will use get_database_schema_info and validate_sql_query tools
+                ai_msg = llm.invoke(chat_history)
             else:
                 ai_msg = llm.invoke(chat_history)
         except Exception as e:

@@ -22,13 +22,19 @@ except Exception:
     doc_loader = None
 
 try:
-    from database_tools import execute_database_query, generate_and_preview_query, get_database_schema
+    from database_tools import (
+        execute_database_query,
+        get_database_schema_info,
+        get_table_preview,
+        validate_sql_query,
+    )
     DATABASE_TOOLS_AVAILABLE = True
 except ImportError:
     DATABASE_TOOLS_AVAILABLE = False
-    generate_and_preview_query = None
     execute_database_query = None
-    get_database_schema = None
+    get_database_schema_info = None
+    get_table_preview = None
+    validate_sql_query = None
 
 try:
     from langchain_core.messages import ToolMessage
@@ -59,7 +65,9 @@ CHAT_LOG_FILE = _BASE_LOG_DIR / f"{_TS}_chat.jsonl"
 
 # Build optional database tools description depending on availability
 db_tools_text = (
-    '- **generate_and_preview_query**: Used ONLY when you are uncertain how to construct a correct SELECT query based on the database schema.\n'
+    '- **get_database_schema_info**: Get the complete database schema including all tables and their columns.\n'
+    '- **get_table_preview**: Get a preview of sample rows from a specific table to understand data structure.\n'
+    '- **validate_sql_query**: Validate and auto-correct a SQL SELECT query against the database schema.\n'
     '- **execute_database_query**: Execute SELECT queries directly after validating and auto-correcting them to fit the database schema.\n'
 ) if DATABASE_TOOLS_AVAILABLE else ''
 
@@ -86,19 +94,19 @@ You are a DevOps and CI/CD expert assistant. Provide concise, actionable technic
 
 {('''### Database Query Workflow (Important!)
 **You MUST follow these rules when handling database questions:**
-1. If the user clearly requests simple data retrieval (e.g., 'show all users', 'get clients from USA'), call **execute_database_query** directly.
-2. Use **generate_and_preview_query** ONLY when:
-   - You are unsure of table or column names
-   - Complex joins or relationships are required
-   - Schema understanding is needed to build the correct query
-3. All SQL must be a single SELECT query (or PRAGMA). No INSERT/UPDATE/DELETE/DDL allowed.
-4. **execute_database_query** automatically validates the SQL:
-   - Confirms tables exist
-   - Confirms columns exist
-   - Auto-corrects mismatched names when possible
-   - Returns an error if the query cannot fit the database schema
-5. Do NOT ask the user to approve queries unless they explicitly request preview.
-6. Results may be exported to PDF after execution.
+1. If you need to understand the database structure, use **get_database_schema_info** first.
+2. For complex queries or when unsure about table structures, use **get_table_preview** to see sample data.
+3. Generate SQL queries based on user requests and execute them directly using **execute_database_query**.
+4. **DO NOT** suggest queries to the user before validating them. Always execute queries directly.
+5. **execute_database_query** automatically:
+   - Validates and corrects table names (e.g., "customers" -> "clients")
+   - Validates and corrects column names (e.g., "client_id" -> "customer_id")
+   - Retries up to 10 times to fix the query automatically
+   - Returns results only when the query is valid and executes successfully
+   - Returns an error only if all 10 correction attempts fail
+6. All SQL must be a single SELECT query (or PRAGMA). No INSERT/UPDATE/DELETE/DDL allowed.
+7. The user should only see successful results or final error messages - all correction happens automatically in the background.
+8. Results may be exported to PDF after execution.
 ''') if DATABASE_TOOLS_AVAILABLE else ''}
 
 ### Response Guidelines
@@ -566,7 +574,12 @@ def get_llm_provider(tools=None):
     if tools is None:
         tools = [doc_loader, code_reviewer]
         if DATABASE_TOOLS_AVAILABLE:
-            tools.extend([generate_and_preview_query, execute_database_query, get_database_schema])
+            tools.extend([
+                get_database_schema_info,
+                get_table_preview,
+                validate_sql_query,
+                execute_database_query,
+            ])
 
     # Configure LLM based on provider
     if llm_provider == 'OLLAMA':
@@ -670,16 +683,21 @@ def execute_tool(tool_name, tool_args):
             return code_reviewer.invoke(tool_args)
         except Exception as e:
             return f"Error executing code_reviewer: {e}"
-    elif tool_name == 'get_database_schema' and DATABASE_TOOLS_AVAILABLE:
+    elif tool_name == 'get_database_schema_info' and DATABASE_TOOLS_AVAILABLE:
         try:
-            return get_database_schema.invoke(tool_args)
+            return get_database_schema_info.invoke(tool_args)
         except Exception as e:
-            return f"Error executing get_database_schema: {e}"
-    elif tool_name == 'generate_and_preview_query' and DATABASE_TOOLS_AVAILABLE:
+            return f"Error executing get_database_schema_info: {e}"
+    elif tool_name == 'get_table_preview' and DATABASE_TOOLS_AVAILABLE:
         try:
-            return generate_and_preview_query.invoke(tool_args)
+            return get_table_preview.invoke(tool_args)
         except Exception as e:
-            return f"Error executing generate_and_preview_query: {e}"
+            return f"Error executing get_table_preview: {e}"
+    elif tool_name == 'validate_sql_query' and DATABASE_TOOLS_AVAILABLE:
+        try:
+            return validate_sql_query.invoke(tool_args)
+        except Exception as e:
+            return f"Error executing validate_sql_query: {e}"
     elif tool_name == 'execute_database_query' and DATABASE_TOOLS_AVAILABLE:
         try:
             return execute_database_query.invoke(tool_args)

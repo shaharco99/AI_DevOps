@@ -42,11 +42,11 @@ def create_sample_database():
     cursor.execute('''
     CREATE TABLE orders (
         id INTEGER PRIMARY KEY,
-        customer_id INTEGER,
+        client_id INTEGER,
         order_date DATE,
         total_amount DECIMAL(10, 2),
         status TEXT,
-        FOREIGN KEY (customer_id) REFERENCES clients(id)
+        FOREIGN KEY (client_id) REFERENCES clients(id)
     )
     ''')
 
@@ -122,9 +122,9 @@ EXAMPLE QUERIES TO TRY:
    "List all orders from the USA"
 
 2. Aggregations:
-   "How many orders did each customer place?"
+   "How many orders did each client place?"
    "What's the total revenue by country?"
-   "Show average order value per customer"
+   "Show average order value per client"
 
 3. Filtering & Sorting:
    "Show me orders worth more than $200, sorted by amount"
@@ -135,7 +135,7 @@ EXAMPLE QUERIES TO TRY:
    "Which clients were added this year?"
 
 5. Joins:
-   "Show me each order with the customer name and email"
+   "Show me each order with the client name and email"
    "List clients with their total order amounts"
 
 6. Complex:
@@ -185,7 +185,7 @@ def main():
     print(f"Database file: {db_path}")
     print('\nTables:')
     print('  - clients (id, name, email, country, created_date, is_active)')
-    print('  - orders (id, customer_id, order_date, total_amount, status)')
+    print('  - orders (id, client_id, order_date, total_amount, status)')
     print('  - products (id, name, category, price, stock)')
 
     example_queries()
