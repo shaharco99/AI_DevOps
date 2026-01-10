@@ -1,8 +1,8 @@
 -r base.txt
 detect-secrets
 docker
+PathSpec
 pre-commit
 pytest
 python-dotenv
 safety
-PathSpec

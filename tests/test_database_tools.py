@@ -45,15 +45,6 @@ def test_validate_and_fix_sql_basic(sample_db):
     assert 'orders' in fixed2
 
 
-# Note: generate_sql_with_rag function was removed - database queries are now handled through tools
-# This test is skipped as the function no longer exists
-def test_generate_sql_with_rag_dummy(sample_db):
-    """Test SQL generation with RAG using a dummy LLM callable."""
-    # Function was removed - database queries are now handled through tools directly
-    # This test is kept for reference but will be skipped
-    pytest.skip('generate_sql_with_rag function was removed - queries are now handled through tools')
-
-
 def test_execute_query_returns_rows(sample_db):
     """Test that execute_query returns rows correctly."""
     q = "SELECT c.id, c.name, c.country, o.id as order_id, o.status FROM clients c JOIN orders o ON c.id = o.client_id WHERE o.status='pending'"

@@ -6,6 +6,7 @@ import os
 import re
 from typing import List, Optional
 
+import chromadb
 from langchain.tools import tool
 from langchain_community.document_loaders import BSHTMLLoader, CSVLoader, JSONLoader, PyPDFLoader, TextLoader
 from pathspec import PathSpec
@@ -17,11 +18,14 @@ try:
     logger.setLevel(getattr(logging, _lvl))
 except Exception:
     logger.setLevel(logging.INFO)
-# Vault file can be configured via environment variable
-VAULT_FILE = os.getenv('VAULT_FILE', 'vault.txt')
+
+# ChromaDB collection name can be configured via environment variable
+CHROMA_COLLECTION = os.getenv('CHROMA_COLLECTION', 'rag_collection')
+
 try:
     # Some environments include pypdf; loaders are preferred but guard anyway
     import pypdf  # type: ignore
+
     pypdf_AVAILABLE = True
 except Exception:
     pypdf_AVAILABLE = False
@@ -358,15 +362,15 @@ def _chunk_text(text: str, max_size: int = 1000) -> list[str]:
     return chunks
 
 
-def append_to_vault(file_path: str, vault_path: str = 'vault.txt') -> str:
-    """Load a file and append its textual chunks to `vault_path`.
+def append_to_vault(file_path: str, collection_name: str = 'rag_collection') -> str:
+    """Load a file and append its textual chunks to a ChromaDB collection.
 
     This is a non-interactive replacement for the old GUI upload script. It
     supports PDF, TXT, JSON and other formats via the same loader used by
     `doc_loader` when possible.
     """
-    vp = vault_path or VAULT_FILE
-    logger.info("Appending '%s' to vault '%s'", file_path, vp)
+    collection_name = collection_name or CHROMA_COLLECTION
+    logger.info("Appending '%s' to collection '%s'", file_path, collection_name)
     try:
         loader = get_loader_for_file(file_path)
     except Exception as e:
@@ -392,7 +396,9 @@ def append_to_vault(file_path: str, vault_path: str = 'vault.txt') -> str:
                 logger.exception("PDF fallback failed for '%s'", file_path)
                 return f"Error loading PDF fallback: {e2}"
         else:
-            logger.exception("Loader failed for '%s' and no fallback available", file_path)
+            logger.exception(
+                "Loader failed for '%s' and no fallback available", file_path
+            )
             return f"Error loading file '{file_path}': {e}"
 
     # Consolidate text from documents
@@ -403,36 +409,49 @@ def append_to_vault(file_path: str, vault_path: str = 'vault.txt') -> str:
     chunks = _chunk_text(full_text, max_size=1000)
 
     try:
-        os.makedirs(os.path.dirname(vp) or '.', exist_ok=True)
-        with open(vp, 'a', encoding='utf-8') as vault_file:
-            for chunk in chunks:
-                vault_file.write(chunk.strip() + '\n')
-        logger.info("Wrote %d chunks to vault '%s'", len(chunks), vp)
+        client = chromadb.Client()
+        collection = client.get_or_create_collection(name=collection_name)
+        collection.add(
+            documents=chunks,
+            metadatas=[{'source': file_path} for _ in chunks],
+            ids=[f"{file_path}_{i}" for i in range(len(chunks))],
+        )
+        logger.info(
+            "Wrote %d chunks to collection '%s'", len(chunks), collection_name
+        )
     except Exception as e:
-        logger.exception("Error writing to vault '%s'", vp)
-        return f"Error writing to vault '{vp}': {e}"
+        logger.exception("Error writing to collection '%s'", collection_name)
+        return f"Error writing to collection '{collection_name}': {e}"
 
-    return f"Appended {len(chunks)} chunk(s) from '{file_path}' to '{vault_path}'"
+    return f"Appended {len(chunks)} chunk(s) from '{file_path}' to collection '{collection_name}'"
 
 
 @tool
-def upload_file_to_vault(file_path: str, vault_path: Optional[str] = None) -> str:
+def upload_file_to_vault(
+    file_path: str, collection_name: Optional[str] = None
+) -> str:
     """Tool wrapper for appending a file to the vault. Returns a status message.
 
     Args:
         file_path: Path to the file to append.
-        vault_path: Optional path to vault file (defaults to `vault.txt` in cwd).
+        collection_name: Optional name of the ChromaDB collection.
     """
-    vp = vault_path or VAULT_FILE
-    logger.debug('upload_file_to_vault called with %s -> %s', file_path, vp)
-    return append_to_vault(file_path, vault_path=vp)
+    collection_name = collection_name or CHROMA_COLLECTION
+    logger.debug(
+        'upload_file_to_vault called with %s -> %s', file_path, collection_name
+    )
+    return append_to_vault(file_path, collection_name=collection_name)
 
 
-def load_folder_to_vault(folder_path: str, vault_path: str = 'vault.txt', recursive: bool = True) -> str:
+def load_folder_to_vault(
+    folder_path: str,
+    collection_name: str = 'rag_collection',
+    recursive: bool = True,
+) -> str:
     """Load all supported documents from a folder into the vault file.
 
     - `folder_path`: path to directory containing documents (if empty or missing, no error).
-    - `vault_path`: path to vault file to append to.
+    - `collection_name`: path to vault file to append to.
     - `recursive`: whether to walk directories recursively.
 
     Returns a short summary string with counts.
@@ -442,12 +461,27 @@ def load_folder_to_vault(folder_path: str, vault_path: str = 'vault.txt', recurs
         return 'No folder provided'
 
     if not os.path.exists(folder_path) or not os.path.isdir(folder_path):
-        logger.warning("load_folder_to_vault: folder '%s' does not exist or is not a directory", folder_path)
+        logger.warning(
+            "load_folder_to_vault: folder '%s' does not exist or is not a directory",
+            folder_path,
+        )
         return f"Folder '{folder_path}' not found"
 
-    # resolve vault path (allow env/configured default via VAULT_FILE)
-    vp = vault_path or VAULT_FILE
-    supported_exts = {'.pdf', '.txt', '.md', '.csv', '.json', '.html', '.htm', '.docx', '.pptx', '.xls', '.xlsx'}
+    # resolve vault path (allow env/configured default via CHROMA_COLLECTION)
+    collection_name = collection_name or CHROMA_COLLECTION
+    supported_exts = {
+        '.pdf',
+        '.txt',
+        '.md',
+        '.csv',
+        '.json',
+        '.html',
+        '.htm',
+        '.docx',
+        '.pptx',
+        '.xls',
+        '.xlsx',
+    }
     files_found = []
     for root, dirs, files in os.walk(folder_path):
         for f in files:
@@ -458,31 +492,23 @@ def load_folder_to_vault(folder_path: str, vault_path: str = 'vault.txt', recurs
             break
 
     if not files_found:
-        logger.info("load_folder_to_vault: no supported files found in '%s'", folder_path)
+        logger.info(
+            "load_folder_to_vault: no supported files found in '%s'", folder_path
+        )
         return 'No files to load'
 
     appended = 0
     errors = []
     for fp in files_found:
         try:
-            res = append_to_vault(fp, vault_path=vp)
+            res = append_to_vault(fp, collection_name=collection_name)
             logger.info('Loaded %s -> %s', fp, res)
             appended += 1
         except Exception as e:
             logger.exception("Error appending '%s' to vault", fp)
             errors.append((fp, str(e)))
 
-    return f"Scanned {len(files_found)} file(s), appended {appended} to '{vp}'" + (f", {len(errors)} errors" if errors else '')
-
-
-def get_vault_count(vault_path: str | None = None) -> int:
-    """Return number of lines (chunks) in the vault file. Returns 0 if missing."""
-    vp = vault_path or VAULT_FILE
-    try:
-        if not os.path.exists(vp):
-            return 0
-        with open(vp, 'r', encoding='utf-8') as fh:
-            return sum(1 for _ in fh)
-    except Exception:
-        logger.exception('get_vault_count failed for %s', vp)
-        return 0
+    return (
+        f"Scanned {len(files_found)} file(s), appended {appended} to '{collection_name}'"
+        + (f", {len(errors)} errors" if errors else '')
+    )

@@ -1,4 +1,5 @@
 -i https://pkgs.safetycli.com/repository/home-e3a2a/project/mcp/pypi/simple/
+chromadb
 fastapi
 fastmcp
 langchain

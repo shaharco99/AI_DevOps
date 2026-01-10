@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import getpass
-import hashlib as _hashlib
 import json
 import json as _json
 import logging
@@ -10,9 +9,8 @@ import subprocess
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, Optional
 
-import numpy as _np
 from dotenv import load_dotenv
 
 try:
@@ -82,10 +80,9 @@ You are a DevOps and CI/CD expert assistant. Provide concise, actionable technic
 {db_tools_text}
 
 ### RAG / Retrieval Guidelines
-- Use the local vault (`VAULT_FILE`) to retrieve context when answering questions about documents or the repository.
-- Prefer vector-based retrieval (cosine similarity) when embeddings are available; otherwise use word-overlap fallback.
-- If you reference content from the vault, include the matching chunk(s) or summarize them and cite that they came from the local vault.
-- Do not fabricate facts; if the vault or tools do not contain the information, be explicit about missing data.
+- Use the ChromaDB collection to retrieve context when answering questions about documents or the repository.
+- If you reference content from the collection, include the matching chunk(s) or summarize them and cite that they came from the local knowledge base.
+- Do not fabricate facts; if the knowledge base or tools do not contain the information, be explicit about missing data.
 
 ### File Processing Rules
 1. When a user references a file, automatically load it with **doc_loader**.
@@ -178,16 +175,13 @@ def _append_usage_entry(log_file: Path, entry: Dict[str, Any]):
 # are available; when clients are passed in they will be used.
 # ---------------------------------------------------------------------
 
-try:
-    import torch as _torch
-    TORCH_AVAILABLE = True
-except Exception:
-    TORCH_AVAILABLE = False
 
 try:
-    from Tools import VAULT_FILE
+    import chromadb
+    from Tools import CHROMA_COLLECTION
 except Exception:
-    VAULT_FILE = 'vault.txt'
+    chromadb = None
+    CHROMA_COLLECTION = 'rag_collection'
 
 # Module logger
 logger = logging.getLogger(__name__)
@@ -198,218 +192,23 @@ except Exception:
     logger.setLevel(logging.INFO)
 
 
-def get_relevant_context(rewritten_input: str, vault_embeddings=None, vault_content: Optional[list] = None, top_k: int = 3) -> list:
-    """Return top-k relevant vault_content entries for rewritten_input.
-
-    If `vault_embeddings` is provided and PyTorch is available, cosine
-    similarity will be used. Otherwise a simple word-overlap heuristic is
-    applied.
+def get_relevant_context(rewritten_input: str, collection_name: str = 'rag_collection', top_k: int = 3) -> list:
+    """Return top-k relevant entries from a ChromaDB collection.
     """
-    if not vault_content:
-        logger.debug('get_relevant_context: empty vault_content')
+    if not chromadb:
         return []
 
-    # Try vector search when embeddings are available or cached
     try:
-        # If caller provided a torch tensor of embeddings
-        if vault_embeddings is not None and TORCH_AVAILABLE and isinstance(vault_embeddings, _torch.Tensor):
-            try:
-                # compute query embedding if caller passed one as first element
-                # otherwise fall back to overlap
-                query_emb = None
-                # Can't compute query embedding without a client here; skip
-                if query_emb is not None:
-                    cos_scores = _torch.cosine_similarity(query_emb.unsqueeze(0), vault_embeddings)
-                    top_k = min(top_k, len(cos_scores))
-                    top_indices = _torch.topk(cos_scores, k=top_k)[1].tolist()
-                    return [vault_content[idx].strip() for idx in top_indices]
-            except Exception:
-                logger.debug('torch vector search failed', exc_info=True)
-        # If caller provided numpy embeddings
-        if vault_embeddings is not None and isinstance(vault_embeddings, (_np.ndarray, list, tuple)):
-            try:
-                emb_matrix = _np.array(vault_embeddings)
-                # compute a simple bag-of-words embedding for the query as fallback
-                q_vec = _simple_text_to_vector(rewritten_input, emb_matrix.shape[1])
-                norms = _np.linalg.norm(emb_matrix, axis=1)
-                qnorm = _np.linalg.norm(q_vec)
-                if qnorm == 0 or norms.sum() == 0:
-                    raise Exception('zero norm')
-                scores = (emb_matrix @ q_vec) / (norms * qnorm + 1e-12)
-                idxs = list(_np.argsort(scores)[::-1][:top_k])
-                return [vault_content[i].strip() for i in idxs]
-            except Exception:
-                logger.debug('numpy vector search failed', exc_info=True)
-        # Try loading cached embeddings from vault file and performing vector search
-        cache_emb, cache_lines = _load_vault_embedding_cache()
-        if cache_emb is not None and len(cache_lines) > 0:
-            try:
-                q_vec = _compute_query_vector(rewritten_input, cache_emb.shape[1])
-                norms = _np.linalg.norm(cache_emb, axis=1)
-                qnorm = _np.linalg.norm(q_vec)
-                scores = (cache_emb @ q_vec) / (norms * qnorm + 1e-12)
-                idxs = list(_np.argsort(scores)[::-1][:top_k])
-                return [cache_lines[i].strip() for i in idxs]
-            except Exception:
-                logger.debug('cached vector search failed', exc_info=True)
+        client = chromadb.Client()
+        collection = client.get_collection(name=collection_name or CHROMA_COLLECTION)
+        results = collection.query(
+            query_texts=[rewritten_input],
+            n_results=top_k
+        )
+        return results.get('documents', [])[0]
     except Exception:
-        logger.debug('vector search section failed', exc_info=True)
-    # Simple word-overlap fallback scoring (if vector search didn't return)
-    try:
-        query_words = set(rewritten_input.lower().split())
-        scores = []
-        for i, txt in enumerate(vault_content):
-            words = set(str(txt).lower().split())
-            score = len(query_words.intersection(words))
-            scores.append((score, i))
-        scores.sort(key=lambda x: x[0], reverse=True)
-        top = [vault_content[i].strip() for _, i in scores[:top_k] if scores]
-        logger.debug('get_relevant_context returning %d items', len(top))
-        return top
-    except Exception:
-        logger.exception('word-overlap fallback failed in get_relevant_context')
+        logger.exception("Error querying ChromaDB collection '%s'", collection_name)
         return []
-
-
-def _get_vault_path(vault_path: Optional[str] = None) -> str:
-    return vault_path or VAULT_FILE or os.getenv('VAULT_FILE', 'vault.txt')
-
-
-def _load_vault_lines(vault_path: Optional[str] = None) -> list:
-    vp = _get_vault_path(vault_path)
-    if not os.path.exists(vp):
-        return []
-    try:
-        with open(vp, 'r', encoding='utf-8') as fh:
-            return [ln.rstrip('\n') for ln in fh.readlines() if ln.strip()]
-    except Exception:
-        logger.exception('Failed to read vault file %s', vp)
-        return []
-
-
-def _cache_path_for_vault(vault_path: Optional[str] = None) -> str:
-    vp = _get_vault_path(vault_path)
-    return vp + '.emb.npz'
-
-
-def _load_vault_embedding_cache(vault_path: Optional[str] = None) -> Tuple[Optional[_np.ndarray], list]:
-    cp = _cache_path_for_vault(vault_path)
-    if not os.path.exists(cp):
-        return None, []
-    try:
-        data = _np.load(cp, allow_pickle=True)
-        emb = data['embeddings']
-        lines = data['lines'].tolist() if 'lines' in data else _load_vault_lines(vault_path)
-        return emb, lines
-    except Exception:
-        logger.exception('Failed to load embedding cache %s', cp)
-        return None, []
-
-
-def _save_vault_embedding_cache(emb: _np.ndarray, lines: list, vault_path: Optional[str] = None) -> str:
-    cp = _cache_path_for_vault(vault_path)
-    try:
-        _np.savez_compressed(cp, embeddings=emb, lines=_np.array(lines, dtype=object))
-        return cp
-    except Exception:
-        logger.exception('Failed to save embedding cache %s', cp)
-        return ''
-
-
-def _simple_text_to_vector(text: str, dim: int) -> _np.ndarray:
-    """Deterministic fallback vector for text: use SHA256 bytes to fill the vector."""
-    if not text:
-        return _np.zeros(dim, dtype=float)
-    h = _hashlib.sha256(text.encode('utf-8')).digest()
-    # Expand hash bytes to required dim by repeating and converting to floats
-    b = bytearray(h)
-    repeats = (dim + len(b) - 1) // len(b)
-    arr = (b * repeats)[:dim]
-    vec = _np.frombuffer(bytes(arr), dtype=_np.uint8).astype(float)
-    # Normalize
-    norm = _np.linalg.norm(vec)
-    return vec / (norm + 1e-12)
-
-
-def _compute_query_vector(query: str, dim: int) -> _np.ndarray:
-    # Try Ollama/OpenAI if available; otherwise use simple fallback
-    try:
-        import ollama as _ollama  # type: ignore
-        model = os.getenv('OLLAMA_EMBED_MODEL', 'mxbai-embed-large')
-        resp = _ollama.embeddings(model=model, prompt=query)
-        emb = _np.array(resp.get('embedding'))
-        if emb.size == dim:
-            return emb
-        # else fall through to resizing
-    except Exception:
-        pass
-    try:
-        from openai import OpenAI as _OpenAI  # type: ignore
-        client = _OpenAI()
-        model = os.getenv('OPENAI_EMBED_MODEL', 'text-embedding-3-large')
-        resp = client.embeddings.create(model=model, input=query)
-        emb = _np.array(resp.data[0].embedding)
-        if emb.size == dim:
-            return emb
-    except Exception:
-        pass
-    # fallback
-    return _simple_text_to_vector(query, dim)
-
-
-def compute_and_cache_vault_embeddings(vault_path: Optional[str] = None, dim: int = 384, force: bool = False) -> Tuple[Optional[_np.ndarray], list]:
-    """Compute embeddings for every line in the vault and cache them.
-
-    Attempts to use Ollama/OpenAI if available; otherwise uses a deterministic
-    hash-based fallback so vector search can operate offline.
-    """
-    vp = _get_vault_path(vault_path)
-    lines = _load_vault_lines(vp)
-    if not lines:
-        return None, []
-
-    cp = _cache_path_for_vault(vp)
-    if os.path.exists(cp) and not force:
-        try:
-            data = _np.load(cp, allow_pickle=True)
-            return data['embeddings'], data['lines'].tolist()
-        except Exception:
-            logger.warning('Failed to read existing cache, will recompute', exc_info=True)
-
-    emb_list = []
-    # Try Ollama first
-    try:
-        import ollama as _ollama  # type: ignore
-        model = os.getenv('OLLAMA_EMBED_MODEL', 'mxbai-embed-large')
-        for ln in lines:
-            resp = _ollama.embeddings(model=model, prompt=ln)
-            emb_list.append(_np.array(resp.get('embedding')))
-        emb = _np.vstack(emb_list)
-        _save_vault_embedding_cache(emb, lines, vp)
-        return emb, lines
-    except Exception:
-        logger.debug('Ollama embeddings not available or failed', exc_info=True)
-
-    # Try OpenAI
-    try:
-        from openai import OpenAI as _OpenAI  # type: ignore
-        client = _OpenAI()
-        model = os.getenv('OPENAI_EMBED_MODEL', 'text-embedding-3-large')
-        for ln in lines:
-            resp = client.embeddings.create(model=model, input=ln)
-            emb_list.append(_np.array(resp.data[0].embedding))
-        emb = _np.vstack(emb_list)
-        _save_vault_embedding_cache(emb, lines, vp)
-        return emb, lines
-    except Exception:
-        logger.debug('OpenAI embeddings not available or failed', exc_info=True)
-
-    # Fallback deterministic vectors
-    for ln in lines:
-        emb_list.append(_simple_text_to_vector(ln, dim))
-    emb = _np.vstack(emb_list)
-    _save_vault_embedding_cache(emb, lines, vp)
-    return emb, lines
 
 
 def rewrite_query(user_input_json: str, conversation_history: list, client=None, ollama_model: Optional[str] = None) -> str:
@@ -451,7 +250,7 @@ def rewrite_query(user_input_json: str, conversation_history: list, client=None,
     return _json.dumps({'Rewritten Query': user_input})
 
 
-def ollama_chat(user_input: str, system_message: str, vault_embeddings, vault_content: list, ollama_model: Optional[str], conversation_history: list, client=None) -> str:
+def ollama_chat(user_input: str, system_message: str, ollama_model: Optional[str], conversation_history: list, client=None) -> str:
     """Simple chat wrapper to integrate rewritten queries and context.
 
     If `client` is provided a real LLM call will be attempted; otherwise a
@@ -469,7 +268,7 @@ def ollama_chat(user_input: str, system_message: str, vault_embeddings, vault_co
     else:
         rewritten_query = user_input
 
-    relevant_context = get_relevant_context(rewritten_query, vault_embeddings, vault_content)
+    relevant_context = get_relevant_context(rewritten_query)
     context_str = '\n'.join(relevant_context) if relevant_context else ''
 
     user_input_with_context = user_input
