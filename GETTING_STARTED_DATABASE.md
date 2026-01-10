@@ -32,7 +32,7 @@ Your MCP project now has a complete **database query capability** where:
 
 ```bash
 cd c:\Users\shahar.cohen\source\repos\MCP
-pip install -r requirements.txt
+pip install -r requirements/dev.txt
 ```
 
 Key additions:
@@ -298,7 +298,7 @@ AI: Remembers context and uses database tools appropriately
 **Solution:**
 ```bash
 # Reinstall dependencies
-pip install --upgrade -r requirements.txt
+pip install --upgrade -r requirements/dev.txt
 
 # For PostgreSQL support
 pip install psycopg2-binary

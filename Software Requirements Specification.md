@@ -83,7 +83,7 @@ Stores local text files for smarter prompt responses.
 mkdir llm-ci && cd llm-ci
 python -m venv venv
 source venv/bin/activate
-pip install -r requirements.txt
+pip install -r requirements/dev.txt
 ```
 
 ### 4.2 Dependencies
@@ -107,7 +107,7 @@ llm-ci/
   │   ├── llm_manager.py
   │   ├── rag_engine.py
   ├── llm-ci.config.yaml
-  ├── requirements.txt
+  ├── requirements/
   └── README.md
 ```
 

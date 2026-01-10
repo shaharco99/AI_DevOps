@@ -1,0 +1,8 @@
+-r base.txt
+detect-secrets
+docker
+pre-commit
+pytest
+python-dotenv
+safety
+PathSpec

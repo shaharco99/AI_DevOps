@@ -101,18 +101,18 @@ def test_select_star_executes():
 
 def test_case_insensitive_table_names():
     """Test that table names are matched case-insensitively."""
-    q = "SELECT name FROM CLIENTS"
+    q = 'SELECT name FROM CLIENTS'
     ok, msg, fixed = database_tools.validate_and_fix_sql(q)
     assert ok is True, f"Should handle uppercase table names: {msg}"
-    
-    q = "SELECT name FROM Clients"
+
+    q = 'SELECT name FROM Clients'
     ok, msg, fixed = database_tools.validate_and_fix_sql(q)
     assert ok is True, f"Should handle mixed case table names: {msg}"
 
 
 def test_table_name_fuzzy_matching():
     """Test that similar table names are suggested."""
-    q = "SELECT name FROM client"  # Missing 's'
+    q = 'SELECT name FROM client'  # Missing 's'
     ok, msg, fixed = database_tools.validate_and_fix_sql(q)
     # Should either fix it or suggest 'clients'
     assert ok is True or 'client' in msg.lower()
@@ -121,7 +121,7 @@ def test_table_name_fuzzy_matching():
 def test_complex_join_with_aliases():
     """Test complex JOIN queries with table aliases."""
     q = """
-    SELECT 
+    SELECT
         c.name as client_name,
         o.order_date,
         o.total_amount,
@@ -139,12 +139,12 @@ def test_complex_join_with_aliases():
 
 def test_query_with_comments_blocked():
     """Test that queries with SQL comments are blocked."""
-    q = "SELECT name FROM clients -- This is a comment"
+    q = 'SELECT name FROM clients -- This is a comment'
     ok, msg = database_tools.is_safe_select_query(q)
     assert ok is False
     assert 'comment' in msg.lower()
-    
-    q = "SELECT name FROM clients /* This is a comment */"
+
+    q = 'SELECT name FROM clients /* This is a comment */'
     ok, msg = database_tools.is_safe_select_query(q)
     assert ok is False
     assert 'comment' in msg.lower()
@@ -152,7 +152,7 @@ def test_query_with_comments_blocked():
 
 def test_query_with_semicolon_blocked():
     """Test that queries with semicolons are blocked."""
-    q = "SELECT name FROM clients;"
+    q = 'SELECT name FROM clients;'
     ok, msg = database_tools.is_safe_select_query(q)
     assert ok is False
     assert 'semicolon' in msg.lower()
@@ -160,18 +160,18 @@ def test_query_with_semicolon_blocked():
 
 def test_empty_query_handling():
     """Test handling of empty or whitespace-only queries."""
-    q = ""
+    q = ''
     ok, msg, fixed = database_tools.validate_and_fix_sql(q)
     assert ok is False
-    
-    q = "   "
+
+    q = '   '
     ok, msg, fixed = database_tools.validate_and_fix_sql(q)
     assert ok is False
 
 
 def test_malformed_sql_handling():
     """Test handling of malformed SQL queries."""
-    q = "SELECT FROM"  # Missing columns and table
+    q = 'SELECT FROM'  # Missing columns and table
     ok, msg, fixed = database_tools.validate_and_fix_sql(q)
     assert ok is False or 'column' in msg.lower()
 
@@ -179,9 +179,9 @@ def test_malformed_sql_handling():
 def test_get_table_preview_empty_table():
     """Test get_table_preview with an empty table."""
     # First create an empty table
-    rows, err = database_tools.execute_query("CREATE TABLE IF NOT EXISTS empty_test (id INTEGER, name TEXT)")
+    rows, err = database_tools.execute_query('CREATE TABLE IF NOT EXISTS empty_test (id INTEGER, name TEXT)')
     if not err:
         result = database_tools.get_table_preview.invoke({'table_name': 'empty_test'})
         assert 'no rows' in result.lower() or 'empty' in result.lower() or 'exists' in result.lower()
         # Cleanup
-        database_tools.execute_query("DROP TABLE IF EXISTS empty_test")
+        database_tools.execute_query('DROP TABLE IF EXISTS empty_test')

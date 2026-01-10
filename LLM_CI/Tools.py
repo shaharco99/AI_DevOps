@@ -20,11 +20,11 @@ except Exception:
 # Vault file can be configured via environment variable
 VAULT_FILE = os.getenv('VAULT_FILE', 'vault.txt')
 try:
-    # Some environments include PyPDF2; loaders are preferred but guard anyway
-    import PyPDF2  # type: ignore
-    PYPDF2_AVAILABLE = True
+    # Some environments include pypdf; loaders are preferred but guard anyway
+    import pypdf  # type: ignore
+    pypdf_AVAILABLE = True
 except Exception:
-    PYPDF2_AVAILABLE = False
+    pypdf_AVAILABLE = False
 
 # Optional loaders
 try:
@@ -377,12 +377,12 @@ def append_to_vault(file_path: str, vault_path: str = 'vault.txt') -> str:
         documents = loader.load()
     except Exception as e:
         logger.warning("Primary loader failed for '%s': %s", file_path, e)
-        # Fallback: try a very simple PDF reader if PyPDF2 available
-        if file_path.lower().endswith('.pdf') and PYPDF2_AVAILABLE:
+        # Fallback: try a very simple PDF reader if pypdf available
+        if file_path.lower().endswith('.pdf') and pypdf_AVAILABLE:
             try:
                 text = ''
                 with open(file_path, 'rb') as fh:
-                    reader = PyPDF2.PdfReader(fh)
+                    reader = pypdf.PdfReader(fh)
                     for p in reader.pages:
                         page_txt = p.extract_text() or ''
                         text += page_txt + ' '

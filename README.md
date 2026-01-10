@@ -123,7 +123,7 @@ python LLM_CI/cli.py --prompt "Review the code in Chat.py for best practices"
 
 **File analysis:**
 ```bash
-python LLM_CI/cli.py --prompt "Load requirements.txt and suggest improvements"
+python LLM_CI/cli.py --prompt "Load requirements/dev.txt and suggest improvements"
 ```
 
 **Complex prompt from file:**
@@ -154,7 +154,7 @@ python LLM_CI/cli.py --prompt "Load config.json" --verbose
 **Shell script:**
 ```bash
 #!/bin/bash
-RESPONSE=$(python LLM_CI/cli.py --prompt "Check if requirements.txt has security issues")
+RESPONSE=$(python LLM_CI/cli.py --prompt "Check if requirements/dev.txt has security issues")
 echo "Analysis: $RESPONSE"
 ```
 
@@ -322,7 +322,7 @@ This repository runs a small MCP (Multi-Chat Plugin) server exposing DevOps tool
 ```powershell
 # create venv and install
 python -m venv .venv; .\.venv\Scripts\Activate.ps1
-pip install -r requirements.txt
+pip install -r requirements/dev.txt
 
 # run server
 python server.py

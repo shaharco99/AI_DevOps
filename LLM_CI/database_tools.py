@@ -316,19 +316,19 @@ def fuzzy_match(name: str, candidates: List[str]) -> Optional[str]:
 
     for cand in candidates:
         cand_low = cand.lower()
-        
+
         # Exact match
         if name_low == cand_low:
             return cand
-        
+
         # Character overlap score
         char_score = sum(c1 == c2 for c1, c2 in zip(name_low, cand_low)) / max(len(cand_low), 1)
-        
+
         # Substring match bonus (e.g., "customers" contains "customer" which is close to "clients")
         substring_bonus = 0
         if name_low in cand_low or cand_low in name_low:
             substring_bonus = 0.2
-        
+
         # Common prefix/suffix bonus
         prefix_bonus = 0
         suffix_bonus = 0
@@ -340,9 +340,9 @@ def fuzzy_match(name: str, candidates: List[str]) -> Optional[str]:
             # Check last 3 chars
             if len(name_low) >= 3 and len(cand_low) >= 3 and name_low[-3:] == cand_low[-3:]:
                 suffix_bonus = 0.15
-        
+
         total_score = char_score + substring_bonus + prefix_bonus + suffix_bonus
-        
+
         if total_score > best_score:
             best_score = total_score
             best = cand
@@ -408,7 +408,7 @@ def _convert_sqlite_syntax(sql: str) -> str:
         else:
             # Generic conversion
             return f"strftime('%{extract_type[0]}', {date_expr})"
-    
+
     # Pattern: EXTRACT(MONTH FROM o.order_date) or EXTRACT (MONTH FROM o.order_date)
     sql = re.sub(
         r'EXTRACT\s*\(\s*(\w+)\s+FROM\s+([^)]+)\s*\)',
@@ -416,7 +416,7 @@ def _convert_sqlite_syntax(sql: str) -> str:
         sql,
         flags=re.IGNORECASE
     )
-    
+
     return sql
 
 
@@ -713,7 +713,7 @@ def get_table_preview(table_name: str, limit: int = 5) -> str:
     """
     Get a preview of sample rows from a specific table.
     Use this tool to understand the data structure and sample values in a table before querying it.
-    
+
     Args:
         table_name: The name of the table to preview
         limit: Maximum number of rows to return (default: 5)
@@ -722,16 +722,16 @@ def get_table_preview(table_name: str, limit: int = 5) -> str:
         rows = _get_table_preview(table_name, limit)
         if not rows:
             return f"Could not retrieve preview for table '{table_name}'. Table may not exist or is empty."
-        
+
         if len(rows) == 0:
             return f"Table '{table_name}' exists but contains no rows."
-        
+
         # Format the preview nicely
         lines = [f"Preview of table '{table_name}' ({len(rows)} rows):"]
         for i, row in enumerate(rows, 1):
             row_str = ', '.join([f"{k}: {v}" for k, v in row.items()])
             lines.append(f"  Row {i}: {row_str}")
-        
+
         return '\n'.join(lines)
     except Exception as e:
         return f"Error retrieving table preview: {str(e)}"
@@ -743,7 +743,7 @@ def validate_sql_query(sql_query: str) -> str:
     Validate and attempt to auto-correct a SQL SELECT query against the database schema.
     This tool checks table/column names and can automatically fix common issues.
     Returns validation status and any corrections made.
-    
+
     Use this tool before executing queries to ensure they will work correctly.
     """
     try:
@@ -759,7 +759,7 @@ def validate_sql_query(sql_query: str) -> str:
 
         # 2) Validate and fix
         is_valid, msg, fixed_sql = validate_and_fix_sql(sql_query)
-        
+
         if is_valid:
             if fixed_sql != sql_query:
                 return json.dumps({
@@ -798,7 +798,7 @@ def execute_database_query(sql_query: str) -> str:
     The query will be automatically validated and corrected in the background (up to 10 attempts).
     Only returns an error if all correction attempts fail.
     Returns the query results in JSON format.
-    
+
     IMPORTANT: Only SELECT and PRAGMA queries are allowed. All other SQL operations are blocked.
     This tool automatically fixes common issues like:
     - Column name mismatches (e.g., client_id -> customer_id)
@@ -813,7 +813,7 @@ def execute_database_query(sql_query: str) -> str:
 
     # 2) Convert to SQLite syntax first (EXTRACT -> strftime, etc.)
     current_sql = _convert_sqlite_syntax(sql_query)
-    
+
     # 2.5) Check for incomplete/malformed queries
     # Check for incomplete function calls (e.g., "EXTRACT (MONTH FROM o.o" without closing paren)
     if re.search(r'EXTRACT\s*\([^)]*$', current_sql, re.IGNORECASE):
@@ -826,11 +826,11 @@ def execute_database_query(sql_query: str) -> str:
     last_error_msg = ''
     max_retries = 10
     schema = get_sqlite_schema()
-    
+
     for attempt in range(1, max_retries + 1):
         # Validate and attempt to fix
         is_valid, msg, fixed_sql = validate_and_fix_sql(current_sql)
-        
+
         # If validation fails due to syntax errors, try to fix common issues
         if not is_valid and 'syntax error' in msg.lower():
             # Try to fix incomplete queries
@@ -839,10 +839,9 @@ def execute_database_query(sql_query: str) -> str:
             match = re.search(incomplete_pattern, fixed_sql)
             if match and not match.group(2):
                 # Incomplete reference like "o." - try to infer from context
-                table_alias = match.group(1)
+                match.group(1)
                 # This is complex - skip for now, let it fail gracefully
-                pass
-        
+
         if is_valid:
             # Valid query found - try to execute it
             results, err = execute_query(fixed_sql)
@@ -870,7 +869,7 @@ def execute_database_query(sql_query: str) -> str:
                 # Extract identifiers and try intelligent fixes
                 tables, columns = extract_query_identifiers(current_sql)
                 made_progress = False
-                
+
                 # FIRST: Fix table names (e.g., customers -> clients)
                 for table_name in tables:
                     if table_name not in schema:
@@ -887,18 +886,18 @@ def execute_database_query(sql_query: str) -> str:
                             for schema_table in schema.keys():
                                 schema_lower = schema_table.lower()
                                 # Check if they share significant characters
-                                if (table_lower[:3] == schema_lower[:3] or 
+                                if (table_lower[:3] == schema_lower[:3] or
                                     table_lower[-3:] == schema_lower[-3:] or
-                                    table_lower in schema_lower or schema_lower in table_lower):
+                                        table_lower in schema_lower or schema_lower in table_lower):
                                     if len(table_name) >= 5 and len(schema_table) >= 5:
                                         current_sql = re.sub(rf'\b{re.escape(table_name)}\b', schema_table, current_sql, flags=re.IGNORECASE)
                                         made_progress = True
                                         LOG.info(f"Fixed table name {table_name} -> {schema_table} (substring match)")
                                         break
-                
+
                 # Re-extract after table name fixes
                 tables, columns = extract_query_identifiers(current_sql)
-                
+
                 # Build alias -> table mapping
                 alias_map: Dict[str, str] = {}
                 from_join_pattern = r'(FROM|JOIN)\s+([A-Za-z0-9_]+)(?:\s+([A-Za-z0-9_]+))?'
@@ -909,12 +908,12 @@ def execute_database_query(sql_query: str) -> str:
                         alias_map[alias] = tbl
                     else:
                         alias_map[tbl] = tbl  # Table name is also its own alias
-                
+
                 # Try to fix column names by checking actual table schemas
                 for col in columns:
                     if col == '*':
                         continue
-                    
+
                     # Check if column exists in any table
                     col_exists = any(col in cols for cols in schema.values())
                     if not col_exists:
@@ -922,7 +921,7 @@ def execute_database_query(sql_query: str) -> str:
                         all_cols = []
                         for tbl_cols in schema.values():
                             all_cols.extend(tbl_cols)
-                        
+
                         match = fuzzy_match(col, all_cols)
                         if match:
                             # Find which table has this column
@@ -932,7 +931,7 @@ def execute_database_query(sql_query: str) -> str:
                                     current_sql = re.sub(rf'\b{col}\b', match, current_sql, flags=re.IGNORECASE)
                                     made_progress = True
                                     break
-                    
+
                     # Also check prefixed columns (table.column or alias.column)
                     prefixed_pattern = rf'(\w+)\.{re.escape(col)}\b'
                     for match_obj in re.finditer(prefixed_pattern, current_sql, flags=re.IGNORECASE):
@@ -944,7 +943,7 @@ def execute_database_query(sql_query: str) -> str:
                             if col not in tbl_cols:
                                 # Try to find similar column in this table
                                 match = fuzzy_match(col, tbl_cols)
-                                
+
                                 # Also check for common patterns (e.g., client_id -> customer_id)
                                 # If column ends with _id and we're in a JOIN context, check for other _id columns
                                 if not match and col.endswith('_id'):
@@ -960,7 +959,7 @@ def execute_database_query(sql_query: str) -> str:
                                         elif len(non_id_cols) > 1:
                                             # Multiple options - use fuzzy match on the _id columns
                                             match = fuzzy_match(col, non_id_cols)
-                                
+
                                 if match:
                                     # Replace with correct column
                                     current_sql = re.sub(
@@ -971,20 +970,20 @@ def execute_database_query(sql_query: str) -> str:
                                     )
                                     made_progress = True
                                     LOG.info(f"Fixed column {prefix}.{col} -> {prefix}.{match}")
-                
+
                 if made_progress:
                     last_error_msg = msg
                     continue
-                
+
                 # If no progress, try using fixed_sql from validation
                 if fixed_sql != current_sql:
                     current_sql = fixed_sql
                     last_error_msg = msg
                     continue
-            
+
             # No more progress possible
             last_error_msg = msg
-                
+
     # All attempts exhausted - return helpful error message
     schema_preview = ''
     try:
@@ -994,7 +993,7 @@ def execute_database_query(sql_query: str) -> str:
             schema_preview = f"\n\nDatabase schema:\n{preview}"
     except Exception:
         pass
-    
+
     return json.dumps({
         'error': (
             f'Could not create a valid query after {max_retries} attempts. '

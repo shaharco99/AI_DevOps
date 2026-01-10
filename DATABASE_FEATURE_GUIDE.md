@@ -16,7 +16,7 @@ The database query feature allows users to ask natural language questions about 
 ### 1. Install Dependencies
 
 ```bash
-pip install -r requirements.txt
+pip install -r requirements/dev.txt
 ```
 
 Key packages for database support:

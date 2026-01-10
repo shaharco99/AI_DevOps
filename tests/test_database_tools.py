@@ -35,7 +35,7 @@ def test_validate_and_fix_sql_basic(sample_db):
     assert ok is True, f"Simple validation failed with message: {msg}"
     assert fixed.strip().upper().startswith('SELECT')
     assert 'clients' in fixed
-    
+
     # Now test a JOIN query
     q2 = "SELECT c.name, o.status FROM clients c JOIN orders o ON c.id = o.client_id WHERE c.country = 'USA' AND o.status = 'pending'"
     ok2, msg2, fixed2 = database_tools.validate_and_fix_sql(q2)
@@ -51,7 +51,7 @@ def test_generate_sql_with_rag_dummy(sample_db):
     """Test SQL generation with RAG using a dummy LLM callable."""
     # Function was removed - database queries are now handled through tools directly
     # This test is kept for reference but will be skipped
-    pytest.skip("generate_sql_with_rag function was removed - queries are now handled through tools")
+    pytest.skip('generate_sql_with_rag function was removed - queries are now handled through tools')
 
 
 def test_execute_query_returns_rows(sample_db):
@@ -83,7 +83,7 @@ def test_get_table_preview(sample_db):
     assert isinstance(result, str)
     assert 'clients' in result.lower()
     assert 'Preview' in result or 'Row' in result
-    
+
     # Test with non-existent table
     result = database_tools.get_table_preview.invoke({'table_name': 'nonexistent_table'})
     assert 'not exist' in result.lower() or 'error' in result.lower()
@@ -101,7 +101,7 @@ def test_validate_sql_query_tool_valid(sample_db):
 
 def test_validate_sql_query_tool_invalid(sample_db):
     """Test validate_sql_query tool with an invalid query."""
-    q = "SELECT nonexistent_column FROM clients"
+    q = 'SELECT nonexistent_column FROM clients'
     result = database_tools.validate_sql_query.invoke({'sql_query': q})
     data = json.loads(result)
     assert data['valid'] is False
@@ -121,9 +121,9 @@ def test_validate_sql_query_tool_unsafe(sample_db):
 def test_is_safe_select_query_valid(sample_db):
     """Test is_safe_select_query with valid SELECT queries."""
     valid_queries = [
-        "SELECT * FROM clients",
-        "SELECT name FROM clients WHERE id = 1",
-        "PRAGMA table_info(clients)",
+        'SELECT * FROM clients',
+        'SELECT name FROM clients WHERE id = 1',
+        'PRAGMA table_info(clients)',
     ]
     for q in valid_queries:
         ok, msg = database_tools.is_safe_select_query(q)
@@ -135,8 +135,8 @@ def test_is_safe_select_query_forbidden(sample_db):
     forbidden_queries = [
         "INSERT INTO clients VALUES (1, 'Test')",
         "UPDATE clients SET name = 'Test'",
-        "DELETE FROM clients",
-        "DROP TABLE clients",
+        'DELETE FROM clients',
+        'DROP TABLE clients',
     ]
     for q in forbidden_queries:
         ok, msg = database_tools.is_safe_select_query(q)
@@ -157,7 +157,7 @@ def test_execute_query_with_join(sample_db):
 
 def test_execute_query_aggregation(sample_db):
     """Test execute_query with aggregation functions."""
-    q = "SELECT country, COUNT(*) as client_count FROM clients GROUP BY country"
+    q = 'SELECT country, COUNT(*) as client_count FROM clients GROUP BY country'
     rows, err = database_tools.execute_query(q)
     assert err is None
     assert isinstance(rows, list)

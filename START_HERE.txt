@@ -40,7 +40,7 @@
 🚀 QUICK START (3 Steps - 5 Minutes)
 
 1. Install Dependencies:
-   pip install -r requirements.txt
+   pip install -r requirements/dev.txt
 
 2. Create Sample Database:
    python quick_start_database.py

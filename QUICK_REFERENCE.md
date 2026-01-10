@@ -4,7 +4,7 @@
 
 ```bash
 # 1. Install dependencies
-pip install -r requirements.txt
+pip install -r requirements/dev.txt
 
 # 2. Setup sample database
 python quick_start_database.py
@@ -144,7 +144,7 @@ Save as `LLM_CI/db_config.json`
 | Table not found | Ask agent: "What tables exist in this database?" |
 | Query rejected | Type "no" to ask agent for refined query |
 | PDF won't open | Check query_results/ folder, ensure reportlab installed |
-| Import errors | Run: `pip install --upgrade -r requirements.txt` |
+| Import errors | Run: `pip install --upgrade -r requirements/dev.txt` |
 
 ## 🔗 Integration
 

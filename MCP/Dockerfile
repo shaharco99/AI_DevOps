@@ -20,8 +20,8 @@ RUN curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/s
 WORKDIR /app
 
 # Copy requirements and install
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+COPY requirements/ /app/requirements/
+RUN pip install --no-cache-dir -r /app/requirements/prod.txt
 
 # Copy source code
 COPY . .
