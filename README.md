@@ -225,7 +225,7 @@ python LLM_CI/ChatGUI.py
 
 During startup the GUI will call `load_folder_to_vault()` (if `RAG_DOCS_DIR` is set) and then `compute_and_cache_vault_embeddings()` so vector retrieval is available by default.
 
-3. Upload single files using the GUI `📎` button. After uploading the assistant will prefill the input with an example prompt like `Analyze the file <filename>...`.
+3. Upload single files using the GUI `📎` button. After uploading the assistant will prefill the input with an example prompt like `summerise the content of the file <filename>...`.
 
 4. Ask a question in the GUI. The assistant will:
 - rewrite the query (best-effort) via `LLM_CI/Utils.rewrite_query()`

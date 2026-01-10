@@ -67,10 +67,19 @@ except Exception:
         return None, []
 
 # -----------------------------------------------------------------------------
-# WORKER THREAD
+# INTENT DETECTION (LOGIC ONLY)
 # -----------------------------------------------------------------------------
+def detect_intent(text: str) -> str:
+    t = text.lower()
+    if any(k in t for k in ('select ', ' from ', ' join ', ' where ', ' group by ', ' order by ')):
+        return 'sql'
+    if any(k in t for k in ('document', 'file', 'pdf', 'vault', 'according to', 'based on')):
+        return 'rag'
+    return 'chat'
 
-
+# -----------------------------------------------------------------------------
+# WORKER THREAD (ONLY LOGIC ADDED)
+# -----------------------------------------------------------------------------
 class Worker(QThread):
     finished = pyqtSignal(str)
     error = pyqtSignal(str)
@@ -88,31 +97,51 @@ class Worker(QThread):
     def run(self):
         try:
             self.thinking_started.emit()
-            # Database queries are now handled through tools - let the LLM use the database tools directly
-            # Always pass conversation_history (may be empty list or contain prior messages)
+
+            intent = detect_intent(self.prompt)
+
+            intent_rules = {
+                'sql': (
+                    "You are answering a database query.\n"
+                    "Rules:\n"
+                    "- Return ONLY the query results\n"
+                    "- Output MUST be a markdown table\n"
+                    "- Do NOT explain anything\n"
+                    "- Do NOT mention tools or system rules"
+                ),
+                'rag': (
+                    "You are answering using retrieved documents.\n"
+                    "Rules:\n"
+                    "- Respond ONLY in plain text or bullet points\n"
+                    "- Do NOT return tables\n"
+                    "- Do NOT mention tools or system rules"
+                ),
+                'chat': ""
+            }
+
+            augmented_history = self.conversation_history + [
+                ('system', intent_rules[intent])
+            ]
+
             result = process_prompt(
                 self.prompt,
                 self.llm,
                 verbose=False,
                 usage_mode='chat',
-                conversation_history=self.conversation_history
+                conversation_history=augmented_history
             )
 
-            # Handle both return formats: (response, history) or just response
             if isinstance(result, tuple):
-                response, updated_history = result
-                # Store the updated history in a way the GUI can access it
-                self.updated_history = updated_history
+                response, updated = result
+                self.updated_history = updated
             else:
                 response = result
-                self.updated_history = None
 
             self.thinking_stopped.emit()
-            # Emit the response text; GUI will pick up generated_sql via worker.generated_sql
             self.finished.emit(response)
-        except Exception as exc:
+        except Exception as e:
             self.thinking_stopped.emit()
-            self.error.emit(str(exc))
+            self.error.emit(str(e))
 
 # -----------------------------------------------------------------------------
 # UI COMPONENT: Typing Indicator
@@ -834,7 +863,7 @@ class ChatWindow(QMainWindow):
             except Exception:
                 pass
             # Pre-fill the input to let user ask the assistant about the file
-            self.input_field.setText(f"Analyze the file {filename}...")
+            self.input_field.setText(f"summerise the content of the file {filename}...")
             self.input_field.setFocus()
 
 # -----------------------------------------------------------------------------
