@@ -6,6 +6,7 @@ Supports both direct prompts and prompt files.
 from __future__ import annotations
 
 import argparse
+import logging
 import os
 import sys
 
@@ -46,7 +47,7 @@ Examples:
         '--verbose',
         '-v',
         action='store_true',
-        help='Show tool execution details (printed to stderr)'
+        help='Show tool execution details'
     )
 
     args = parser.parse_args()
@@ -57,23 +58,23 @@ Examples:
     elif args.prompt_file:
         prompt_file = os.path.abspath(args.prompt_file)
         if not os.path.exists(prompt_file):
-            print(f"Error: Prompt file '{prompt_file}' not found", file=sys.stderr)
+            logging.error(f"Error: Prompt file '{prompt_file}' not found")
             sys.exit(1)
         try:
             with open(prompt_file, 'r', encoding='utf-8') as f:
                 prompt = f.read()
         except Exception as e:
-            print(f"Error reading prompt file: {e}", file=sys.stderr)
+            logging.error(f"Error reading prompt file: {e}")
             sys.exit(1)
 
     # Initialize LLM
     try:
-        llm_provider = os.getenv('LLM_PROVIDER', '').upper()
+        llm_provider = os.getenv('LLM_PROVIDER', '')
         llm = get_llm_provider()
         if args.verbose:
-            print(f"Using LLM provider: {llm_provider}\n", file=sys.stderr)
+            logging.info(f"Using LLM provider: {llm_provider}\n")
     except Exception as e:
-        print(f"Error initializing LLM: {e}", file=sys.stderr)
+        logging.error(f"Error initializing LLM: {e}")
         sys.exit(1)
 
     # Process prompt and print result
@@ -81,10 +82,10 @@ Examples:
         response = process_prompt(prompt, llm, verbose=args.verbose, usage_mode='cli')
         print(response)
     except KeyboardInterrupt:
-        print('\nInterrupted by user', file=sys.stderr)
+        logging.error('\nInterrupted by user')
         sys.exit(1)
     except Exception as e:
-        print(f"Error processing prompt: {e}", file=sys.stderr)
+        logging.error(f"Error processing prompt: {e}")
         sys.exit(1)
 
 

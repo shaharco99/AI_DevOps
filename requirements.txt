@@ -11,15 +11,25 @@ langchain-google-genai
 langchain-ollama
 langchain-openai
 langchain_core
+markdown
 mcp-cli
 mcp-server
+mysql-connector-python
+
+# Explicit runtime dependencies for local RAG and embedding support
+numpy
 ollama
+openai
 PathSpec
 pre-commit
+psycopg2-binary
+pyodbc
 pypdf
+PyPDF2
 PyQt6
 pytest
 python-dotenv
+reportlab
 safety
 torch
 torchaudio --index-url https://download.pytorch.org/whl/cpu

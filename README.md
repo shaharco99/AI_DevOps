@@ -1,7 +1,26 @@
 
 # LLM CI Tools
 
-The `LLM_CI/` directory contains AI-powered DevOps assistant tools that can analyze files and provide technical guidance.
+The `LLM_CI/` directory contains AI-powered DevOps assistant tools that can analyze files, provide technical guidance, and query databases.
+
+## 🆕 Database Query Feature
+
+**NEW!** Your AI assistant can now answer questions about your database directly!
+
+- **Natural language queries**: Ask questions like "Show me customers from the USA"
+- **Automatic SQL generation**: The AI generates appropriate SQL queries
+- **Safe execution**: User must approve each query before it runs
+- **Multiple databases**: SQLite, PostgreSQL, and MySQL supported
+- **PDF export**: Generate professional reports with results
+
+**Quick start**:
+```bash
+python quick_start_database.py
+python LLM_CI/Chat.py
+# Then ask: "Show me all customers from the USA"
+```
+
+📖 **Documentation**: See [GETTING_STARTED_DATABASE.md](GETTING_STARTED_DATABASE.md) for complete setup and usage guide.
 
 ### Chat.py - Interactive Chat Interface
 
@@ -179,6 +198,60 @@ Both tools support multiple LLM providers configured via environment variables:
    - Local model execution
    - Auto-pulls missing models
    - No API key required
+
+---
+
+## RAG (Retrieval-Augmented Generation)
+
+This repository includes a simple RAG pipeline that lets the assistant use a local "vault" of document chunks to provide context to the LLM. Vector-based retrieval and embeddings are used by default when possible (a deterministic fallback is available for offline testing).
+
+- **Vault file**: The default vault file is `LLM_CI/vault.txt` (configurable via the `VAULT_FILE` environment variable). Each line in the vault is treated as a chunk/document fragment.
+- **Upload / indexing**: The Chat GUI `Upload` button and the `load_folder_to_vault()` tool in `LLM_CI/Tools.py` append text chunks to the vault.
+- **Embeddings & vector search**: Use `LLM_CI/Utils.compute_and_cache_vault_embeddings()` to compute embeddings for every vault line and cache them to `<vault>.emb.npz`. When available, vector cosine similarity is used to retrieve the top-k relevant chunks. If no external embedding provider is available, a deterministic hash-based fallback embedding is used so retrieval still works offline.
+
+Quick steps to use RAG with the GUI (vector retrieval is enabled by default):
+
+1. (Optional) Set a directory of documents to preload at startup:
+
+```bash
+export RAG_DOCS_DIR=/path/to/your/docs
+```
+
+2. Start the GUI from the repo root:
+
+```bash
+python LLM_CI/ChatGUI.py
+```
+
+During startup the GUI will call `load_folder_to_vault()` (if `RAG_DOCS_DIR` is set) and then `compute_and_cache_vault_embeddings()` so vector retrieval is available by default.
+
+3. Upload single files using the GUI `📎` button. After uploading the assistant will prefill the input with an example prompt like `Analyze the file <filename>...`.
+
+4. Ask a question in the GUI. The assistant will:
+- rewrite the query (best-effort) via `LLM_CI/Utils.rewrite_query()`
+- retrieve the top-k relevant vault chunks via `LLM_CI/Utils.get_relevant_context()`
+- append the retrieved context to the prompt as `Relevant Context:` before calling the LLM
+
+5. (Optional) Precompute embeddings manually for faster startup or after large vault updates:
+
+```bash
+python -c "from LLM_CI.Utils import compute_and_cache_vault_embeddings; compute_and_cache_vault_embeddings()"
+```
+
+Environment variables that affect RAG behavior:
+- `VAULT_FILE` — path to the vault file (default `LLM_CI/vault.txt`)
+- `RAG_DOCS_DIR` or `VAULT_DIR` — folder to preload into the vault at GUI/CLI startup
+- `OLLAMA_EMBED_MODEL` / `OPENAI_EMBED_MODEL` — preferred embedding model names when those providers are available
+
+Notes on offline behavior:
+- If Ollama/OpenAI embeddings are not available the code falls back to a deterministic SHA256-based vector embedding so retrieval still works locally.
+- If no LLM provider is configured the GUI/CLI will still operate and return deterministic fallback replies (e.g. `Echo: ...`) so you can test the RAG pipeline without external services.
+
+Where to look in code:
+- `LLM_CI/Tools.py` — `append_to_vault()`, `upload_file_to_vault()`, `load_folder_to_vault()`, `get_vault_count()`
+- `LLM_CI/Utils.py` — `get_relevant_context()`, `compute_and_cache_vault_embeddings()`, `rewrite_query()`, `ollama_chat()`
+- `LLM_CI/ChatGUI.py` — GUI wiring; upload button and startup preload
+
 
 2. **OPENAI**
    - Requires `OPENAI_API_KEY`

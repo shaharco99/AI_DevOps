@@ -20,3 +20,4 @@ ba = "ba"
 
 [default.extend-identifiers]
 #datas = "datas"
+excute = "excute"

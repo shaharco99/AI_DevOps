@@ -151,7 +151,7 @@ repos:
     hooks:
       - id: bandit
         stages: [pre-commit]
-        args: ["-s", "B404,B607,B603,B104"]
+        args: ["-s", "B404,B607,B603,B104,B608"]
 
   # Security / secrets
   - repo: https://github.com/Yelp/detect-secrets

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import ast
+import logging
 import os
 import re
 from typing import List, Optional
@@ -8,6 +9,22 @@ from typing import List, Optional
 from langchain.tools import tool
 from langchain_community.document_loaders import BSHTMLLoader, CSVLoader, JSONLoader, PyPDFLoader, TextLoader
 from pathspec import PathSpec
+
+# Module logger
+logger = logging.getLogger(__name__)
+_lvl = os.getenv('LOG_LEVEL', 'INFO').upper()
+try:
+    logger.setLevel(getattr(logging, _lvl))
+except Exception:
+    logger.setLevel(logging.INFO)
+# Vault file can be configured via environment variable
+VAULT_FILE = os.getenv('VAULT_FILE', 'vault.txt')
+try:
+    # Some environments include PyPDF2; loaders are preferred but guard anyway
+    import PyPDF2  # type: ignore
+    PYPDF2_AVAILABLE = True
+except Exception:
+    PYPDF2_AVAILABLE = False
 
 # Optional loaders
 try:
@@ -313,3 +330,159 @@ def code_reviewer(
         out.append(f"- Line {ln}: {kind} — {msg}")
 
     return '\n'.join(out)
+
+
+# ---------------------------------------------------------------------
+# Vault append / upload helpers (replaces separate upload.py)
+# ---------------------------------------------------------------------
+
+
+def _chunk_text(text: str, max_size: int = 1000) -> list[str]:
+    """Split long text into sentence-aware chunks up to max_size characters."""
+    if not text:
+        logger.debug('_chunk_text received empty text')
+        return []
+    sentences = re.split(r'(?<=[.!?]) +', text)
+    chunks: list[str] = []
+    cur = ''
+    for s in sentences:
+        if len(cur) + len(s) + 1 < max_size:
+            cur = (cur + ' ' + s).strip() if cur else s.strip()
+        else:
+            if cur:
+                chunks.append(cur.strip())
+            cur = s.strip()
+    if cur:
+        chunks.append(cur.strip())
+    logger.debug('_chunk_text produced %d chunks', len(chunks))
+    return chunks
+
+
+def append_to_vault(file_path: str, vault_path: str = 'vault.txt') -> str:
+    """Load a file and append its textual chunks to `vault_path`.
+
+    This is a non-interactive replacement for the old GUI upload script. It
+    supports PDF, TXT, JSON and other formats via the same loader used by
+    `doc_loader` when possible.
+    """
+    vp = vault_path or VAULT_FILE
+    logger.info("Appending '%s' to vault '%s'", file_path, vp)
+    try:
+        loader = get_loader_for_file(file_path)
+    except Exception as e:
+        logger.exception("Error determining loader for '%s'", file_path)
+        return f"Error determining loader for '{file_path}': {e}"
+
+    try:
+        documents = loader.load()
+    except Exception as e:
+        logger.warning("Primary loader failed for '%s': %s", file_path, e)
+        # Fallback: try a very simple PDF reader if PyPDF2 available
+        if file_path.lower().endswith('.pdf') and PYPDF2_AVAILABLE:
+            try:
+                text = ''
+                with open(file_path, 'rb') as fh:
+                    reader = PyPDF2.PdfReader(fh)
+                    for p in reader.pages:
+                        page_txt = p.extract_text() or ''
+                        text += page_txt + ' '
+                documents = [type('D', (), {'page_content': text})]
+                logger.info("PDF fallback succeeded for '%s'", file_path)
+            except Exception as e2:
+                logger.exception("PDF fallback failed for '%s'", file_path)
+                return f"Error loading PDF fallback: {e2}"
+        else:
+            logger.exception("Loader failed for '%s' and no fallback available", file_path)
+            return f"Error loading file '{file_path}': {e}"
+
+    # Consolidate text from documents
+    full_text = '\n'.join(getattr(doc, 'page_content', '') for doc in documents)
+    # Normalize whitespace
+    full_text = re.sub(r'\s+', ' ', full_text).strip()
+
+    chunks = _chunk_text(full_text, max_size=1000)
+
+    try:
+        os.makedirs(os.path.dirname(vp) or '.', exist_ok=True)
+        with open(vp, 'a', encoding='utf-8') as vault_file:
+            for chunk in chunks:
+                vault_file.write(chunk.strip() + '\n')
+        logger.info("Wrote %d chunks to vault '%s'", len(chunks), vp)
+    except Exception as e:
+        logger.exception("Error writing to vault '%s'", vp)
+        return f"Error writing to vault '{vp}': {e}"
+
+    return f"Appended {len(chunks)} chunk(s) from '{file_path}' to '{vault_path}'"
+
+
+@tool
+def upload_file_to_vault(file_path: str, vault_path: Optional[str] = None) -> str:
+    """Tool wrapper for appending a file to the vault. Returns a status message.
+
+    Args:
+        file_path: Path to the file to append.
+        vault_path: Optional path to vault file (defaults to `vault.txt` in cwd).
+    """
+    vp = vault_path or VAULT_FILE
+    logger.debug('upload_file_to_vault called with %s -> %s', file_path, vp)
+    return append_to_vault(file_path, vault_path=vp)
+
+
+def load_folder_to_vault(folder_path: str, vault_path: str = 'vault.txt', recursive: bool = True) -> str:
+    """Load all supported documents from a folder into the vault file.
+
+    - `folder_path`: path to directory containing documents (if empty or missing, no error).
+    - `vault_path`: path to vault file to append to.
+    - `recursive`: whether to walk directories recursively.
+
+    Returns a short summary string with counts.
+    """
+    if not folder_path:
+        logger.info('load_folder_to_vault: no folder_path provided, skipping')
+        return 'No folder provided'
+
+    if not os.path.exists(folder_path) or not os.path.isdir(folder_path):
+        logger.warning("load_folder_to_vault: folder '%s' does not exist or is not a directory", folder_path)
+        return f"Folder '{folder_path}' not found"
+
+    # resolve vault path (allow env/configured default via VAULT_FILE)
+    vp = vault_path or VAULT_FILE
+    supported_exts = {'.pdf', '.txt', '.md', '.csv', '.json', '.html', '.htm', '.docx', '.pptx', '.xls', '.xlsx'}
+    files_found = []
+    for root, dirs, files in os.walk(folder_path):
+        for f in files:
+            ext = os.path.splitext(f)[1].lower()
+            if ext in supported_exts:
+                files_found.append(os.path.join(root, f))
+        if not recursive:
+            break
+
+    if not files_found:
+        logger.info("load_folder_to_vault: no supported files found in '%s'", folder_path)
+        return 'No files to load'
+
+    appended = 0
+    errors = []
+    for fp in files_found:
+        try:
+            res = append_to_vault(fp, vault_path=vp)
+            logger.info('Loaded %s -> %s', fp, res)
+            appended += 1
+        except Exception as e:
+            logger.exception("Error appending '%s' to vault", fp)
+            errors.append((fp, str(e)))
+
+    return f"Scanned {len(files_found)} file(s), appended {appended} to '{vp}'" + (f", {len(errors)} errors" if errors else '')
+
+
+def get_vault_count(vault_path: str | None = None) -> int:
+    """Return number of lines (chunks) in the vault file. Returns 0 if missing."""
+    vp = vault_path or VAULT_FILE
+    try:
+        if not os.path.exists(vp):
+            return 0
+        with open(vp, 'r', encoding='utf-8') as fh:
+            return sum(1 for _ in fh)
+    except Exception:
+        logger.exception('get_vault_count failed for %s', vp)
+        return 0
