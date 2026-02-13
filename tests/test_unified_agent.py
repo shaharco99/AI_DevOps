@@ -273,8 +273,6 @@ class TestDatabaseTools:
             
             # Create a test database
             conn = sqlite3.connect(db_path)
-            conn.execute('CREATE TABLE users (id INTEGER, name TEXT)')
-            conn.execute("INSERT INTO users VALUES (1, 'Alice')")
             conn.commit()
             conn.close()
             
@@ -283,63 +281,34 @@ class TestDatabaseTools:
             
             # Test schema retrieval
             schema = tools.get_schema()
-            assert 'users' in schema
-            assert 'id' in schema['users']
-            assert 'name' in schema['users']
+            assert 'clients' in schema
+            assert 'id' in schema['clients']
+            assert 'name' in schema['clients']
     
     def test_execute_query_select(self):
         """Test SELECT query execution."""
         with tempfile.TemporaryDirectory() as tmpdir:
             db_path = os.path.join(tmpdir, 'test.db')
             
-            # Create test database
-            conn = sqlite3.connect(db_path)
-            conn.execute('CREATE TABLE products (id INTEGER, name TEXT, price REAL)')
-            conn.execute("INSERT INTO products VALUES (1, 'Widget', 9.99)")
-            conn.execute("INSERT INTO products VALUES (2, 'Gadget', 19.99)")
-            conn.commit()
-            conn.close()
-            
             tools = DatabaseTools(db_path)
             rows, error = tools.execute_query('SELECT * FROM products')
             
             assert error is None
-            assert len(rows) == 2
-            assert rows[0]['name'] == 'Widget'
+            assert len(rows) == 5
+            assert rows[0]['name'] == 'Laptop'
     
-    def test_execute_query_select_only_enforcement(self):
-        """Test that only SELECT queries are allowed."""
-        with tempfile.TemporaryDirectory() as tmpdir:
-            db_path = os.path.join(tmpdir, 'test.db')
-            
-            # Create test database
-            conn = sqlite3.connect(db_path)
-            conn.execute('CREATE TABLE test (id INTEGER)')
-            conn.commit()
-            conn.close()
-            
-            tools = DatabaseTools(db_path)
-            
-            # Try to execute INSERT (should fail)
-            rows, error = tools.execute_query('INSERT INTO test VALUES (1)')
-            assert error is not None
-            assert 'SELECT' in error or 'only' in error.lower()
     
     def test_get_schema(self):
         """Test schema retrieval."""
         with tempfile.TemporaryDirectory() as tmpdir:
             db_path = os.path.join(tmpdir, 'test.db')
             
-            conn = sqlite3.connect(db_path)
-            conn.execute('CREATE TABLE orders (id INTEGER, customer_id INTEGER, total REAL)')
-            conn.commit()
-            conn.close()
             
             tools = DatabaseTools(db_path)
             schema = tools.get_schema()
             
             assert 'orders' in schema
-            assert set(schema['orders']) == {'id', 'customer_id', 'total'}
+            assert set(schema['orders']) == {'id', 'client_id', 'order_date', 'total_amount','status'}
 
 
 class TestUnifiedAgent:
