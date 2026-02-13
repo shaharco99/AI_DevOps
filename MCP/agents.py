@@ -1,5 +1,10 @@
 """
 Agent orchestration using LangChain + Ollama for MCP.
+
+Provides both classic agent (MCPAgentOrchestrator) and advanced agentic RAG agent
+with self-reflection and hybrid routing capabilities.
+
+For the enhanced version, use AgenticRAGAgent directly.
 """
 from __future__ import annotations
 
@@ -11,8 +16,21 @@ from langchain.memory import ConversationBufferMemory
 from langchain.tools import Tool
 from langchain_ollama import OllamaLLM
 
+# Import the advanced agent
+try:
+    from agentic_rag_agent import AgenticRAGAgent
+    ADVANCED_AGENT_AVAILABLE = True
+except ImportError:
+    ADVANCED_AGENT_AVAILABLE = False
+    AgenticRAGAgent = None
+
 
 class MCPAgentOrchestrator:
+    """Classic agent orchestrator with basic tool integration.
+    
+    For advanced features like agentic RAG, self-reflection, and hybrid routing,
+    use AgenticRAGAgent instead.
+    """
     def __init__(self, base_url: str = 'http://localhost:11434'):
         """Initialize the agent orchestrator with Ollama."""
         self.llm = OllamaLLM(base_url=base_url, model='gpt-oss:latest', temperature=0)
@@ -54,3 +72,4 @@ class MCPAgentOrchestrator:
         return [
             {'name': tool.name, 'description': tool.description} for tool in self.tools
         ]
+
