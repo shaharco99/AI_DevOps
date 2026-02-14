@@ -1,5 +1,6 @@
 {
     "python.analysis.extraPaths": [
         "./LLM_CI"
-    ]
+    ],
+    "python.defaultInterpreterPath": "/home/shahar/repos/MCP/.venv/bin/python"
 }

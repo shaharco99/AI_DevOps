@@ -24,7 +24,7 @@ import logging
 import os
 import sys
 from pathlib import Path
-from typing import Optional
+from typing import Dict, Optional
 
 # Add current directory to path for imports
 current_dir = os.path.dirname(os.path.abspath(__file__))

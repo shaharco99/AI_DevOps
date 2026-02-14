@@ -43,10 +43,10 @@ except ImportError:
 
 try:
     from langchain.agents import initialize_agent
-    from langchain.agents.types import AgentType
-    from langchain.memory import ConversationBufferMemory
+    from langchain.agents import AgentType
+    from langchain import ConversationBufferMemory
     from langchain.tools import Tool, tool
-    from langchain_core.language_model import BaseLanguageModel
+    from langchain_core.language_models import BaseLanguageModel
 except ImportError:
     initialize_agent = None
     AgentType = None
@@ -566,30 +566,37 @@ class UnifiedAgent:
     
     def __init__(
         self,
-        base_url: str = 'http://localhost:11434',
-        model: str = 'gpt-oss:latest',
-        collection_name: str = "rag_collection",
-        db_path: str = 'sample_database.db',
-        max_reflection_iterations: int = 3,
+        base_url: Optional[str] = None,
+        model: Optional[str] = None,
+        collection_name: Optional[str] = None,
+        db_path: Optional[str] = None,
+        max_reflection_iterations: Optional[int] = None,
         llm: Optional[BaseLanguageModel] = None
     ):
         """
         Initialize UnifiedAgent.
         
         Args:
-            base_url: Ollama base URL
-            model: Model name
-            collection_name: ChromaDB collection name
-            db_path: Database path
-            max_reflection_iterations: Max reflection loops
+            base_url: Ollama base URL (default from OLLAMA_BASE_URL env var)
+            model: Model name (default from OLLAMA_MODEL env var)
+            collection_name: ChromaDB collection name (default from RAG_COLLECTION_NAME env var)
+            db_path: Database path (default from DB_PATH env var)
+            max_reflection_iterations: Max reflection loops (default from MAX_REFLECTION_ITERATIONS env var)
             llm: Optional pre-configured LLM (for testing/dependency injection)
         """
+        # Load configuration from environment with defaults
+        self.base_url = base_url or os.getenv('OLLAMA_BASE_URL', 'http://localhost:11434')
+        self.model = model or os.getenv('OLLAMA_MODEL', 'llama3.1:8b')
+        self.collection_name = collection_name or os.getenv('RAG_COLLECTION_NAME', 'rag_collection')
+        self.db_path = db_path or os.getenv('DB_PATH', 'sample_database.db')
+        self.max_reflection_iterations = max_reflection_iterations or int(os.getenv('MAX_REFLECTION_ITERATIONS', '3'))
+        
         # Initialize LLM
         if llm is not None:
             self.llm = llm
         elif OllamaLLM is not None:
             try:
-                self.llm = OllamaLLM(base_url=base_url, model=model, temperature=0.3)
+                self.llm = OllamaLLM(base_url=self.base_url, model=self.model, temperature=0.3)
             except Exception as e:
                 logger.warning(
                     f"Failed to initialize OllamaLLM: {e}, using simple dummy LLM "
@@ -646,14 +653,13 @@ class UnifiedAgent:
         
         self.router = QueryRouter(self.llm)
         self.reflector = ReflectionAgent(self.llm)
-        self.vector_retriever = VectorRetriever(collection_name) if chromadb else None
-        self.db_tools = DatabaseTools(db_path)
+        self.vector_retriever = VectorRetriever(self.collection_name) if chromadb else None
+        self.db_tools = DatabaseTools(self.db_path)
         self.memory = ConversationBufferMemory(
             memory_key='chat_history', return_messages=True
         ) if ConversationBufferMemory else None
         self.tools: List[Tool] = []
         self.agent = None
-        self.max_reflection_iterations = max_reflection_iterations
         
         # Tracking
         self.last_query_analysis: Optional[QueryAnalysis] = None
