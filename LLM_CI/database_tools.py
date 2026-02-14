@@ -15,7 +15,10 @@ import os
 import re
 from typing import Any, Dict, List, Optional, Tuple
 
-from langchain.tools import tool
+try:
+    from langchain.tools import tool
+except Exception:
+    tool = None
 
 _db_config: Optional[Dict[str, Any]] = None
 _db_connection = None
@@ -52,8 +55,36 @@ def load_db_config(config_file: Optional[str] = None) -> Dict[str, Any]:
             'database': os.getenv('DB_PATH', 'sample_database.db'),
             'use_uri': os.getenv('DB_USE_URI', 'false').lower() in ('1', 'true', 'yes')
         }
+    elif db_type in ('postgresql', 'postgres'):
+        _db_config = {
+            'type': 'postgresql',
+            'host': os.getenv('DB_HOST', 'localhost'),
+            'port': int(os.getenv('DB_PORT', 5432)),
+            'user': os.getenv('DB_USER', ''),
+            'password': os.getenv('DB_PASSWORD', ''),
+            'database': os.getenv('DB_NAME', ''),
+        }
+    elif db_type in ('mysql',):
+        _db_config = {
+            'type': 'mysql',
+            'host': os.getenv('DB_HOST', 'localhost'),
+            'port': int(os.getenv('DB_PORT', 3306)),
+            'user': os.getenv('DB_USER', ''),
+            'password': os.getenv('DB_PASSWORD', ''),
+            'database': os.getenv('DB_NAME', ''),
+        }
+    elif db_type in ('mssql', 'sqlserver'):
+        _db_config = {
+            'type': 'mssql',
+            'host': os.getenv('DB_HOST', 'localhost'),
+            'port': int(os.getenv('DB_PORT', 1433)),
+            'user': os.getenv('DB_USER', ''),
+            'password': os.getenv('DB_PASSWORD', ''),
+            'database': os.getenv('DB_NAME', ''),
+            'driver': os.getenv('DB_DRIVER', 'ODBC Driver 17 for SQL Server')
+        }
     else:
-        raise ValueError('Only sqlite is supported in this configuration')
+        raise ValueError(f'Unsupported DB_TYPE: {db_type}')
 
     return _db_config
 
@@ -81,6 +112,63 @@ def get_db_connection():
         use_uri = config.get('use_uri', False)
         conn = sqlite3.connect(db_path, check_same_thread=False, uri=use_uri)
         conn.row_factory = sqlite3.Row
+        _db_connection = conn
+        return conn
+
+    # Postgres via psycopg2
+    if db_type == 'postgresql':
+        try:
+            import psycopg2
+        except Exception as e:
+            raise ImportError('psycopg2 is required for PostgreSQL connections') from e
+
+        conn = psycopg2.connect(
+            host=config.get('host'),
+            port=config.get('port'),
+            user=config.get('user'),
+            password=config.get('password'),
+            dbname=config.get('database')
+        )
+        _db_connection = conn
+        return conn
+
+    # MySQL via PyMySQL
+    if db_type == 'mysql':
+        try:
+            import pymysql
+        except Exception as e:
+            raise ImportError('pymysql is required for MySQL connections') from e
+
+        conn = pymysql.connect(
+            host=config.get('host'),
+            port=int(config.get('port', 3306)),
+            user=config.get('user'),
+            password=config.get('password'),
+            db=config.get('database'),
+            cursorclass=None,
+            charset='utf8mb4'
+        )
+        _db_connection = conn
+        return conn
+
+    # MSSQL via pyodbc
+    if db_type == 'mssql':
+        try:
+            import pyodbc
+        except Exception as e:
+            raise ImportError('pyodbc is required for MSSQL connections') from e
+
+        driver = config.get('driver')
+        host = config.get('host')
+        port = config.get('port')
+        database = config.get('database')
+        user = config.get('user')
+        password = config.get('password')
+
+        conn_str = (
+            f'DRIVER={{{driver}}};SERVER={host},{port};DATABASE={database};UID={user};PWD={password}'
+        )
+        conn = pyodbc.connect(conn_str)
         _db_connection = conn
         return conn
 

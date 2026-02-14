@@ -367,11 +367,87 @@ class DatabaseTools:
         """Get database connection."""
         if not self._connection:
             try:
-                import sqlite3
-                if not os.path.exists(self.db_path):
-                    raise FileNotFoundError(f"Database not found: {self.db_path}")
-                self._connection = sqlite3.connect(self.db_path, check_same_thread=False)
-                self._connection.row_factory = sqlite3.Row
+                db_type = os.getenv('DB_TYPE', 'sqlite').lower()
+
+                if db_type == 'sqlite':
+                    import sqlite3
+                    db_path = os.getenv('DB_PATH', self.db_path)
+                    use_uri = os.getenv('DB_USE_URI', 'false').lower() in ('1', 'true', 'yes')
+                    # Try several candidate locations similar to LLM_CI helpers
+                    db_path_expanded = os.path.expanduser(db_path)
+                    if not os.path.isabs(db_path_expanded):
+                        candidates = [
+                            os.path.join(os.getcwd(), db_path_expanded),
+                            os.path.join(os.path.dirname(__file__), db_path_expanded),
+                            os.path.normpath(os.path.join(os.path.dirname(__file__), '..', db_path_expanded)),
+                        ]
+                        found = None
+                        for p in candidates:
+                            if os.path.exists(p):
+                                found = p
+                                break
+                        if not found:
+                            # fallback to provided path
+                            found = candidates[0]
+                        db_path_final = found
+                    else:
+                        db_path_final = db_path_expanded
+
+                    if not os.path.exists(db_path_final):
+                        raise FileNotFoundError(f"Configured SQLite DB not found: {db_path_final}")
+
+                    self._connection = sqlite3.connect(db_path_final, check_same_thread=False, uri=use_uri)
+                    self._connection.row_factory = sqlite3.Row
+
+                elif db_type in ('postgresql', 'postgres'):
+                    try:
+                        import psycopg2
+                    except Exception as e:
+                        raise ImportError('psycopg2 is required for PostgreSQL connections') from e
+
+                    self._connection = psycopg2.connect(
+                        host=os.getenv('DB_HOST', 'localhost'),
+                        port=int(os.getenv('DB_PORT', 5432)),
+                        user=os.getenv('DB_USER', ''),
+                        password=os.getenv('DB_PASSWORD', ''),
+                        dbname=os.getenv('DB_NAME', '')
+                    )
+
+                elif db_type == 'mysql':
+                    try:
+                        import pymysql
+                    except Exception as e:
+                        raise ImportError('pymysql is required for MySQL connections') from e
+
+                    self._connection = pymysql.connect(
+                        host=os.getenv('DB_HOST', 'localhost'),
+                        port=int(os.getenv('DB_PORT', 3306)),
+                        user=os.getenv('DB_USER', ''),
+                        password=os.getenv('DB_PASSWORD', ''),
+                        db=os.getenv('DB_NAME', ''),
+                        charset='utf8mb4'
+                    )
+
+                elif db_type in ('mssql', 'sqlserver'):
+                    try:
+                        import pyodbc
+                    except Exception as e:
+                        raise ImportError('pyodbc is required for MSSQL connections') from e
+
+                    driver = os.getenv('DB_DRIVER', 'ODBC Driver 17 for SQL Server')
+                    host = os.getenv('DB_HOST', 'localhost')
+                    port = os.getenv('DB_PORT', '1433')
+                    database = os.getenv('DB_NAME', '')
+                    user = os.getenv('DB_USER', '')
+                    password = os.getenv('DB_PASSWORD', '')
+                    conn_str = (
+                        f'DRIVER={{{driver}}};SERVER={host},{port};DATABASE={database};UID={user};PWD={password}'
+                    )
+                    self._connection = pyodbc.connect(conn_str)
+
+                else:
+                    raise ValueError(f'Unsupported DB_TYPE: {db_type}')
+
             except Exception as e:
                 logger.error(f"Database connection failed: {e}")
                 raise

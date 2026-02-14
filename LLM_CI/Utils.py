@@ -10,7 +10,11 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-from dotenv import load_dotenv
+try:
+    from dotenv import load_dotenv
+except Exception:
+    def load_dotenv(*_, **__):
+        return None
 
 try:
     from Tools import code_reviewer, doc_loader
