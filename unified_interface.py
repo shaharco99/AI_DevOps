@@ -178,164 +178,74 @@ class UnifiedInterface:
         return result
     
     def run_cli_mode(self, prompt: str, verbose: bool = False):
-        """Execute prompt in CLI mode."""
-        try:
-            from Utils import process_prompt
-            
-            logger.info(f"\n📝 Processing prompt in CLI mode")
-            response = process_prompt(prompt, self.llm, verbose=verbose, usage_mode='cli')
-            
+        """Execute prompt in CLI mode using the UnifiedAgent."""
+        if not self.unified_agent:
+            logger.error("✗ UnifiedAgent not initialized. Cannot start CLI mode.")
+            sys.exit(1)
+
+        logger.info(f"\n📝 Processing prompt in CLI mode with UnifiedAgent")
+        
+        # Run the agent with the user's query
+        result = asyncio.run(self.run_agentic_rag(prompt))
+        
+        # Display the result
+        if result['status'] == 'success':
+            response = result.get('result', 'No result returned.')
             print("\n" + "="*60)
             print("RESPONSE:")
             print("="*60)
             print(response)
             print("="*60 + "\n")
-            
             return response
-        except Exception as e:
-            logger.error(f"✗ CLI execution failed: {e}")
-            print(f"Error: {e}")
+        else:
+            error_message = result.get('error', 'An unknown error occurred.')
+            print("\n" + "="*60)
+            print("ERROR:")
+            print("="*60)
+            print(error_message)
+            print("="*60 + "\n")
             sys.exit(1)
     
     def run_chat_mode(self):
-        """Run interactive chat mode."""
-        try:
-            from Utils import (
-                create_tool_message,
-                execute_tool,
-                extract_tool_info,
-                format_results_as_markdown,
-                log_usage_entry,
-                normalize_args,
-                process_prompt,
-                reset_chat_usage_log,
-                system_message,
-            )
-            from database_tools import is_safe_select_query, validate_and_fix_sql, execute_query
-            
-            reset_chat_usage_log()
-            chat_history = [('system', system_message)]
-            pending_sql = None
-            
-            print("\n" + "="*60)
-            print(f"💬 Chat Mode - Type 'exit' to quit")
-            print(f"Commands: /execute, /cancel, /db <query>, /sql <query>")
-            print("="*60 + "\n")
-            
-            while True:
-                try:
-                    question = input('You: ').strip()
-                except (EOFError, KeyboardInterrupt):
-                    logger.info('\nExiting chat...')
-                    break
-                
-                if question.lower() in ['exit', 'quit']:
-                    logger.info('Exiting chat...')
-                    break
-                
-                if not question:
-                    continue
-                
-                # Handle local commands
-                cmd = question.strip().lower()
-                
-                if cmd in ['/execute', 'execute']:
-                    if not pending_sql:
-                        print("AI: No pending SQL to execute.\n")
-                        continue
-                    
-                    pending_sql = pending_sql.rstrip(';')
-                    ok, safety_msg = is_safe_select_query(pending_sql)
-                    if not ok:
-                        print(f"AI: Query blocked: {safety_msg}\n")
-                        pending_sql = None
-                        continue
-                    
-                    is_valid, msg, fixed_sql = validate_and_fix_sql(pending_sql)
-                    if not is_valid:
-                        print(f"AI: Cannot execute: {msg}\n")
-                        pending_sql = None
-                        continue
-                    
-                    rows, err = execute_query(fixed_sql)
-                    if err:
-                        print(f"AI: Error: {err}\n")
-                    else:
-                        print(f'\nAI: Query executed. Rows returned: {len(rows)}')
-                        if rows:
-                            table_md = format_results_as_markdown(rows, max_rows=10)
-                            print('\n' + table_md + '\n')
-                    pending_sql = None
-                    continue
-                
-                if cmd in ['/cancel', 'cancel']:
-                    if pending_sql:
-                        pending_sql = None
-                        print('AI: Pending SQL cancelled.\n')
-                    else:
-                        print('AI: Nothing to cancel.\n')
-                    continue
-                
-                # Send to LLM
-                chat_history.append(('human', question))
-                tool_call_count = 0
-                tool_error_count = 0
-                
-                while True:
-                    try:
-                        ai_msg = self.llm.invoke(chat_history)
-                    except Exception as e:
-                        logger.error(f"LLM invoke error: {e}")
-                        print('AI: (Error occurred, please try again)\n')
-                        break
-                    
-                    chat_history.append(ai_msg)
-                    tool_calls = getattr(ai_msg, 'tool_calls', None) or []
-                    
-                    if not tool_calls:
-                        response_text = getattr(ai_msg, 'content', '') or ''
-                        if response_text:
-                            try:
-                                from Utils import convert_kv_text_to_markdown
-                                conv = convert_kv_text_to_markdown(response_text)
-                                print('\nAI:\n' + (conv if conv else response_text) + '\n')
-                            except Exception:
-                                print('\nAI:', response_text, '\n')
-                            
-                            # Check for SQL in response
-                            try:
-                                txt = response_text.strip()
-                                if txt.upper().startswith('SELECT'):
-                                    pending_sql = txt
-                                    print("AI: SQL detected — type '/execute' to run, '/cancel' to discard.\n")
-                            except Exception:
-                                pass
-                        break
-                    
-                    tool_call_count += len(tool_calls)
-                    
-                    # Execute tool calls
-                    for tool_call in tool_calls:
-                        try:
-                            tool_name, tool_args, tool_id = extract_tool_info(tool_call)
-                            tool_args = normalize_args(tool_args)
-                            result = execute_tool(tool_name, tool_args)
-                            chat_history.append(create_tool_message(result, tool_id))
-                        except Exception as e:
-                            tool_error_count += 1
-                            chat_history.append(create_tool_message(f"Error: {e}", None))
-        
-        except Exception as e:
-            logger.error(f"✗ Chat mode failed: {e}")
-            print(f"Error: {e}")
+        """Run interactive chat mode using the UnifiedAgent."""
+        if not self.unified_agent:
+            logger.error("✗ UnifiedAgent not initialized. Cannot start chat mode.")
             sys.exit(1)
+
+        print("\n" + "="*60)
+        print(f"💬 Unified Agent Chat Mode - Type 'exit' to quit")
+        print("="*60 + "\n")
+
+        while True:
+            try:
+                question = input('You: ').strip()
+            except (EOFError, KeyboardInterrupt):
+                logger.info('\nExiting chat...')
+                break
+            
+            if question.lower() in ['exit', 'quit']:
+                logger.info('Exiting chat...')
+                break
+            
+            if not question:
+                continue
+            
+            # Run the agent with the user's query
+            result = asyncio.run(self.run_agentic_rag(question))
+            
+            # Display the result
+            if result['status'] == 'success':
+                print('\nAI:\n' + result.get('result', 'No result returned.') + '\n')
+            else:
+                error_message = result.get('error', 'An unknown error occurred.')
+                print('\nAI (Error):\n' + error_message + '\n')
     
     def run_gui_mode(self):
         """Run GUI mode if available."""
         try:
             from ChatGUI import run_gui
             logger.info("🖥️ Launching GUI...")
-            run_gui()
+            run_gui(self.unified_agent)
         except ImportError:
             logger.error("✗ ChatGUI module not found. Install GUI dependencies and try again.")
             sys.exit(1)
@@ -407,6 +317,10 @@ Examples:
     
     # Create interface
     interface = UnifiedInterface()
+    
+    if interface.unified_agent is None:
+        logger.error("✗ Failed to initialize the Unified Agent. Please check the logs for errors, ensure all required packages are installed, and try again. Exiting.")
+        sys.exit(1)
     
     try:
         # Preload RAG documents

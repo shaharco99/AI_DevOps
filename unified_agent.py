@@ -47,7 +47,6 @@ try:
     from langchain.memory import ConversationBufferMemory
     from langchain.tools import Tool, tool
     from langchain_core.language_model import BaseLanguageModel
-    from langchain_ollama import OllamaLLM
 except ImportError:
     initialize_agent = None
     AgentType = None
@@ -55,6 +54,12 @@ except ImportError:
     Tool = None
     tool = None
     BaseLanguageModel = None
+
+# Import Ollama client separately so a missing langchain package doesn't
+# prevent using langchain_ollama when it is installed.
+try:
+    from langchain_ollama import OllamaLLM
+except ImportError:
     OllamaLLM = None
 
 from unittest.mock import MagicMock
@@ -510,11 +515,58 @@ class UnifiedAgent:
             try:
                 self.llm = OllamaLLM(base_url=base_url, model=model, temperature=0.3)
             except Exception as e:
-                logger.warning(f"Failed to initialize OllamaLLM: {e}, using mock for testing")
-                self.llm = MagicMock()
+                logger.warning(
+                    f"Failed to initialize OllamaLLM: {e}, using simple dummy LLM "
+                    "for testing (no real model responses)."
+                )
+
+                class _DummyLLM:
+                    """Simple synchronous LLM stub used when real LLM is unavailable."""
+
+                    def predict(self, text: str) -> str:
+                        return (
+                            "Dummy LLM response (no real model available).\n\n"
+                            f"Echo of your input:\n{text}"
+                        )
+
+                    def invoke(self, text: str):
+                        # Mimic LangChain-style object with .content when possible
+                        class _Resp:
+                            def __init__(self, content: str):
+                                self.content = content
+
+                        return _Resp(self.predict(text))
+
+                    def __call__(self, text: str) -> str:
+                        return self.predict(text)
+
+                self.llm = _DummyLLM()
         else:
-            logger.warning("LangChain OllamaLLM not available, using mock for testing")
-            self.llm = MagicMock()
+            logger.warning(
+                "LangChain OllamaLLM not available, using simple dummy LLM for testing "
+                "(no real model responses)."
+            )
+
+            class _DummyLLM:
+                """Simple synchronous LLM stub used when real LLM is unavailable."""
+
+                def predict(self, text: str) -> str:
+                    return (
+                        "Dummy LLM response (no real model available).\n\n"
+                        f"Echo of your input:\n{text}"
+                    )
+
+                def invoke(self, text: str):
+                    class _Resp:
+                        def __init__(self, content: str):
+                            self.content = content
+
+                    return _Resp(self.predict(text))
+
+                def __call__(self, text: str) -> str:
+                    return self.predict(text)
+
+            self.llm = _DummyLLM()
         
         self.router = QueryRouter(self.llm)
         self.reflector = ReflectionAgent(self.llm)
@@ -541,7 +593,57 @@ class UnifiedAgent:
         self.tools.append(Tool(name=name, func=func, description=description))
     
     def initialize_agent(self):
-        """Initialize the LangChain agent."""
+        """Initialize the LangChain agent.
+
+        Falls back to a simple LLM wrapper if LangChain agents are not available.
+        """
+        # If LangChain agent utilities are unavailable, create a minimal async wrapper
+        if initialize_agent is None or AgentType is None:
+            logger.warning(
+                "LangChain Agent utilities not available. "
+                "Falling back to a simple LLM-based agent. "
+                "Tool usage and advanced agent behaviour will be limited."
+            )
+
+            class _SimpleAsyncAgent:
+                """Minimal async-compatible agent wrapper around the LLM."""
+
+                def __init__(self, llm, tools):
+                    self._llm = llm
+                    self._tools = tools or []
+
+                async def arun(self, query: str) -> str:
+                    """Asynchronously run the LLM on the provided query."""
+                    # Prefer native async APIs if available
+                    if hasattr(self._llm, "apredict"):
+                        return await self._llm.apredict(query)
+                    if hasattr(self._llm, "ainvoke"):
+                        result = await self._llm.ainvoke(query)
+                        return (
+                            result.content
+                            if hasattr(result, "content")
+                            else str(result)
+                        )
+
+                    # Synchronous fallbacks
+                    if hasattr(self._llm, "predict"):
+                        return self._llm.predict(query)
+                    if hasattr(self._llm, "invoke"):
+                        result = self._llm.invoke(query)
+                        return (
+                            result.content
+                            if hasattr(result, "content")
+                            else str(result)
+                        )
+                    if callable(self._llm):
+                        return self._llm(query)
+
+                    raise RuntimeError("LLM instance does not support invocation APIs.")
+
+            self.agent = _SimpleAsyncAgent(self.llm, self.tools)
+            return
+
+        # Normal LangChain agent initialization path
         self.agent = initialize_agent(
             tools=self.tools,
             llm=self.llm,
