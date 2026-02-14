@@ -6,7 +6,8 @@ import sys
 from datetime import datetime
 
 import markdown
-from PyQt6.QtCore import Qt, QThread, QTimer, pyqtSignal
+import logging
+from PyQt6.QtCore import Qt, QThread, QTimer, pyqtSignal, QObject
 from PyQt6.QtGui import QFont
 from PyQt6.QtWidgets import (
     QApplication,
@@ -81,19 +82,22 @@ class Worker(QThread):
 # UI COMPONENT: Typing Indicator
 # -----------------------------------------------------------------------------
 class TypingIndicator(QFrame):
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, initial_text: str | None = None):
         super().__init__(parent)
         self.setFrameShape(QFrame.Shape.NoFrame)
         self.layout = QVBoxLayout(self)
         self.layout.setContentsMargins(12, 10, 12, 8)
         self.layout.setSpacing(4)
-        self.label = QLabel('...')
+        self.label = QLabel(initial_text or '...')
         self.label.setFont(QFont('Segoe UI', 10))
+        self.label.setWordWrap(True)
         self.layout.addWidget(self.label)
         self.timer = QTimer()
         self.timer.timeout.connect(self.animate)
         self.dot_count = 1
-        self.timer.start(500)
+        # Start animation only if no initial_text provided
+        if initial_text is None:
+            self.timer.start(500)
         self.setStyleSheet("""
             TypingIndicator { background-color: #ffffff; border-radius: 15px 15px 15px 0px; }
             QLabel { background-color: transparent; border: none; color: #888; }
@@ -105,6 +109,12 @@ class TypingIndicator(QFrame):
 
     def stop_animation(self):
         self.timer.stop()
+
+    def update_text(self, text: str):
+        """Update the indicator with a message (stop dot animation)."""
+        if self.timer.isActive():
+            self.timer.stop()
+        self.label.setText(text)
 
 # -----------------------------------------------------------------------------
 # UI COMPONENT: Message Bubble
@@ -165,6 +175,32 @@ class MessageRow(QWidget):
             max_width = int(self.parent().width() * 0.85)
             self.bubble.setMaximumWidth(max_width)
 
+
+# -----------------------------------------------------------------------------
+# Qt-friendly logging emitter and handler
+# -----------------------------------------------------------------------------
+class LogEmitter(QObject):
+    message = pyqtSignal(str)
+
+
+class QtLogHandler(logging.Handler):
+    """Logging handler that emits records to a Qt signal for GUI display."""
+    def __init__(self, emitter: LogEmitter):
+        super().__init__()
+        self.emitter = emitter
+        fmt = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        self.setFormatter(fmt)
+
+    def emit(self, record: logging.LogRecord) -> None:
+        try:
+            # Only forward messages from unified_agent logger
+            if 'unified_agent' in (record.name or '') and record.levelno >= logging.INFO:
+                msg = self.format(record)
+                # Emit via Qt signal to ensure thread-safety
+                self.emitter.message.emit(msg)
+        except Exception:
+            self.handleError(record)
+
 # -----------------------------------------------------------------------------
 # MAIN WINDOW (REFACTORED FOR UNIFIED AGENT)
 # -----------------------------------------------------------------------------
@@ -173,6 +209,18 @@ class ChatWindow(QMainWindow):
         super().__init__()
         self.agent = agent
         self.typing_indicator = None
+        # Set up Qt log emitter and handler for unified_agent logs
+        try:
+            self._log_emitter = LogEmitter()
+            self._log_emitter.message.connect(self.on_log_message)
+            handler = QtLogHandler(self._log_emitter)
+            handler.setLevel(logging.INFO)
+            ua_logger = logging.getLogger('unified_agent')
+            ua_logger.setLevel(logging.INFO)
+            ua_logger.addHandler(handler)
+        except Exception:
+            # Non-fatal: logging integration is best-effort
+            pass
         self.setWindowTitle('MCP — DevOps Unified Agent Chat')
         self.resize(800, 900)
 
@@ -242,13 +290,29 @@ class ChatWindow(QMainWindow):
         QTimer.singleShot(10, self.scroll_to_bottom)
         QApplication.processEvents()
 
-    def show_typing_indicator(self):
+    def show_typing_indicator(self, message: str | None = None):
+        """Show typing indicator. If `message` provided, display it instead of animated dots."""
         self.hide_typing_indicator()
-        self.typing_indicator = TypingIndicator(parent=self.chat_container)
+        # Pass initial_text to TypingIndicator so it can display the incoming log
+        self.typing_indicator = TypingIndicator(parent=self.chat_container, initial_text=message)
         container = QWidget(); layout = QHBoxLayout(container); layout.setContentsMargins(0, 4, 0, 4)
         layout.addWidget(self.typing_indicator); layout.addStretch()
         self.chat_layout.insertWidget(self.chat_layout.count() - 1, container)
         QTimer.singleShot(10, self.scroll_to_bottom)
+
+    def on_log_message(self, msg: str):
+        """Slot called when unified_agent emits an INFO log. Show it in typing indicator."""
+        try:
+            # If typing indicator not present, show it with the message
+            if not self.typing_indicator:
+                self.show_typing_indicator(message=msg)
+            else:
+                # Update existing indicator text
+                self.typing_indicator.update_text(msg)
+            QTimer.singleShot(10, self.scroll_to_bottom)
+            QApplication.processEvents()
+        except Exception:
+            pass
 
     def hide_typing_indicator(self):
         if self.typing_indicator:
