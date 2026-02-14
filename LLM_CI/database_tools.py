@@ -26,6 +26,14 @@ _db_connection = None
 LOG = logging.getLogger(__name__)
 LOG.addHandler(logging.NullHandler())
 
+_engine = None
+
+try:
+    from sqlalchemy import create_engine, text as sa_text
+except Exception:
+    create_engine = None
+    sa_text = None
+
 
 # ================================================================
 # CONFIG + CONNECTION
@@ -87,6 +95,73 @@ def load_db_config(config_file: Optional[str] = None) -> Dict[str, Any]:
         raise ValueError(f'Unsupported DB_TYPE: {db_type}')
 
     return _db_config
+
+
+def _build_sqlalchemy_url(cfg: Dict[str, Any]) -> Optional[str]:
+    """Construct a SQLAlchemy URL from the loaded config, if possible."""
+    if not create_engine:
+        return None
+
+    t = cfg.get('type')
+    if t == 'sqlite':
+        db_path = cfg.get('database')
+        if not db_path:
+            return None
+        db_path = os.path.expanduser(db_path)
+        if not os.path.isabs(db_path):
+            db_path = os.path.join(os.getcwd(), db_path)
+        return f"sqlite:///{db_path}"
+
+    if t == 'postgresql':
+        user = cfg.get('user', '')
+        password = cfg.get('password', '')
+        host = cfg.get('host', 'localhost')
+        port = cfg.get('port', 5432)
+        db = cfg.get('database', '')
+        return f"postgresql+psycopg2://{user}:{password}@{host}:{port}/{db}"
+
+    if t == 'mysql':
+        user = cfg.get('user', '')
+        password = cfg.get('password', '')
+        host = cfg.get('host', 'localhost')
+        port = cfg.get('port', 3306)
+        db = cfg.get('database', '')
+        return f"mysql+pymysql://{user}:{password}@{host}:{port}/{db}"
+
+    if t == 'mssql':
+        user = cfg.get('user', '')
+        password = cfg.get('password', '')
+        host = cfg.get('host', 'localhost')
+        port = cfg.get('port', 1433)
+        db = cfg.get('database', '')
+        driver = cfg.get('driver', 'ODBC Driver 17 for SQL Server')
+        from urllib.parse import quote_plus
+        odbc_str = f"DRIVER={{{driver}}};SERVER={host},{port};DATABASE={db};UID={user};PWD={password}"
+        params = quote_plus(odbc_str)
+        return f"mssql+pyodbc:///?odbc_connect={params}"
+
+    return None
+
+
+def get_engine():
+    """Return a SQLAlchemy engine if available and configured."""
+    global _engine
+    if _engine is not None:
+        return _engine
+
+    if not create_engine:
+        return None
+
+    cfg = load_db_config()
+    url = _build_sqlalchemy_url(cfg)
+    if not url:
+        return None
+
+    try:
+        _engine = create_engine(url, future=True)
+        return _engine
+    except Exception:
+        return None
 
 
 def get_db_connection():
@@ -193,7 +268,34 @@ def execute_query(query: str, params=None):
     """
     Executes SQL and returns (results, error)
     """
+    # Prefer SQLAlchemy engine if available for unified behavior
     try:
+        engine = get_engine()
+        if engine is not None:
+            try:
+                conn = engine.connect()
+                if sa_text is not None:
+                    result = conn.execute(sa_text(query))
+                else:
+                    result = conn.execute(query)
+                rows = []
+                try:
+                    for r in result:
+                        # SQLAlchemy 1.4 Row objects expose _mapping
+                        if hasattr(r, '_mapping'):
+                            rows.append(dict(r._mapping))
+                        else:
+                            rows.append(dict(r))
+                except Exception:
+                    # No rows
+                    rows = []
+                conn.close()
+                return rows, None
+            except Exception as e:
+                # Fall back to DB-API path below
+                LOG.warning(f"SQLAlchemy execution failed, falling back: {e}")
+
+        # DB-API fallback
         conn = get_db_connection()
         cur = conn.cursor()
         if params:

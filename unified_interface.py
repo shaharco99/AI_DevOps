@@ -51,8 +51,14 @@ class UnifiedInterface:
         self.llm = None
         self.unified_agent = None
         self.chat_history = []
+        self._runner = None
         self._init_llm()
         self._init_agent()
+        # Create a persistent async runner to avoid repeated loop creation
+        try:
+            self._runner = AsyncRunner()
+        except Exception:
+            self._runner = None
     
     def _init_llm(self):
         """Initialize LLM provider."""
@@ -176,7 +182,7 @@ class UnifiedInterface:
             logger.error(f"✗ RAG Pipeline Failed: {result.get('error')}")
         
         return result
-    
+
     def run_cli_mode(self, prompt: str, verbose: bool = False):
         """Execute prompt in CLI mode using the UnifiedAgent."""
         if not self.unified_agent:
@@ -184,10 +190,13 @@ class UnifiedInterface:
             sys.exit(1)
 
         logger.info(f"\n📝 Processing prompt in CLI mode with UnifiedAgent")
-        
-        # Run the agent with the user's query
-        result = asyncio.run(self.run_agentic_rag(prompt))
-        
+
+        # Run the agent with the user's query using the persistent runner
+        if self._runner:
+            result = self._runner.run(self.run_agentic_rag(prompt))
+        else:
+            result = asyncio.run(self.run_agentic_rag(prompt))
+
         # Display the result
         if result['status'] == 'success':
             response = result.get('result', 'No result returned.')
@@ -205,7 +214,7 @@ class UnifiedInterface:
             print(error_message)
             print("="*60 + "\n")
             sys.exit(1)
-    
+
     def run_chat_mode(self):
         """Run interactive chat mode using the UnifiedAgent."""
         if not self.unified_agent:
@@ -222,41 +231,78 @@ class UnifiedInterface:
             except (EOFError, KeyboardInterrupt):
                 logger.info('\nExiting chat...')
                 break
-            
+
             if question.lower() in ['exit', 'quit']:
                 logger.info('Exiting chat...')
                 break
-            
+
             if not question:
                 continue
-            
+
             # Run the agent with the user's query
-            result = asyncio.run(self.run_agentic_rag(question))
-            
+            if self._runner:
+                result = self._runner.run(self.run_agentic_rag(question))
+            else:
+                result = asyncio.run(self.run_agentic_rag(question))
+
             # Display the result
             if result['status'] == 'success':
                 print('\nAI:\n' + result.get('result', 'No result returned.') + '\n')
             else:
                 error_message = result.get('error', 'An unknown error occurred.')
                 print('\nAI (Error):\n' + error_message + '\n')
-    
+
     def run_gui_mode(self):
         """Run GUI mode if available."""
         try:
             from ChatGUI import run_gui
             logger.info("🖥️ Launching GUI...")
-            run_gui(self.unified_agent)
+            run_gui(self.unified_agent, self._runner)
         except ImportError:
             logger.error("✗ ChatGUI module not found. Install GUI dependencies and try again.")
             sys.exit(1)
         except Exception as e:
             logger.error(f"✗ GUI launch failed: {e}")
             sys.exit(1)
-    
+
     def close(self):
         """Cleanup resources."""
         if self.unified_agent:
             self.unified_agent.close()
+        if getattr(self, '_runner', None):
+            try:
+                self._runner.close()
+            except Exception:
+                pass
+
+
+class AsyncRunner:
+    """Run asyncio coroutines on a dedicated background loop in another thread.
+
+    Use `run(coro)` to synchronously wait for the result.
+    """
+    def __init__(self):
+        import threading
+        self._loop = asyncio.new_event_loop()
+        self._thread = threading.Thread(target=self._start_loop, daemon=True)
+        self._thread.start()
+
+    def _start_loop(self):
+        asyncio.set_event_loop(self._loop)
+        self._loop.run_forever()
+
+    def run(self, coro):
+        if not hasattr(self, '_loop') or self._loop.is_closed():
+            raise RuntimeError('Async runner loop is not available')
+        fut = asyncio.run_coroutine_threadsafe(coro, self._loop)
+        return fut.result()
+
+    def close(self):
+        try:
+            self._loop.call_soon_threadsafe(self._loop.stop)
+        except Exception:
+            pass
+
 
 
 def main():
@@ -334,7 +380,10 @@ Examples:
             if not args.query:
                 logger.error("--query required for RAG mode")
                 sys.exit(1)
-            result = asyncio.run(interface.run_agentic_rag(args.query))
+            if interface._runner:
+                result = interface._runner.run(interface.run_agentic_rag(args.query))
+            else:
+                result = asyncio.run(interface.run_agentic_rag(args.query))
             print("\n" + "="*60)
             print("RAG RESULT:")
             print("="*60)

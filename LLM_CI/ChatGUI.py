@@ -52,10 +52,11 @@ class Worker(QThread):
     finished = pyqtSignal(str)
     error = pyqtSignal(str)
 
-    def __init__(self, prompt: str, agent, parent=None):
+    def __init__(self, prompt: str, agent, runner=None, parent=None):
         super().__init__(parent)
         self.prompt = prompt
         self.agent = agent
+        self.runner = runner
 
     def run(self):
         """
@@ -66,8 +67,16 @@ class Worker(QThread):
                 self.error.emit("UnifiedAgent not initialized.")
                 return
 
-            # asyncio.run() creates a new event loop for the thread
-            result = asyncio.run(self.agent.run(self.prompt))
+            # Prefer shared AsyncRunner when available to avoid creating/closing loops
+            if getattr(self, 'runner', None):
+                try:
+                    result = self.runner.run(self.agent.run(self.prompt))
+                except Exception as e:
+                    # Fall back to thread-local asyncio.run
+                    result = asyncio.run(self.agent.run(self.prompt))
+            else:
+                # asyncio.run() creates a new event loop for the thread
+                result = asyncio.run(self.agent.run(self.prompt))
 
             if result.get('status') == 'success':
                 self.finished.emit(result.get('result', ''))
@@ -332,7 +341,9 @@ class ChatWindow(QMainWindow):
         self.add_chat_bubble(text, is_user=True)
         self.input_field.clear(); self.input_field.setDisabled(True); self.send_btn.setDisabled(True)
         self.show_typing_indicator()
-        self.worker = Worker(text, self.agent); self.worker.finished.connect(self.on_response); self.worker.error.connect(self.on_error)
+        # Pass the optional shared async runner if the agent exposes it
+        runner = getattr(self.agent, '_runner', None)
+        self.worker = Worker(text, self.agent, runner=runner); self.worker.finished.connect(self.on_response); self.worker.error.connect(self.on_error)
         self.worker.start()
 
     def on_response(self, response: str):
@@ -361,7 +372,7 @@ class ChatWindow(QMainWindow):
 # -----------------------------------------------------------------------------
 # APP ENTRY (REFACTORED FOR UNIFIED AGENT)
 # -----------------------------------------------------------------------------
-def run_gui(agent):
+def run_gui(agent, runner=None):
     """
     Launches the PyQt6 GUI for the Unified Agent.
     """
@@ -369,6 +380,13 @@ def run_gui(agent):
     font = QFont('Segoe UI', 9)
     app.setFont(font)
     
+    # Attach runner to agent for worker threads to reuse (non-invasive)
+    if runner is not None:
+        try:
+            setattr(agent, '_runner', runner)
+        except Exception:
+            pass
+
     window = ChatWindow(agent)
     window.show()
     # Always start the Qt event loop so the window is actually shown.

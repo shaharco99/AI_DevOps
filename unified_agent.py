@@ -740,6 +740,46 @@ class UnifiedAgent:
             analysis = self.router.analyze(query)
             self.last_query_analysis = analysis
             
+            # If routing indicates SQL retrieval, and the user's input is a SQL SELECT,
+            # validate and execute it directly, returning results immediately.
+            if analysis.should_retrieve_sql:
+                try:
+                    is_valid, msg = self.db_tools.validate_query(query)
+                    if is_valid:
+                        rows, err = self.db_tools.execute_query(query)
+                        if err:
+                            return {
+                                'status': 'error',
+                                'result': None,
+                                'error': err,
+                                'routing_strategy': analysis.route_type.value,
+                                'routing_confidence': analysis.confidence,
+                                'retrieval_used': {'sql_executed': True}
+                            }
+
+                        # Format rows as a simple table-like string
+                        if rows:
+                            cols = list(rows[0].keys()) if isinstance(rows, list) and len(rows) > 0 else []
+                            lines = [' | '.join(cols)]
+                            lines.append('-' * max(3, sum(len(c) + 3 for c in cols)))
+                            for r in rows:
+                                lines.append(' | '.join(str(r.get(c, '')) for c in cols))
+                            formatted = '\n'.join(lines)
+                        else:
+                            formatted = 'No rows returned.'
+
+                        return {
+                            'status': 'success',
+                            'result': formatted,
+                            'error': None,
+                            'routing_strategy': analysis.route_type.value,
+                            'routing_confidence': analysis.confidence,
+                            'retrieval_used': {'sql_executed': True, 'rows': rows}
+                        }
+                except Exception:
+                    # Fall through to normal agent flow on errors
+                    pass
+
             # Step 2: Retrieve context
             retrieval_results = await self._retrieve_context(query, analysis)
             self.last_retrieval_results = retrieval_results
