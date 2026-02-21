@@ -36,6 +36,9 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
+# Configure logger early so it can be used in imports
+logger = logging.getLogger(__name__)
+
 try:
     import chromadb
 except ImportError:
@@ -47,24 +50,28 @@ try:
     from langchain import ConversationBufferMemory
     from langchain.tools import Tool, tool
     from langchain_core.language_models import BaseLanguageModel
-except ImportError:
+except ImportError as e:
     initialize_agent = None
     AgentType = None
     ConversationBufferMemory = None
     Tool = None
     tool = None
     BaseLanguageModel = None
+    logger.warning(f"LangChain not fully available: {e}")
+    logger.warning(f"  Python executable: {sys.executable}")
+    logger.warning(f"  To fix: Run 'source venv/bin/activate' before running the script")
 
 # Import Ollama client separately so a missing langchain package doesn't
 # prevent using langchain_ollama when it is installed.
 try:
     from langchain_ollama import OllamaLLM
-except ImportError:
+except ImportError as e:
     OllamaLLM = None
+    logger.warning(f"langchain_ollama not available: {e}")
+    logger.warning(f"  Python executable: {sys.executable}")
+    logger.warning(f"  To fix: Run 'source venv/bin/activate' before running the script")
 
 from unittest.mock import MagicMock
-
-logger = logging.getLogger(__name__)
 
 
 class QueryRouteType(str, Enum):
@@ -349,7 +356,8 @@ class DatabaseTools:
                 get_database_schema_info,
                 validate_sql_query,
                 execute_query,
-                get_sqlite_schema
+                get_sqlite_schema,
+                parse_natural_language_query
             )
             self._db_tools_module = {
                 'execute_database_query': execute_database_query,
@@ -357,6 +365,7 @@ class DatabaseTools:
                 'validate_sql_query': validate_sql_query,
                 'execute_query': execute_query,
                 'get_sqlite_schema': get_sqlite_schema,
+                'parse_natural_language_query': parse_natural_language_query
             }
             logger.info("Loaded enhanced database_tools module from LLM_CI")
         except ImportError as e:
@@ -736,13 +745,119 @@ class UnifiedAgent:
             verbose=False,
         )
     
+    async def _try_direct_database_execution(self, query: str) -> Optional[Dict[str, Any]]:
+        """
+        Try to directly execute a database query without LLM analysis.
+        This uses intelligent natural language parsing to handle simple data requests with filters.
+        
+        For queries like "show me all clients from usa", this will:
+        1. Detect the table name (clients)
+        2. Detect the filter condition (from usa)
+        3. Parse and generate proper SQL with WHERE clause
+        4. Execute the query
+        
+        Returns a result dict if a query was successfully executed, None otherwise.
+        """
+        query_lower = query.lower().strip()
+        
+        # List of keywords that indicate a data retrieval request
+        data_request_keywords = [
+            'show', 'get', 'list', 'find', 'count', 'total', 'how many',
+            'all ', 'top ', 'first ', 'last ', 'from ', 'select ',
+            'where ', 'filter', 'search', 'retrieve', 'fetch', 'return'
+        ]
+        
+        # Check if this looks like a data request
+        is_data_request = any(keyword in query_lower for keyword in data_request_keywords)
+        
+        if not is_data_request:
+            return None
+        
+        # Get database schema to understand what tables are available
+        try:
+            if not self.db_tools._db_tools_module or 'get_sqlite_schema' not in self.db_tools._db_tools_module:
+                return None
+            
+            get_schema_func = self.db_tools._db_tools_module['get_sqlite_schema']
+            schema = get_schema_func()
+            
+            if not schema:
+                return None
+        except Exception as e:
+            logger.debug(f"Could not get database schema: {e}")
+            return None
+        
+        table_names = list(schema.keys()) if schema else []
+        if not table_names:
+            return None
+        
+        # Check if query mentions any of the table names
+        mentioned_tables = [
+            tbl for tbl in table_names 
+            if tbl.lower() in query_lower
+        ]
+        
+        if not mentioned_tables:
+            return None
+        
+        # Try to construct and execute a query for each mentioned table
+        for table_name in mentioned_tables:
+            try:
+                # Try to parse the natural language query to extract filters
+                sql_query = None
+                if self.db_tools._db_tools_module and 'parse_natural_language_query' in self.db_tools._db_tools_module:
+                    parse_func = self.db_tools._db_tools_module['parse_natural_language_query']
+                    sql_query = parse_func(query, table_name, schema)
+                
+                # If NL parsing couldn't generate a filtered query, use basic SELECT
+                if not sql_query:
+                    columns = schema.get(table_name, [])
+                    if not columns:
+                        continue
+                    
+                    col_list = ', '.join(columns)
+                    sql_query = f"SELECT {col_list} FROM {table_name} LIMIT 100"
+                
+                # Try to execute
+                rows, err = self.db_tools.execute_query(sql_query)
+                
+                if not err and rows:
+                    # Format as table
+                    cols = list(rows[0].keys()) if rows else []
+                    lines = [f"Results from '{table_name}' table:"]
+                    lines.append(' | '.join(cols))
+                    lines.append('-' * max(3, sum(len(c) + 3 for c in cols)))
+                    for r in rows:
+                        lines.append(' | '.join(str(r.get(c, '')) for c in cols))
+                    formatted = '\n'.join(lines)
+                    
+                    return {
+                        'status': 'success',
+                        'result': formatted,
+                        'error': None,
+                        'routing_strategy': 'sql_only',
+                        'routing_confidence': 0.8,
+                        'retrieval_used': {'sql_executed': True, 'rows': rows}
+                    }
+            except Exception as e:
+                logger.debug(f"Failed to execute query for table {table_name}: {e}")
+                continue
+        
+        return None
+    
     async def run(self, query: str) -> Dict[str, Any]:
         """Run the unified agent with full pipeline."""
         if not self.agent:
             self.initialize_agent()
         
         try:
-            # Step 1: Analyze query
+            # Step 1: Try direct database query execution for common data requests
+            # This works even when LangChain/LLM is unavailable
+            result = await self._try_direct_database_execution(query)
+            if result:
+                return result
+            
+            # Step 2: Analyze query
             analysis = self.router.analyze(query)
             self.last_query_analysis = analysis
             
@@ -786,17 +901,17 @@ class UnifiedAgent:
                     # Fall through to normal agent flow on errors
                     pass
 
-            # Step 2: Retrieve context
+            # Step 3: Retrieve context
             retrieval_results = await self._retrieve_context(query, analysis)
             self.last_retrieval_results = retrieval_results
             
-            # Step 3: Augment query
+            # Step 4: Augment query
             augmented_query = self._augment_query(query, retrieval_results)
             
-            # Step 4: Execute agent
+            # Step 5: Execute agent
             response = await self.agent.arun(augmented_query)
             
-            # Step 5: Reflection loop
+            # Step 6: Reflection loop
             refined_response = await self._reflection_loop(
                 query, response, retrieval_results
             )
@@ -851,8 +966,25 @@ class UnifiedAgent:
         query: str,
         retrieval_results: Dict[str, Any]
     ) -> str:
-        """Augment query with retrieved context."""
-        context_parts = []
+        """Augment query with retrieved context and system instructions."""
+        # System instructions for handling database queries
+        system_instructions = """## Database Query Processing Instructions
+
+When processing database queries:
+1. ALWAYS use the available database tools to construct and execute queries
+2. First call 'get_database_schema_info' to understand the database structure if working with data
+3. For natural language queries requesting data:
+   - Extract ALL filter conditions and constraints from the user's request
+   - Pay special attention to keywords like: FROM, WHERE, FILTER, ONLY, JUST, LIKE, CONTAINS, etc.
+   - Example: "show me all clients from usa" means SELECT FROM clients WHERE country='USA'
+   - Include country/state/region filters in WHERE clauses
+   - Include date ranges in WHERE clauses if mentioned
+4. Use 'execute_database_query' to run the constructed SQL query (the tool will validate and auto-correct it)
+5. Return the results in a clear, formatted manner
+
+IMPORTANT: Never ignore filter conditions or return unfiltered results when the user specifies criteria."""
+        
+        context_parts = [system_instructions]
         
         vector_results = retrieval_results.get('vector_results', [])
         if vector_results:
@@ -862,16 +994,9 @@ class UnifiedAgent:
                 content = doc.get('content', '')[:500]
                 context_parts.append(f"Document {i} (from {source}):\n{content}...")
         
-        if context_parts:
-            return f"""Using the following retrieved context, answer this query:
+        return f"""{''.join(context_parts)}
 
-Original Query: {query}
-
-{''.join(context_parts)}
-
-Please provide a response that incorporates this context."""
-        
-        return query
+User Query: {query}"""
     
     async def _reflection_loop(
         self,

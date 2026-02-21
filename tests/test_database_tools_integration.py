@@ -35,16 +35,16 @@ def sample_db():
 def test_end_to_end_query_workflow(sample_db):
     """Test complete workflow: schema -> validate -> execute."""
     # Step 1: Get schema
-    schema = database_tools.get_database_schema_info.invoke({})
+    schema = database_tools.get_database_schema_info()
     assert 'clients' in schema.lower()
 
     # Step 2: Get table preview
-    preview = database_tools.get_table_preview.invoke({'table_name': 'clients', 'limit': 2})
+    preview = database_tools.get_table_preview('clients', limit=2)
     assert 'clients' in preview.lower()
 
     # Step 3: Validate query
     q = "SELECT name, country FROM clients WHERE country = 'USA'"
-    validation_result = database_tools.validate_sql_query.invoke({'sql_query': q})
+    validation_result = database_tools.validate_sql_query(q)
     validation_data = json.loads(validation_result)
     assert validation_data['valid'] is True
 
@@ -61,7 +61,7 @@ def test_validate_then_execute_workflow(sample_db):
     q = 'SELECT c.name, o.total_amount FROM clients c JOIN orders o ON c.id = o.client_id WHERE o.total_amount > 200'
 
     # Validate first
-    validation_result = database_tools.validate_sql_query.invoke({'sql_query': q})
+    validation_result = database_tools.validate_sql_query(q)
     validation_data = json.loads(validation_result)
 
     if validation_data['valid']:
@@ -74,7 +74,7 @@ def test_validate_then_execute_workflow(sample_db):
 
 def test_schema_info_format(sample_db):
     """Test that schema info is in expected format."""
-    schema = database_tools.get_database_schema_info.invoke({})
+    schema = database_tools.get_database_schema_info()
     assert isinstance(schema, str)
     assert len(schema) > 0
 
@@ -88,7 +88,7 @@ def test_schema_info_format(sample_db):
 
 def test_table_preview_format(sample_db):
     """Test that table preview is in expected format."""
-    preview = database_tools.get_table_preview.invoke({'table_name': 'clients', 'limit': 3})
+    preview = database_tools.get_table_preview('clients', limit=3)
     assert isinstance(preview, str)
     assert 'clients' in preview.lower()
 
@@ -117,7 +117,7 @@ def test_validation_correction_workflow(sample_db):
     # Query with potential issues
     q = "SELECT nme FROM clints WHERE cntry = 'USA'"  # Misspelled names
 
-    validation_result = database_tools.validate_sql_query.invoke({'sql_query': q})
+    validation_result = database_tools.validate_sql_query(q)
     validation_data = json.loads(validation_result)
 
     # May or may not be able to correct, but should provide feedback
@@ -138,7 +138,7 @@ def test_error_handling_invalid_table(sample_db):
             'could not construct' in msg.lower() or 'attempts' in msg.lower())
 
     # Tool validation should also fail
-    validation_result = database_tools.validate_sql_query.invoke({'sql_query': q})
+    validation_result = database_tools.validate_sql_query(q)
     validation_data = json.loads(validation_result)
     assert validation_data['valid'] is False
 
@@ -155,7 +155,7 @@ def test_error_handling_invalid_column(sample_db):
 
 def test_get_table_preview_nonexistent_table(sample_db):
     """Test get_table_preview with non-existent table."""
-    result = database_tools.get_table_preview.invoke({'table_name': 'nonexistent_table_xyz'})
+    result = database_tools.get_table_preview('nonexistent_table_xyz')
     assert 'not exist' in result.lower() or 'error' in result.lower() or 'not found' in result.lower()
 
 

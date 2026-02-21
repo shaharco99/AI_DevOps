@@ -260,6 +260,19 @@ def get_api_key(provider):
     return key
 
 
+def _log_import_error(package_name: str, error: Exception):
+    """Log detailed import error with context."""
+    print(f"\n🔴 ERROR: Could not import '{package_name}'", file=sys.stderr)
+    print(f"   Python executable: {sys.executable}", file=sys.stderr)
+    print(f"   Error: {error}", file=sys.stderr)
+    print(f"\n🔧 Solution:", file=sys.stderr)
+    print(f"   1. Make sure you're using the virtual environment:", file=sys.stderr)
+    print(f"      $ source venv/bin/activate", file=sys.stderr)
+    print(f"   2. Install the package:", file=sys.stderr)
+    print(f"      $ pip install -r requirements.txt", file=sys.stderr)
+    print()
+
+
 def get_llm_provider(tools=None):
     # Get LLM provider from environment or user input
     llm_provider = os.getenv('LLM_PROVIDER', '').upper()
@@ -294,7 +307,11 @@ def get_llm_provider(tools=None):
 
     # Configure LLM based on provider
     if llm_provider == 'OLLAMA':
-        from langchain_ollama import ChatOllama
+        try:
+            from langchain_ollama import ChatOllama
+        except ImportError as e:
+            _log_import_error('langchain-ollama', e)
+            raise
 
         model = os.getenv('OLLAMA_MODEL', 'llama2')
 
@@ -336,7 +353,7 @@ def get_llm_provider(tools=None):
         model = os.getenv('GOOGLE_MODEL', 'gemini-pro')
         llm = ChatGoogleGenerativeAI(api_key=api_key, model=model, temperature=0).bind_tools(tools)
 
-    elif ll_provider == 'ANTHROPIC':
+    elif llm_provider == 'ANTHROPIC':
         try:
             from langchain_anthropic import ChatAnthropic
         except ImportError:

@@ -20,6 +20,13 @@ try:
 except Exception:
     tool = None
 
+# Conditional decorator that works when tool is None
+def conditional_tool(func):
+    """Apply @tool decorator if available, otherwise return function unchanged."""
+    if tool is not None:
+        return tool(func)
+    return func
+
 _db_config: Optional[Dict[str, Any]] = None
 _db_connection = None
 
@@ -258,6 +265,145 @@ def close_db_connection():
         except Exception:
             pass
         _db_connection = None
+
+
+# ================================================================
+# NATURAL LANGUAGE QUERY PARSING
+# ================================================================
+
+def parse_natural_language_query(query: str, table_name: str, schema: Dict[str, List[str]]) -> Optional[str]:
+    """
+    Parse a natural language data query and convert to SQL with filters.
+    
+    Handles various patterns:
+    - Location filters: "from usa", "in canada", "located in uk"
+    - Date filters: "from 2023", "in 2023", "since 2023"
+    - Status filters: "pending orders", "completed orders"
+    - Multiple combined filters
+    
+    Examples:
+    - "show me all clients from usa" -> SELECT * FROM clients WHERE country='USA'
+    - "list customers in california" -> SELECT * FROM customers WHERE state='california'
+    - "find orders from 2023" -> SELECT * FROM orders WHERE year(date)=2023
+    - "show pending orders from usa" -> complex query with multiple filters
+    
+    Returns the generated SQL query or None if no filters found.
+    """
+    query_lower = query.lower()
+    
+    # Get available columns for this table
+    columns = schema.get(table_name, [])
+    if not columns:
+        return None
+    
+    where_clauses = []
+    
+    # ========================================
+    # PATTERN 1: Location filters
+    # ========================================
+    location_pattern = r'\b(?:from|in|located in|base in)\s+([a-zA-Z\s]+?)(?:\s+(?:with|where|and|order|limit)|$)'
+    location_match = re.search(location_pattern, query_lower, re.IGNORECASE)
+    
+    if location_match:
+        location_value = location_match.group(1).strip()
+        
+        # Filter out common words that shouldn't be part of location
+        if location_value not in ['orders', 'clients', '2023', '2024', '2025', '2022', 'pending', 'completed']:
+            # Try to find a column that looks like a location
+            location_columns = [col for col in columns if any(
+                loc_keyword in col.lower() 
+                for loc_keyword in ['country', 'state', 'city', 'region', 'location', 'area', 'province', 'territory']
+            )]
+            
+            if location_columns:
+                col = location_columns[0]
+                # Clean location value - remove trailing prepositions
+                location_value = re.sub(r'\s+(with|where|and|order|limit|by|in).*$', '', location_value, flags=re.IGNORECASE).strip()
+                
+                # Capitalize for matching (e.g., 'usa' -> 'USA', 'canada' -> 'Canada')
+                location_cap = location_value.upper()
+                if location_value.lower() in ['uk', 'us', 'usa']:
+                    location_cap = location_value.upper()
+                else:
+                    # Title case for multi-word (e.g., 'new york' -> 'New York')
+                    location_cap = ' '.join(word.capitalize() for word in location_value.split())
+                
+                # Build WHERE clause with both exact and partial matching
+                if ' ' in location_value:
+                    # Multi-word location
+                    where_clauses.append(f"{col} = '{location_cap}' OR {col} LIKE '{location_cap.split()[0]}%'")
+                else:
+                    # Single word location
+                    where_clauses.append(f"{col} IN ('{location_cap}', '{location_cap.lower()}', '{location_value.upper()}')")
+    
+    # ========================================
+    # PATTERN 2: Date/Year filters
+    # ========================================
+    year_pattern = r'\b(?:from|in|since)\s+(\d{4})\b'
+    year_match = re.search(year_pattern, query_lower)
+    
+    if year_match:
+        year_value = year_match.group(1)
+        
+        # Try to find a date column
+        date_columns = [col for col in columns if any(
+            date_keyword in col.lower()
+            for date_keyword in ['date', 'created', 'updated', 'timestamp', 'time', 'year', 'order_date', 'start_date']
+        )]
+        
+        if date_columns:
+            col = date_columns[0]
+            # Use strftime for SQLite to extract year
+            where_clauses.append(f"strftime('%Y', {col}) = '{year_value}'")
+    
+    # ========================================
+    # PATTERN 3: Status filters
+    # ========================================
+    status_pattern = r'\b(pending|completed|processing|cancelled|active|inactive)\s+(?:orders|orders|items)?'
+    status_match = re.search(status_pattern, query_lower)
+    
+    if status_match:
+        status_value = status_match.group(1)
+        
+        # Try to find a status column
+        status_columns = [col for col in columns if any(
+            status_keyword in col.lower()
+            for status_keyword in ['status', 'state', 'state', 'condition']
+        )]
+        
+        if status_columns:
+            col = status_columns[0]
+            where_clauses.append(f"{col} = '{status_value}'")
+    
+    # ================================================================
+    # PATTERN 4: In/Contains filters (for text search)
+    # ================================================================
+    contains_pattern = r'\b(?:with|containing|include|include)\s+([a-zA-Z\s]+?)(?:\s+(?:where|and|order|limit)|$)'
+    contains_match = re.search(contains_pattern, query_lower)
+    
+    if contains_match:
+        value = contains_match.group(1).strip()
+        
+        # Find text columns (name, email, description, etc.)
+        text_columns = [col for col in columns if any(
+            text_keyword in col.lower()
+            for text_keyword in ['name', 'description', 'email', 'title', 'subject', 'text']
+        )]
+        
+        if text_columns:
+            col = text_columns[0]
+            where_clauses.append(f"{col} LIKE '%{value}%'")
+    
+    # ================================================================
+    # BUILD FINAL SQL QUERY
+    # ================================================================
+    
+    if where_clauses:
+        col_list = ', '.join(columns)
+        where_clause = ' AND '.join(where_clauses)
+        return f"SELECT {col_list} FROM {table_name} WHERE {where_clause} LIMIT 100"
+    
+    return None
 
 
 # ================================================================
@@ -883,7 +1029,7 @@ def _get_table_preview(table: str, limit: int = 5) -> List[Dict[str, Any]]:
 # TOOLS FOR AI AGENT
 # ================================================================
 
-@tool
+@conditional_tool
 def get_database_schema_info() -> str:
     """
     Get the complete database schema including all tables and their columns.
@@ -898,7 +1044,7 @@ def get_database_schema_info() -> str:
         return f"Error retrieving schema: {str(e)}"
 
 
-@tool
+@conditional_tool
 def get_table_preview(table_name: str, limit: int = 5) -> str:
     """
     Get a preview of sample rows from a specific table.
@@ -927,7 +1073,7 @@ def get_table_preview(table_name: str, limit: int = 5) -> str:
         return f"Error retrieving table preview: {str(e)}"
 
 
-@tool
+@conditional_tool
 def validate_sql_query(sql_query: str) -> str:
     """
     Validate and attempt to auto-correct a SQL SELECT query against the database schema.
@@ -981,7 +1127,7 @@ def validate_sql_query(sql_query: str) -> str:
         })
 
 
-@tool
+@conditional_tool
 def execute_database_query(sql_query: str) -> str:
     """
     Execute a SELECT or PRAGMA query against the database.

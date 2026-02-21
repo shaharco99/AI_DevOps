@@ -68,7 +68,7 @@ class UnifiedInterface:
                 self.llm = get_llm_provider()
                 self.system_message = system_message
                 logger.info(f"✓ Initialized LLM provider from Utils")
-            except (ImportError, AttributeError):
+            except (ImportError, AttributeError) as e:
                 # Fallback to direct initialization
                 from langchain_ollama import OllamaLLM
                 self.llm = OllamaLLM(
@@ -78,8 +78,17 @@ class UnifiedInterface:
                 )
                 self.system_message = "You are a helpful DevOps assistant."
                 logger.info("✓ Initialized fallback OllamaLLM")
-        except Exception as e:
+        except ImportError as e:
             logger.error(f"✗ Failed to initialize LLM: {e}")
+            logger.error(f"  Python executable: {sys.executable}")
+            logger.error(f"  Missing package: {str(e).split()[-1] if str(e) else 'unknown'}")
+            logger.error(f"\n  To fix:")
+            logger.error(f"  1. Activate virtual environment: source venv/bin/activate")
+            logger.error(f"  2. Install requirements: pip install -r requirements.txt")
+            sys.exit(1)
+        except Exception as e:
+            logger.error(f"✗ Unexpected error during LLM initialization: {e}")
+            logger.error(f"  Python executable: {sys.executable}")
             sys.exit(1)
     
     def _init_agent(self):
@@ -90,13 +99,18 @@ class UnifiedInterface:
             db_path = os.getenv('DB_PATH', 'sample_database.db')
             collection_name = os.getenv('CHROMA_COLLECTION', 'rag_collection')
             
-            self.unified_agent = UnifiedAgent(
-                base_url=os.getenv('OLLAMA_BASE_URL', 'http://localhost:11434'),
-                model=os.getenv('LLM_MODEL', 'gpt-oss:latest'),
-                collection_name=collection_name,
-                db_path=db_path,
-                max_reflection_iterations=3
-            )
+            # Initialize the agent
+            try:
+                self.unified_agent = UnifiedAgent(
+                    base_url=os.getenv('OLLAMA_BASE_URL', 'http://localhost:11434'),
+                    model=os.getenv('LLM_MODEL', 'gpt-oss:latest'),
+                    collection_name=collection_name,
+                    db_path=db_path,
+                    max_reflection_iterations=3
+                )
+            except Exception as e:
+                logger.error(f"Failed to create UnifiedAgent: {e}")
+                raise
             
             # Add database tools if available
             try:
@@ -121,8 +135,10 @@ class UnifiedInterface:
                     'Validate and auto-correct SQL queries before execution'
                 )
                 logger.info("✓ Loaded database tools from LLM_CI")
-            except ImportError:
-                logger.warning("⊘ Database tools not available, skipping")
+            except ImportError as e:
+                logger.warning(f"⊘ Database tools not available: {e}")
+            except Exception as e:
+                logger.error(f"Error adding database tools: {e}")
             
             # Add document/vault tools if available
             try:
@@ -134,12 +150,20 @@ class UnifiedInterface:
                 )
                 logger.info("✓ Loaded document tools from Tools.py")
             except ImportError:
-                logger.warning("⊘ Document tools not available, skipping")
+                logger.debug("⊘ Document tools not available")
+            except Exception as e:
+                logger.error(f"Error adding document tools: {e}")
             
-            self.unified_agent.initialize_agent()
-            logger.info("✓ Initialized UnifiedAgent with Agentic RAG")
+            # Initialize the agent
+            try:
+                self.unified_agent.initialize_agent()
+                logger.info("✓ Initialized UnifiedAgent with Agentic RAG")
+            except Exception as e:
+                logger.error(f"Failed to initialize agent: {e}")
+                raise
+                
         except Exception as e:
-            logger.warning(f"⊘ Could not initialize UnifiedAgent: {e}")
+            logger.error(f"✗ Could not initialize UnifiedAgent: {e}", exc_info=True)
             self.unified_agent = None
     
     def _preload_rag_documents(self):
