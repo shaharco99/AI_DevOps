@@ -7,8 +7,8 @@ from typing import Any, Optional
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ai_devops_copilot.config.constants import ERROR_SQL_INJECTION_DETECTED, MAX_SQL_RESULT_ROWS
-from ai_devops_copilot.tools.base import BaseTool
+from ai_devops_assistant.config.constants import ERROR_SQL_INJECTION_DETECTED, MAX_SQL_RESULT_ROWS
+from ai_devops_assistant.tools.base import BaseTool
 
 logger = logging.getLogger(__name__)
 

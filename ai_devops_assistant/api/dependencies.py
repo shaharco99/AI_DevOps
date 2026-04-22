@@ -5,8 +5,8 @@ from typing import AsyncGenerator
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ai_devops_copilot.config.settings import settings
-from ai_devops_copilot.database.session import AsyncSessionLocal
+from ai_devops_assistant.config.settings import settings
+from ai_devops_assistant.database.session import AsyncSessionLocal
 
 logger = logging.getLogger(__name__)
 

@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import (
     create_async_engine,
 )
 
-from ai_devops_copilot.config.settings import settings
+from ai_devops_assistant.config.settings import settings
 
 logger = logging.getLogger(__name__)
 
@@ -53,7 +53,7 @@ async def get_session() -> AsyncGenerator[AsyncSession, None]:
 
 async def init_db() -> None:
     """Initialize database (create tables)."""
-    from ai_devops_copilot.database.models import Base
+    from ai_devops_assistant.database.models import Base
 
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)

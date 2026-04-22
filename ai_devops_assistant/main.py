@@ -6,8 +6,8 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from ai_devops_copilot.config.logging import setup_logging
-from ai_devops_copilot.config.settings import settings
+from ai_devops_assistant.config.logging import setup_logging
+from ai_devops_assistant.config.settings import settings
 
 # Configure logging
 setup_logging()
@@ -28,7 +28,7 @@ async def lifespan(app: FastAPI):
     
     try:
         # Initialize database
-        from ai_devops_copilot.database.session import init_db, close_db
+        from ai_devops_assistant.database.session import init_db, close_db
         await init_db()
     except Exception as e:
         logger.error(f"Failed to initialize database: {e}")
@@ -37,8 +37,8 @@ async def lifespan(app: FastAPI):
     
     # Shutdown
     try:
-        from ai_devops_copilot.database.session import close_db
-        from ai_devops_copilot.services.llm_service import close_ollama_service
+        from ai_devops_assistant.database.session import close_db
+        from ai_devops_assistant.services.llm_service import close_ollama_service
         
         await close_db()
         await close_ollama_service()
@@ -58,7 +58,7 @@ def create_app() -> FastAPI:
     )
 
     # Include routes
-    from ai_devops_copilot.api.routes import health, chat, run_sql, analyze_logs, metrics
+    from ai_devops_assistant.api.routes import health, chat, run_sql, analyze_logs, metrics
 
     app.include_router(health.router)
     app.include_router(chat.router)
@@ -67,7 +67,7 @@ def create_app() -> FastAPI:
     app.include_router(metrics.router)
 
     # Add middleware
-    from ai_devops_copilot.api.middleware import LoggingMiddleware, ErrorHandlingMiddleware
+    from ai_devops_assistant.api.middleware import LoggingMiddleware, ErrorHandlingMiddleware
     
     app.add_middleware(LoggingMiddleware)
     app.add_middleware(ErrorHandlingMiddleware)

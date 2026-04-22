@@ -7,8 +7,8 @@ from typing import Any, Optional
 from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ai_devops_copilot.database.models import ApplicationLog
-from ai_devops_copilot.tools.base import BaseTool
+from ai_devops_assistant.database.models import ApplicationLog
+from ai_devops_assistant.tools.base import BaseTool
 
 logger = logging.getLogger(__name__)
 

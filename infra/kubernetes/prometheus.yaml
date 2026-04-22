@@ -2,7 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: prometheus
-  namespace: ai-devops-copilot
+  namespace: ai-devops-assistant
   labels:
     app: prometheus
 spec:
@@ -58,7 +58,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: prometheus
-  namespace: ai-devops-copilot
+  namespace: ai-devops-assistant
   labels:
     app: prometheus
 spec:
@@ -73,7 +73,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: prometheus-config
-  namespace: ai-devops-copilot
+  namespace: ai-devops-assistant
 data:
   prometheus.yml: |
     global:
@@ -89,9 +89,9 @@ data:
         static_configs:
           - targets: ['localhost:9090']
 
-      - job_name: 'ai-devops-copilot'
+      - job_name: 'ai-devops-assistant'
         static_configs:
-          - targets: ['ai-devops-copilot:80']
+          - targets: ['ai-devops-assistant:80']
 
       - job_name: 'postgres'
         static_configs:
@@ -106,7 +106,7 @@ apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: prometheus
-  namespace: ai-devops-copilot
+  namespace: ai-devops-assistant
 
 ---
 apiVersion: rbac.authorization.k8s.io/v1
@@ -142,14 +142,14 @@ roleRef:
 subjects:
 - kind: ServiceAccount
   name: prometheus
-  namespace: ai-devops-copilot
+  namespace: ai-devops-assistant
 
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: prometheus-pvc
-  namespace: ai-devops-copilot
+  namespace: ai-devops-assistant
 spec:
   accessModes:
     - ReadWriteOnce

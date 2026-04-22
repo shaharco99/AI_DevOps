@@ -6,9 +6,9 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ai_devops_copilot.api.dependencies import get_db_session
-from ai_devops_copilot.api.schemas import LogAnalysisRequest, LogEntry
-from ai_devops_copilot.tools.log_tool import LogAnalysisTool
+from ai_devops_assistant.api.dependencies import get_db_session
+from ai_devops_assistant.api.schemas import LogAnalysisRequest, LogEntry
+from ai_devops_assistant.tools.log_tool import LogAnalysisTool
 
 logger = logging.getLogger(__name__)
 

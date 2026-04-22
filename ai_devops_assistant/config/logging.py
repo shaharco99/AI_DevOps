@@ -8,7 +8,7 @@ from typing import Any
 
 from pythonjsonlogger import jsonlogger
 
-from ai_devops_copilot.config.settings import settings
+from ai_devops_assistant.config.settings import settings
 
 
 class CustomJsonFormatter(jsonlogger.JsonFormatter):

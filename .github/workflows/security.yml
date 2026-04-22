@@ -48,7 +48,7 @@ jobs:
     - name: Run Bandit Security Linter
       run: |
         pip install bandit
-        bandit -r ai_devops_copilot/ -f json -o bandit-report.json || true
+        bandit -r ai_devops_assistant/ -f json -o bandit-report.json || true
 
     - name: Run Safety check for Python dependencies
       run: |

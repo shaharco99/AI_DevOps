@@ -1,7 +1,7 @@
 # Alert rules for Prometheus
 
 groups:
-  - name: ai_devops_copilot
+  - name: ai_devops_assistant
     interval: 30s
     rules:
       - alert: BackendDown
@@ -41,7 +41,7 @@ groups:
           description: "Less than 5 available database connections"
 
       - alert: HighMemoryUsage
-        expr: container_memory_usage_bytes{name="ai-devops-copilot-backend"} / 1024 /
+        expr: container_memory_usage_bytes{name="ai-devops-assistant-backend"} / 1024 /
           1024 / 1024 > 2
         for: 5m
         labels:

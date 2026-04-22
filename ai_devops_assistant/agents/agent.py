@@ -6,11 +6,11 @@ from typing import Any, Optional
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ai_devops_copilot.agents.memory import ConversationMemory, get_session_manager
-from ai_devops_copilot.agents.prompts import SYSTEM_PROMPT
-from ai_devops_copilot.config.settings import settings
-from ai_devops_copilot.services.llm_service import get_ollama_service
-from ai_devops_copilot.tools.tool_executor import get_tool_executor
+from ai_devops_assistant.agents.memory import ConversationMemory, get_session_manager
+from ai_devops_assistant.agents.prompts import SYSTEM_PROMPT
+from ai_devops_assistant.config.settings import settings
+from ai_devops_assistant.services.llm_service import get_ollama_service
+from ai_devops_assistant.tools.tool_executor import get_tool_executor
 
 logger = logging.getLogger(__name__)
 

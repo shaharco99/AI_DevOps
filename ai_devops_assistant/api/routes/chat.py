@@ -8,10 +8,10 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ai_devops_copilot.agents.agent import get_agent
-from ai_devops_copilot.api.dependencies import get_db_session
-from ai_devops_copilot.api.schemas import ChatRequest, ChatResponse, ToolCall
-from ai_devops_copilot.database.queries import add_chat_message, create_chat_session
+from ai_devops_assistant.agents.agent import get_agent
+from ai_devops_assistant.api.dependencies import get_db_session
+from ai_devops_assistant.api.schemas import ChatRequest, ChatResponse, ToolCall
+from ai_devops_assistant.database.queries import add_chat_message, create_chat_session
 
 logger = logging.getLogger(__name__)
 
@@ -118,7 +118,7 @@ async def get_session_info(
         dict: Session information
     """
     try:
-        from ai_devops_copilot.database.queries import get_chat_session, get_chat_messages
+        from ai_devops_assistant.database.queries import get_chat_session, get_chat_messages
 
         session = await get_chat_session(db_session, session_id)
         if not session:

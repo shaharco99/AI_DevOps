@@ -5,8 +5,8 @@ from typing import Any, Optional
 
 import httpx
 
-from ai_devops_copilot.config.settings import settings
-from ai_devops_copilot.tools.base import BaseTool
+from ai_devops_assistant.config.settings import settings
+from ai_devops_assistant.tools.base import BaseTool
 
 logger = logging.getLogger(__name__)
 

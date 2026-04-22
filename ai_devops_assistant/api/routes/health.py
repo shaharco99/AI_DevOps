@@ -5,8 +5,8 @@ from datetime import datetime
 
 from fastapi import APIRouter
 
-from ai_devops_copilot.api.schemas import HealthResponse
-from ai_devops_copilot.config.settings import settings
+from ai_devops_assistant.api.schemas import HealthResponse
+from ai_devops_assistant.config.settings import settings
 
 logger = logging.getLogger(__name__)
 

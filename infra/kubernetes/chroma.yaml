@@ -2,7 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: chroma
-  namespace: ai-devops-copilot
+  namespace: ai-devops-assistant
   labels:
     app: chroma
 spec:
@@ -61,7 +61,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: chroma
-  namespace: ai-devops-copilot
+  namespace: ai-devops-assistant
   labels:
     app: chroma
 spec:
@@ -76,7 +76,7 @@ apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: chroma-pvc
-  namespace: ai-devops-copilot
+  namespace: ai-devops-assistant
 spec:
   accessModes:
     - ReadWriteOnce

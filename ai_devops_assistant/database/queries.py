@@ -8,7 +8,7 @@ from typing import Optional
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ai_devops_copilot.database.models import (
+from ai_devops_assistant.database.models import (
     ApplicationLog,
     ChatMessage,
     ChatSession,

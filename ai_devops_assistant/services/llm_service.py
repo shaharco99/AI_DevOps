@@ -7,7 +7,7 @@ from typing import Any, Optional
 
 import httpx
 
-from ai_devops_copilot.config.settings import settings
+from ai_devops_assistant.config.settings import settings
 
 logger = logging.getLogger(__name__)
 

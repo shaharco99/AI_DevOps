@@ -3,11 +3,11 @@
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from ai_devops_copilot.tools.sql_tool import SQLQueryTool
-from ai_devops_copilot.tools.log_tool import LogAnalysisTool
-from ai_devops_copilot.tools.metrics_tool import MetricsTool
-from ai_devops_copilot.tools.kubernetes_tool import KubernetesTool
-from ai_devops_copilot.tools.pipeline_tool import PipelineTool
+from ai_devops_assistant.tools.sql_tool import SQLQueryTool
+from ai_devops_assistant.tools.log_tool import LogAnalysisTool
+from ai_devops_assistant.tools.metrics_tool import MetricsTool
+from ai_devops_assistant.tools.kubernetes_tool import KubernetesTool
+from ai_devops_assistant.tools.pipeline_tool import PipelineTool
 
 
 class TestSQLQueryTool:
@@ -38,7 +38,7 @@ class TestSQLQueryTool:
     @pytest.mark.asyncio
     async def test_execute_safe_query(self, sql_tool):
         """Test executing safe query."""
-        with patch("ai_devops_copilot.tools.sql_tool.get_db_session") as mock_session:
+        with patch("ai_devops_assistant.tools.sql_tool.get_db_session") as mock_session:
             mock_conn = AsyncMock()
             mock_result = MagicMock()
             mock_result.fetchall.return_value = [("data1",), ("data2",)]
@@ -73,7 +73,7 @@ class TestLogAnalysisTool:
     @pytest.mark.asyncio
     async def test_analyze_logs(self, log_tool):
         """Test log analysis."""
-        with patch("ai_devops_copilot.tools.log_tool.get_db_session") as mock_session:
+        with patch("ai_devops_assistant.tools.log_tool.get_db_session") as mock_session:
             mock_conn = AsyncMock()
             mock_result = MagicMock()
             mock_result.fetchall.return_value = [
@@ -105,7 +105,7 @@ class TestMetricsTool:
     @pytest.mark.asyncio
     async def test_query_metrics(self, metrics_tool):
         """Test metrics querying."""
-        with patch("ai_devops_copilot.tools.metrics_tool.get_db_session") as mock_session:
+        with patch("ai_devops_assistant.tools.metrics_tool.get_db_session") as mock_session:
             mock_conn = AsyncMock()
             mock_result = MagicMock()
             mock_result.fetchall.return_value = [
@@ -137,7 +137,7 @@ class TestKubernetesTool:
     @pytest.mark.asyncio
     async def test_query_pods_disabled(self, k8s_tool):
         """Test K8s query when disabled."""
-        with patch("ai_devops_copilot.config.settings.settings") as mock_settings:
+        with patch("ai_devops_assistant.config.settings.settings") as mock_settings:
             mock_settings.enable_k8s = False
 
             result = await k8s_tool.execute("list pods")

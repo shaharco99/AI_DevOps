@@ -7,8 +7,8 @@ from typing import Optional
 import chromadb
 from chromadb.config import Settings
 
-from ai_devops_copilot.config.settings import settings
-from ai_devops_copilot.rag.embeddings import get_embedding_service_sync
+from ai_devops_assistant.config.settings import settings
+from ai_devops_assistant.rag.embeddings import get_embedding_service_sync
 
 logger = logging.getLogger(__name__)
 

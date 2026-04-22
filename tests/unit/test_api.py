@@ -3,7 +3,7 @@
 import pytest
 from fastapi.testclient import TestClient
 
-from ai_devops_copilot.main import create_app
+from ai_devops_assistant.main import create_app
 
 
 @pytest.fixture

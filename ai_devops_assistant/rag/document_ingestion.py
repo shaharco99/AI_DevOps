@@ -4,8 +4,8 @@ import logging
 import uuid
 from typing import Optional
 
-from ai_devops_copilot.config.settings import settings
-from ai_devops_copilot.rag.vector_store import get_vector_store_service
+from ai_devops_assistant.config.settings import settings
+from ai_devops_assistant.rag.vector_store import get_vector_store_service
 
 logger = logging.getLogger(__name__)
 

@@ -5,14 +5,14 @@ from typing import Any, Optional
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ai_devops_copilot.config.settings import settings
-from ai_devops_copilot.tools.base import BaseTool
-from ai_devops_copilot.tools.kubernetes_tool import KubernetesTool
-from ai_devops_copilot.tools.log_tool import LogAnalysisTool
-from ai_devops_copilot.tools.metrics_tool import MetricsTool
-from ai_devops_copilot.tools.pipeline_tool import PipelineTool
-from ai_devops_copilot.tools.sql_tool import SQLQueryTool
-# from ai_devops_copilot.rag.retriever import get_rag_retriever  # Disabled for now
+from ai_devops_assistant.config.settings import settings
+from ai_devops_assistant.tools.base import BaseTool
+from ai_devops_assistant.tools.kubernetes_tool import KubernetesTool
+from ai_devops_assistant.tools.log_tool import LogAnalysisTool
+from ai_devops_assistant.tools.metrics_tool import MetricsTool
+from ai_devops_assistant.tools.pipeline_tool import PipelineTool
+from ai_devops_assistant.tools.sql_tool import SQLQueryTool
+# from ai_devops_assistant.rag.retriever import get_rag_retriever  # Disabled for now
 
 logger = logging.getLogger(__name__)
 

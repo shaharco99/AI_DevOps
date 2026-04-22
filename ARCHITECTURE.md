@@ -1,8 +1,8 @@
-# AI DevOps Copilot - Architecture Design Document
+# AI DevOps Assistant - Architecture Design Document
 
 ## Executive Summary
 
-The AI DevOps Copilot is a production-grade system that combines AI, DevOps tooling, and observability to provide intelligent assistance for DevOps engineers. It uses an agentic AI system with tool-calling capabilities to analyze logs, query infrastructure, and provide recommendations.
+The AI DevOps Assistant is a production-grade system that combines AI, DevOps tooling, and observability to provide intelligent assistance for DevOps engineers. It uses an agentic AI system with tool-calling capabilities to analyze logs, query infrastructure, and provide recommendations.
 
 ---
 
@@ -178,7 +178,7 @@ The AI DevOps Copilot is a production-grade system that combines AI, DevOps tool
 
 ## Module Breakdown
 
-### `ai_devops_copilot/`
+### `ai_devops_assistant/`
 
 #### `agents/`
 - `agent.py` - Main LangChain agent orchestration
@@ -304,7 +304,7 @@ LLM_TEMPERATURE=0.7
 LLM_MAX_TOKENS=2048
 
 # Database Configuration
-DATABASE_URL=postgresql+asyncpg://user:password@localhost/copilot
+DATABASE_URL=postgresql+asyncpg://user:password@localhost/devops
 DATABASE_POOL_SIZE=20
 DATABASE_MAX_OVERFLOW=40
 

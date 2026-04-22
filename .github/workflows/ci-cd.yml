@@ -42,11 +42,11 @@ jobs:
           pre-commit run --all-files
 
       - name: Type checking with mypy
-        run: mypy ai_devops_copilot/
+        run: mypy ai_devops_assistant/
 
       - name: Run tests with coverage
         run: |
-          pytest tests/ -v --cov=ai_devops_copilot --cov-report=xml
+          pytest tests/ -v --cov=ai_devops_assistant --cov-report=xml
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v3
@@ -78,7 +78,7 @@ jobs:
       - name: Run Bandit security linter
         run: |
           pip install bandit
-          bandit -r ai_devops_copilot/ -f json -o bandit-report.json || true
+          bandit -r ai_devops_assistant/ -f json -o bandit-report.json || true
 
   # Docker Build and Push
   docker:

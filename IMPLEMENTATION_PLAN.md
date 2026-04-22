@@ -1,4 +1,4 @@
-# AI DevOps Copilot - Implementation Plan
+# AI DevOps Assistant - Implementation Plan
 
 ## Phase Overview
 
@@ -24,7 +24,7 @@ The project will be built in 5 major phases:
 
 **Files to Create:**
 ```
-├── ai_devops_copilot/
+├── ai_devops_assistant/
 │   ├── __init__.py
 │   ├── agents/
 │   ├── tools/
@@ -84,9 +84,9 @@ The project will be built in 5 major phases:
 - Logging setup
 
 **Key Files:**
-- `ai_devops_copilot/main.py` - Application entry point
-- `ai_devops_copilot/config/settings.py` - Settings management
-- `ai_devops_copilot/api/middleware.py` - Logging, CORS, error handling
+- `ai_devops_assistant/main.py` - Application entry point
+- `ai_devops_assistant/config/settings.py` - Settings management
+- `ai_devops_assistant/api/middleware.py` - Logging, CORS, error handling
 
 ### 1.2 - Database Setup
 **Deliverables:**
@@ -96,10 +96,10 @@ The project will be built in 5 major phases:
 - Alembic migrations setup
 
 **Key Files:**
-- `ai_devops_copilot/database/models.py` - ORM models
-- `ai_devops_copilot/database/session.py` - Session management
-- `ai_devops_copilot/database/migrations/` - Alembic migrations
-- `ai_devops_copilot/database/queries.py` - Common queries
+- `ai_devops_assistant/database/models.py` - ORM models
+- `ai_devops_assistant/database/session.py` - Session management
+- `ai_devops_assistant/database/migrations/` - Alembic migrations
+- `ai_devops_assistant/database/queries.py` - Common queries
 
 **Models to Create:**
 - PipelineLog
@@ -116,9 +116,9 @@ The project will be built in 5 major phases:
 - Error responses
 
 **Key Files:**
-- `ai_devops_copilot/api/routes/health.py` - Health endpoint
-- `ai_devops_copilot/api/schemas.py` - Pydantic schemas
-- `ai_devops_copilot/api/dependencies.py` - Dependency injection
+- `ai_devops_assistant/api/routes/health.py` - Health endpoint
+- `ai_devops_assistant/api/schemas.py` - Pydantic schemas
+- `ai_devops_assistant/api/dependencies.py` - Dependency injection
 
 ---
 
@@ -132,7 +132,7 @@ The project will be built in 5 major phases:
 - Token counting
 
 **Key Files:**
-- `ai_devops_copilot/services/llm_service.py` - LLM service
+- `ai_devops_assistant/services/llm_service.py` - LLM service
 
 ### 2.2 - LangChain Agent Setup
 **Deliverables:**
@@ -143,10 +143,10 @@ The project will be built in 5 major phases:
 - Tool-calling orchestration
 
 **Key Files:**
-- `ai_devops_copilot/agents/agent.py` - Main agent logic
-- `ai_devops_copilot/agents/prompts.py` - System prompts
-- `ai_devops_copilot/agents/memory.py` - Conversation memory
-- `ai_devops_copilot/agents/tool_registry.py` - Tool registration
+- `ai_devops_assistant/agents/agent.py` - Main agent logic
+- `ai_devops_assistant/agents/prompts.py` - System prompts
+- `ai_devops_assistant/agents/memory.py` - Conversation memory
+- `ai_devops_assistant/agents/tool_registry.py` - Tool registration
 
 ### 2.3 - RAG System Setup
 **Deliverables:**
@@ -156,10 +156,10 @@ The project will be built in 5 major phases:
 - Retrieval interface
 
 **Key Files:**
-- `ai_devops_copilot/rag/embeddings.py` - Embedding setup
-- `ai_devops_copilot/rag/vector_store.py` - Vector store management
-- `ai_devops_copilot/rag/document_ingestion.py` - Document loading
-- `ai_devops_copilot/rag/retriever.py` - Retrieval logic
+- `ai_devops_assistant/rag/embeddings.py` - Embedding setup
+- `ai_devops_assistant/rag/vector_store.py` - Vector store management
+- `ai_devops_assistant/rag/document_ingestion.py` - Document loading
+- `ai_devops_assistant/rag/retriever.py` - Retrieval logic
 
 ### 2.4 - Chat Endpoint Implementation
 **Deliverables:**
@@ -169,7 +169,7 @@ The project will be built in 5 major phases:
 - Session management
 
 **Key Files:**
-- `ai_devops_copilot/api/routes/chat.py` - Chat endpoint
+- `ai_devops_assistant/api/routes/chat.py` - Chat endpoint
 
 ---
 
@@ -183,9 +183,9 @@ The project will be built in 5 major phases:
 - Error handling
 
 **Key Files:**
-- `ai_devops_copilot/tools/__init__.py` - Tool factory
-- `ai_devops_copilot/tools/tool_executor.py` - Execution engine
-- `ai_devops_copilot/tools/base.py` - Base tool class
+- `ai_devops_assistant/tools/__init__.py` - Tool factory
+- `ai_devops_assistant/tools/tool_executor.py` - Execution engine
+- `ai_devops_assistant/tools/base.py` - Base tool class
 
 ### 3.2 - SQL Query Tool
 **Deliverables:**
@@ -195,8 +195,8 @@ The project will be built in 5 major phases:
 - Result formatting
 
 **Key Files:**
-- `ai_devops_copilot/tools/sql_tool.py` - SQL tool
-- `ai_devops_copilot/services/sql_service.py` - SQL execution
+- `ai_devops_assistant/tools/sql_tool.py` - SQL tool
+- `ai_devops_assistant/services/sql_service.py` - SQL execution
 
 ### 3.3 - Kubernetes Tool
 **Deliverables:**
@@ -207,8 +207,8 @@ The project will be built in 5 major phases:
 - Log streaming
 
 **Key Files:**
-- `ai_devops_copilot/tools/kubernetes_tool.py` - K8s tool
-- `ai_devops_copilot/services/kubernetes_service.py` - K8s service
+- `ai_devops_assistant/tools/kubernetes_tool.py` - K8s tool
+- `ai_devops_assistant/services/kubernetes_service.py` - K8s service
 
 ### 3.4 - Log Analysis Tool
 **Deliverables:**
@@ -218,9 +218,9 @@ The project will be built in 5 major phases:
 - Log summarization
 
 **Key Files:**
-- `ai_devops_copilot/tools/log_tool.py` - Log analysis tool
-- `ai_devops_copilot/services/log_service.py` - Log service
-- `ai_devops_copilot/api/routes/logs.py` - Log ingestion endpoint
+- `ai_devops_assistant/tools/log_tool.py` - Log analysis tool
+- `ai_devops_assistant/services/log_service.py` - Log service
+- `ai_devops_assistant/api/routes/logs.py` - Log ingestion endpoint
 
 ### 3.5 - Metrics Tool
 **Deliverables:**
@@ -230,8 +230,8 @@ The project will be built in 5 major phases:
 - Alert integration
 
 **Key Files:**
-- `ai_devops_copilot/tools/metrics_tool.py` - Metrics tool
-- `ai_devops_copilot/services/metrics_service.py` - Metrics service
+- `ai_devops_assistant/tools/metrics_tool.py` - Metrics tool
+- `ai_devops_assistant/services/metrics_service.py` - Metrics service
 
 ### 3.6 - Pipeline Tool
 **Deliverables:**
@@ -241,7 +241,7 @@ The project will be built in 5 major phases:
 - Artifact information
 
 **Key Files:**
-- `ai_devops_copilot/tools/pipeline_tool.py` - Pipeline tool
+- `ai_devops_assistant/tools/pipeline_tool.py` - Pipeline tool
 
 ---
 
@@ -255,9 +255,9 @@ The project will be built in 5 major phases:
 - /pipeline_status endpoint
 
 **Key Files:**
-- `ai_devops_copilot/api/routes/sql.py`
-- `ai_devops_copilot/api/routes/metrics.py`
-- `ai_devops_copilot/api/routes/pipeline.py`
+- `ai_devops_assistant/api/routes/sql.py`
+- `ai_devops_assistant/api/routes/metrics.py`
+- `ai_devops_assistant/api/routes/pipeline.py`
 
 ### 4.2 - Observability Setup
 **Deliverables:**
@@ -269,7 +269,7 @@ The project will be built in 5 major phases:
 **Key Files:**
 - `monitoring/prometheus/prometheus.yml`
 - `monitoring/grafana/dashboards/`
-- `ai_devops_copilot/monitoring/metrics.py`
+- `ai_devops_assistant/monitoring/metrics.py`
 
 ### 4.3 - Kubernetes Manifests
 **Deliverables:**

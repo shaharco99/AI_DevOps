@@ -6,8 +6,8 @@ from typing import Any, Optional
 from kubernetes import client, config
 from kubernetes.client.rest import ApiException
 
-from ai_devops_copilot.config.settings import settings
-from ai_devops_copilot.tools.base import BaseTool
+from ai_devops_assistant.config.settings import settings
+from ai_devops_assistant.tools.base import BaseTool
 
 logger = logging.getLogger(__name__)
 

@@ -8,7 +8,7 @@ import pytest
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
 
-from ai_devops_copilot.database.models import Base
+from ai_devops_assistant.database.models import Base
 
 
 @pytest.fixture(scope="session")

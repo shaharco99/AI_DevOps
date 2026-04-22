@@ -3,8 +3,8 @@
 import logging
 from typing import Optional
 
-from ai_devops_copilot.config.constants import RAG_SCORE_THRESHOLD, RAG_TOP_K
-from ai_devops_copilot.rag.vector_store import get_vector_store_service
+from ai_devops_assistant.config.constants import RAG_SCORE_THRESHOLD, RAG_TOP_K
+from ai_devops_assistant.rag.vector_store import get_vector_store_service
 
 logger = logging.getLogger(__name__)
 

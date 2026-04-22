@@ -1,6 +1,6 @@
 # Kubernetes Deployment
 
-This directory contains Kubernetes manifests for deploying the AI DevOps Copilot to a Kubernetes cluster.
+This directory contains Kubernetes manifests for deploying the AI DevOps Assistant to a Kubernetes cluster.
 
 ## Prerequisites
 
@@ -59,13 +59,13 @@ kubectl apply -f .
 
 ```bash
 # Check pods
-kubectl get pods -n ai-devops-copilot
+kubectl get pods -n ai-devops-assistant
 
 # Check services
-kubectl get services -n ai-devops-copilot
+kubectl get services -n ai-devops-assistant
 
 # Check persistent volumes
-kubectl get pvc -n ai-devops-copilot
+kubectl get pvc -n ai-devops-assistant
 ```
 
 ## Access the Application
@@ -74,13 +74,13 @@ kubectl get pvc -n ai-devops-copilot
 
 ```bash
 # Main application
-kubectl port-forward -n ai-devops-copilot svc/ai-devops-copilot 8080:80
+kubectl port-forward -n ai-devops-assistant svc/ai-devops-assistant 8080:80
 
 # Grafana
-kubectl port-forward -n ai-devops-copilot svc/grafana 3000:3000
+kubectl port-forward -n ai-devops-assistant svc/grafana 3000:3000
 
 # Prometheus
-kubectl port-forward -n ai-devops-copilot svc/prometheus 9090:9090
+kubectl port-forward -n ai-devops-assistant svc/prometheus 9090:9090
 ```
 
 Then access:
@@ -99,8 +99,8 @@ If you have an ingress controller, update the ingress host in `deployment.yaml` 
 
 The deployment uses ConfigMaps and Secrets for configuration:
 
-- `ai-devops-copilot-config`: Application configuration
-- `ai-devops-copilot-secrets`: Sensitive data (database credentials, API keys)
+- `ai-devops-assistant-config`: Application configuration
+- `ai-devops-assistant-secrets`: Sensitive data (database credentials, API keys)
 
 ### Database Initialization
 
@@ -108,7 +108,7 @@ After deploying PostgreSQL, you may need to run database migrations:
 
 ```bash
 # Get a shell in the application pod
-kubectl exec -n ai-devops-copilot -it deployment/ai-devops-copilot -- /bin/bash
+kubectl exec -n ai-devops-assistant -it deployment/ai-devops-assistant -- /bin/bash
 
 # Run migrations
 alembic upgrade head
@@ -120,7 +120,7 @@ Ollama will automatically pull the llama3 model on startup. If you need other mo
 
 ```bash
 # Get a shell in the Ollama pod
-kubectl exec -n ai-devops-copilot -it deployment/ollama -- /bin/bash
+kubectl exec -n ai-devops-assistant -it deployment/ollama -- /bin/bash
 
 # Pull additional models
 ollama pull mistral
@@ -133,7 +133,7 @@ ollama pull mistral
 Scale the application deployment:
 
 ```bash
-kubectl scale deployment ai-devops-copilot -n ai-devops-copilot --replicas=3
+kubectl scale deployment ai-devops-assistant -n ai-devops-assistant --replicas=3
 ```
 
 ### Resource Management
@@ -151,7 +151,7 @@ The application exposes Prometheus metrics at `/metrics`. Grafana dashboards are
 View application logs:
 
 ```bash
-kubectl logs -n ai-devops-copilot -l app=ai-devops-copilot -f
+kubectl logs -n ai-devops-assistant -l app=ai-devops-assistant -f
 ```
 
 ## Troubleshooting
@@ -167,16 +167,16 @@ kubectl logs -n ai-devops-copilot -l app=ai-devops-copilot -f
 
 ```bash
 # Check pod status
-kubectl describe pod <pod-name> -n ai-devops-copilot
+kubectl describe pod <pod-name> -n ai-devops-assistant
 
 # Check logs
-kubectl logs <pod-name> -n ai-devops-copilot
+kubectl logs <pod-name> -n ai-devops-assistant
 
 # Check events
-kubectl get events -n ai-devops-copilot
+kubectl get events -n ai-devops-assistant
 
 # Check resource usage
-kubectl top pods -n ai-devops-copilot
+kubectl top pods -n ai-devops-assistant
 ```
 
 ## Security Considerations
@@ -203,5 +203,5 @@ For production:
 Remove all resources:
 
 ```bash
-kubectl delete namespace ai-devops-copilot
+kubectl delete namespace ai-devops-assistant
 ```

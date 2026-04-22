@@ -4,8 +4,8 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ai_devops_copilot.main import create_app
-from ai_devops_copilot.database.models import ChatSession, ChatMessage
+from ai_devops_assistant.main import create_app
+from ai_devops_assistant.database.models import ChatSession, ChatMessage
 
 
 @pytest.fixture
@@ -13,7 +13,7 @@ def client(test_db_session: AsyncSession):
     """Test client with database session."""
     app = create_app()
     # Override database dependency for testing
-    from ai_devops_copilot.database.session import get_db_session
+    from ai_devops_assistant.database.session import get_db_session
 
     async def override_get_db():
         yield test_db_session

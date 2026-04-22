@@ -5,8 +5,8 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from ai_devops_copilot.api.schemas import MetricsQueryRequest, MetricsQueryResponse
-from ai_devops_copilot.tools.metrics_tool import MetricsTool
+from ai_devops_assistant.api.schemas import MetricsQueryRequest, MetricsQueryResponse
+from ai_devops_assistant.tools.metrics_tool import MetricsTool
 
 logger = logging.getLogger(__name__)
 

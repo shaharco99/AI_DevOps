@@ -1,4 +1,4 @@
-# AI DevOps Copilot
+# AI DevOps Assistant
 
 An intelligent AI-powered DevOps assistant that analyzes logs, queries infrastructure, and provides expert recommendations using local LLMs and advanced tool-calling capabilities.
 
@@ -68,8 +68,8 @@ An intelligent AI-powered DevOps assistant that analyzes logs, queries infrastru
 1. Clone the repository:
 
 ```bash
-git clone https://github.com/yourusername/ai-devops-copilot.git
-cd ai-devops-copilot
+git clone https://github.com/yourusername/ai-devops-assistant.git
+cd ai-devops-assistant
 ```
 
 2. Create environment file:
@@ -87,7 +87,7 @@ docker-compose up -d
 4. Pull the LLM model:
 
 ```bash
-docker exec ai-devops-copilot-ollama ollama pull llama3
+docker exec ai-devops-assistant-ollama ollama pull llama3
 ```
 
 5. Access the application:
@@ -130,7 +130,7 @@ alembic upgrade head
 5. Start the server:
 
 ```bash
-uvicorn ai_devops_copilot.main:app --reload
+uvicorn ai_devops_assistant.main:app --reload
 ```
 
 ## 📖 Usage
@@ -246,13 +246,13 @@ ENABLE_RAG=true
 
 ```bash
 # Run linting
-ruff check ai_devops_copilot/
+ruff check ai_devops_assistant/
 
 # Format code
-black ai_devops_copilot/
+black ai_devops_assistant/
 
 # Type checking
-mypy ai_devops_copilot/
+mypy ai_devops_assistant/
 
 # Run tests
 pytest tests/ -v
@@ -278,7 +278,7 @@ pytest tests/unit/ -v
 pytest tests/integration/ -v
 
 # With coverage
-pytest --cov=ai_devops_copilot tests/
+pytest --cov=ai_devops_assistant tests/
 ```
 
 ## 📊 Monitoring
@@ -302,7 +302,7 @@ Logs are output in JSON format to stdout for easy parsing and aggregation.
 {
   "timestamp": "2024-04-22T10:00:00",
   "level": "INFO",
-  "logger": "ai_devops_copilot.agents.agent",
+  "logger": "ai_devops_assistant.agents.agent",
   "message": "Processing chat request for session: abc123"
 }
 ```
@@ -312,7 +312,7 @@ Logs are output in JSON format to stdout for easy parsing and aggregation.
 ### Build Image
 
 ```bash
-docker build -t ai-devops-copilot:latest .
+docker build -t ai-devops-assistant:latest .
 ```
 
 ### Run Container
@@ -321,7 +321,7 @@ docker build -t ai-devops-copilot:latest .
 docker run -p 8000:8000 \
   -e DATABASE_URL=postgresql+asyncpg://user:password@postgres:5432/devops \
   -e OLLAMA_BASE_URL=http://ollama:11434 \
-  ai-devops-copilot:latest
+  ai-devops-assistant:latest
 ```
 
 ## ☸️ Kubernetes Deployment
@@ -332,13 +332,13 @@ Quick start:
 
 ```bash
 # Create namespace
-kubectl create namespace copilot
+kubectl create namespace devops-ai
 
 # Apply manifests
 kubectl apply -f infra/kubernetes/
 
 # Check status
-kubectl get pods -n copilot
+kubectl get pods -n devops-ai
 ```
 
 ## 🔐 Security
@@ -416,7 +416,7 @@ MIT License - see [LICENSE](LICENSE) file for details.
 ## 🚀 Quick Demo
 
 1. Start services: `docker-compose up -d`
-2. Pull LLM: `docker exec ai-devops-copilot-ollama ollama pull llama3`
+2. Pull LLM: `docker exec ai-devops-assistant-ollama ollama pull llama3`
 3. Chat with AI: `curl -X POST http://localhost:8000/chat -H "Content-Type: application/json" -d '{"message": "Show me failing pods"}'`
 
 This demonstrates a production-ready AI DevOps assistant that can intelligently query infrastructure, analyze logs, and provide expert recommendations using local LLMs.
@@ -429,12 +429,5 @@ Built with:
 - [Kubernetes Python Client](https://github.com/kubernetes-client/python)
 - [Prometheus Python Client](https://github.com/prometheus/client_python)
 
-## 📞 Support
-
-- 🐛 Report bugs: [GitHub Issues](https://github.com/yourusername/ai-devops-copilot/issues)
-- 💬 Discussions: [GitHub Discussions](https://github.com/yourusername/ai-devops-copilot/discussions)
-- 📧 Email: devops@example.com
-
----
 
 **Happy DevOps-ing!** 🚀
