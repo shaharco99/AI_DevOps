@@ -166,6 +166,121 @@ curl -X POST http://localhost:8000/metrics \
   -d '{"query":"histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[5m])) by (le))"}'
 ```
 
+## Running Demo Checks
+
+Validate your deployment with automated checks:
+
+```bash
+# Method 1: Using Python directly
+python3 demo_checks.py
+
+# Method 2: Using shell wrapper (handles venv activation)
+bash run_demo_checks.sh
+```
+
+### Expected Results
+
+#### Demo Path A: Docker Deployment
+
+When running demo checks after `docker compose up -d`:
+
+```
+✓ Docker daemon is running
+✓ Found 8 AI DevOps container(s) running
+  - ai-devops-api
+  - ai-devops-ollama
+  - ai-devops-postgres
+  - ai-devops-chroma
+  - ai-devops-prometheus
+  - ai-devops-grafana
+  ...
+
+✓ General health: 200
+✓ Liveness probe: 200
+✓ Readiness probe: 200
+  Status: ready
+
+✓ /chat endpoint: OK (200)
+  Response: Based on current metrics...
+
+✓ /analyze_logs endpoint: OK (200)
+✓ /metrics endpoint: OK (200)
+✓ Prometheus: OK
+✓ Grafana: OK
+✓ All unit tests passed
+```
+
+**What it means:**
+- All containers are running and healthy
+- API is responding to requests
+- Chat/LLM functionality is working (Ollama model available)
+- Prometheus is collecting metrics
+- Grafana is accessible for visualization
+- Core functionality tests pass
+
+#### Demo Path B: Kubernetes Deployment
+
+When running demo checks after `kubectl apply -f infra/kubernetes/`:
+
+```
+✓ Connected to Kubernetes cluster
+  Version: v1.28.0
+
+✓ Namespace 'ai-devops-assistant' exists
+
+✓ Found 6 pod(s) in namespace
+  - ai-devops-assistant-<hash>: Running
+  - ollama-<hash>: Running
+  - postgres-<hash>: Running
+  - chroma-<hash>: Running
+  - prometheus-<hash>: Running
+  - grafana-<hash>: Running
+
+✓ Found 4 deployment(s)
+
+✓ General health: 200
+✓ Liveness probe: 200
+✓ Readiness probe: 200
+```
+
+**What it means:**
+- Kubernetes cluster is accessible
+- All required resources are deployed in the namespace
+- Pods are in Running state
+- API is responding through Kubernetes service
+
+### Demo Check Components
+
+| Check | Purpose | Success Indicator |
+|-------|---------|-------------------|
+| **Deployment Detection** | Identify Docker or Kubernetes | One method detected with running services |
+| **Container/Pod Status** | Verify all components running | All containers/pods in Running state |
+| **Health Endpoints** | API responsiveness | 200 status code on all /health/* paths |
+| **Chat Endpoint** | LLM integration | 200 response with content |
+| **Log Analysis** | Database connectivity | 200 or 400 (expected if no logs) |
+| **Metrics Endpoint** | Prometheus integration | 200 response with data |
+| **Observability Stack** | Monitoring availability | Prometheus and Grafana accessible |
+| **Unit Tests** | Core functionality | All tests pass |
+
+### Troubleshooting Demo Checks
+
+**"No AI DevOps deployment detected"**
+- For Docker: Run `docker compose up -d` in the repo root
+- For Kubernetes: Run `kubectl apply -f infra/kubernetes/` 
+
+**"API Health Checks: Connection refused"**
+- For Docker: Ensure containers are running (`docker ps`)
+- For Kubernetes: Port-forward with `kubectl port-forward svc/ai-devops-assistant 8000:80`
+
+**"/chat endpoint: Timeout"**
+- Normal during first LLM inference (model loading)
+- Ollama is running but model initialization takes 30+ seconds
+- Try again after waiting for model to load
+
+**"Unit tests failed"**
+- Ensure virtual environment is activated: `source venv/bin/activate`
+- Install dev dependencies: `pip install -r requirements.txt`
+
 ## Local Development
 
 ```bash
