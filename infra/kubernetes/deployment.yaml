@@ -17,7 +17,8 @@ spec:
     spec:
       containers:
       - name: ai-devops-assistant
-        image: ai-devops:latest
+        image: ai-devops-backend:latest
+        imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 8000
         envFrom:

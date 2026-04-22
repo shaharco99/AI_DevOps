@@ -36,3 +36,5 @@ python-json-logger==2.0.7
 
 # Security
 cryptography==41.0.7
+
+aiosqlite==0.22.1

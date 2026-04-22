@@ -33,26 +33,34 @@ async def run_sql(
         # Initialize SQL tool
         sql_tool = SQLQueryTool()
         sql_tool.set_session(db_session)
-        
+
+        # Validate query safety before execution
+        is_safe, validation_error = sql_tool.validate_sql_injection(request.query)
+        if not is_safe:
+            raise HTTPException(
+                status_code=400,
+                detail=validation_error or "Query is not allowed",
+            )
+
         # Execute query
         logger.info(f"Executing SQL query: {request.query[:100]}...")
         result = await sql_tool.execute(
             query=request.query,
             limit=request.limit,
         )
-        
+
         if not result.get("success"):
             raise HTTPException(
                 status_code=400,
                 detail=result.get("error", "Query execution failed"),
             )
-        
+
         return SQLQueryResponse(
             rows=result["rows"],
             count=result["count"],
             execution_time_ms=0.0,  # TODO: Add timing
         )
-        
+
     except Exception as e:
         logger.error(f"SQL query error: {e}", exc_info=True)
         raise HTTPException(

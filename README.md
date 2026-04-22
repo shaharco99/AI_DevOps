@@ -113,19 +113,21 @@ curl -X POST http://localhost:8000/run_sql \
 ```bash
 # 1) Start local cluster
 minikube start --cpus=4 --memory=8192
-kubectl create namespace ai-devops-assistant || true
 
-# 2) Deploy stack manifests
+# 2) Apply namespace first, then deploy stack manifests
+kubectl apply -f infra/kubernetes/namespace.yaml
 kubectl apply -f infra/kubernetes/
 kubectl get pods -n ai-devops-assistant
 
-# 3) Port-forward key services
-kubectl port-forward svc/ai-devops-assistant 8000:8000 -n ai-devops-assistant
-kubectl port-forward svc/prometheus 9090:9090 -n ai-devops-assistant
-kubectl port-forward svc/grafana 3000:3000 -n ai-devops-assistant
+# 3) Ensure model exists in in-cluster Ollama
+OLLAMA_POD=$(kubectl get pod -n ai-devops-assistant -l app=ollama -o jsonpath='{.items[0].metadata.name}')
+kubectl exec -n ai-devops-assistant "$OLLAMA_POD" -- ollama pull llama3
 
 # 4) Validate rollout + runtime health
 kubectl rollout status deploy/ai-devops-assistant -n ai-devops-assistant
+
+# Temporary port-forward for API checks
+kubectl port-forward svc/ai-devops-assistant 8000:80 -n ai-devops-assistant
 curl -s http://localhost:8000/health
 
 # 5) Trigger AI troubleshooting
@@ -180,7 +182,3 @@ pytest tests/unit -v
 - `ARCHITECTURE.md`
 - `IMPLEMENTATION_PLAN.md`
 - `infra/kubernetes/README.md`
-
-## License
-
-MIT
