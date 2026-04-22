@@ -147,6 +147,43 @@ curl -X POST http://localhost:8000/chat \
   }'
 ```
 
+### SQL Query API
+
+```bash
+# Execute SQL queries
+curl -X POST http://localhost:8000/run_sql \
+  -H "Content-Type: application/json" \
+  -d '{
+    "query": "SELECT * FROM pipeline_logs WHERE status = 'failed' LIMIT 10",
+    "limit": 100
+  }'
+```
+
+### Log Analysis API
+
+```bash
+# Search and analyze logs
+curl -X POST http://localhost:8000/analyze_logs \
+  -H "Content-Type: application/json" \
+  -d '{
+    "query": "ERROR",
+    "limit": 50,
+    "time_range_hours": 24
+  }'
+```
+
+### Metrics API
+
+```bash
+# Query Prometheus metrics
+curl -X POST http://localhost:8000/metrics \
+  -H "Content-Type: application/json" \
+  -d '{
+    "query": "up",
+    "duration": "1h"
+  }'
+```
+
 ### Response Format
 
 ```json
@@ -190,7 +227,7 @@ LLM_MODEL=llama3
 LLM_TEMPERATURE=0.7
 
 # Database
-DATABASE_URL=postgresql+asyncpg://user:password@localhost/copilot
+DATABASE_URL=postgresql+asyncpg://user:password@localhost/devops
 
 # Kubernetes
 KUBECONFIG=/path/to/kubeconfig
@@ -282,7 +319,7 @@ docker build -t ai-devops-copilot:latest .
 
 ```bash
 docker run -p 8000:8000 \
-  -e DATABASE_URL=postgresql+asyncpg://user:password@postgres:5432/copilot \
+  -e DATABASE_URL=postgresql+asyncpg://user:password@postgres:5432/devops \
   -e OLLAMA_BASE_URL=http://ollama:11434 \
   ai-devops-copilot:latest
 ```
@@ -359,7 +396,30 @@ Contributions are welcome! Please see [CONTRIBUTING.md](docs/CONTRIBUTING.md) fo
 
 MIT License - see [LICENSE](LICENSE) file for details.
 
-## 🙏 Acknowledgments
+## 🎯 Project Status
+
+✅ **Core Features Implemented**
+- AI-powered DevOps chat interface
+- Tool-calling agents with multiple DevOps tools
+- REST API endpoints for chat, SQL queries, log analysis, and metrics
+- Docker Compose setup for local development
+- Kubernetes manifests for production deployment
+- Monitoring stack (Prometheus + Grafana)
+- CI/CD pipeline with GitHub Actions
+
+🚧 **Next Steps**
+- Populate RAG knowledge base with DevOps documentation
+- Add comprehensive unit and integration tests
+- Implement frontend UI (optional)
+- Add more specialized DevOps tools
+
+## 🚀 Quick Demo
+
+1. Start services: `docker-compose up -d`
+2. Pull LLM: `docker exec ai-devops-copilot-ollama ollama pull llama3`
+3. Chat with AI: `curl -X POST http://localhost:8000/chat -H "Content-Type: application/json" -d '{"message": "Show me failing pods"}'`
+
+This demonstrates a production-ready AI DevOps assistant that can intelligently query infrastructure, analyze logs, and provide expert recommendations using local LLMs.
 
 Built with:
 - [FastAPI](https://fastapi.tiangolo.com/) - Web framework

@@ -37,19 +37,19 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY --from=builder /build/*.whl /tmp/wheels/
 
 # Create non-root user
-RUN useradd -m -u 1000 copilot && \
+RUN useradd -m -u 1000 devops && \
     mkdir -p /data && \
-    chown -R copilot:copilot /app /data
+    chown -R devops:devops /app /data
 
 # Copy application
-COPY --chown=copilot:copilot . /app
+COPY --chown=devops:devops . /app
 
 # Install wheels
 RUN pip install --no-cache-dir --no-index --find-links=/tmp/wheels /tmp/wheels/* && \
     rm -rf /tmp/wheels/
 
 # Switch to non-root user
-USER copilot
+USER devops
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \

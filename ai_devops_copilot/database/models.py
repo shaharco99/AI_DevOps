@@ -77,7 +77,7 @@ class ChatSession(Base):
     started_at: Mapped[datetime] = mapped_column(DateTime, default=func.now())
     ended_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     message_count: Mapped[int] = mapped_column(Integer, default=0)
-    metadata: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
+    session_metadata: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
 
     def __repr__(self) -> str:
         return f"<ChatSession(id={self.id}, user_id={self.user_id})>"
@@ -108,7 +108,7 @@ class ApplicationLog(Base):
     level: Mapped[str] = mapped_column(String(50))  # INFO, ERROR, WARNING, etc.
     message: Mapped[str] = mapped_column(Text)
     source: Mapped[str] = mapped_column(String(256))
-    metadata: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
+    log_metadata: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=func.now())
 
     def __repr__(self) -> str:

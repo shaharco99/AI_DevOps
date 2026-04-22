@@ -12,7 +12,7 @@ from ai_devops_copilot.tools.log_tool import LogAnalysisTool
 from ai_devops_copilot.tools.metrics_tool import MetricsTool
 from ai_devops_copilot.tools.pipeline_tool import PipelineTool
 from ai_devops_copilot.tools.sql_tool import SQLQueryTool
-from ai_devops_copilot.rag.retriever import get_rag_retriever
+# from ai_devops_copilot.rag.retriever import get_rag_retriever  # Disabled for now
 
 logger = logging.getLogger(__name__)
 
@@ -81,7 +81,7 @@ class ToolExecutor:
             registry: Tool registry (creates new if not provided)
         """
         self.registry = registry or ToolRegistry()
-        self.rag_retriever = get_rag_retriever() if settings.ENABLE_RAG else None
+        self.rag_retriever = None  # get_rag_retriever() if settings.ENABLE_RAG else None
 
     async def execute_tool(
         self,

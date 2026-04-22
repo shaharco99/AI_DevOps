@@ -58,10 +58,13 @@ def create_app() -> FastAPI:
     )
 
     # Include routes
-    from ai_devops_copilot.api.routes import health, chat
+    from ai_devops_copilot.api.routes import health, chat, run_sql, analyze_logs, metrics
 
     app.include_router(health.router)
     app.include_router(chat.router)
+    app.include_router(run_sql.router)
+    app.include_router(analyze_logs.router)
+    app.include_router(metrics.router)
 
     # Add middleware
     from ai_devops_copilot.api.middleware import LoggingMiddleware, ErrorHandlingMiddleware

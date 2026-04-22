@@ -9,7 +9,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ai_devops_copilot.agents.memory import ConversationMemory, get_session_manager
 from ai_devops_copilot.agents.prompts import SYSTEM_PROMPT
 from ai_devops_copilot.config.settings import settings
-from ai_devops_copilot.rag.retriever import get_rag_retriever
 from ai_devops_copilot.services.llm_service import get_ollama_service
 from ai_devops_copilot.tools.tool_executor import get_tool_executor
 
@@ -27,7 +26,7 @@ class DevOpsAgent:
         """
         self.llm_service = None
         self.tool_executor = get_tool_executor(session)
-        self.rag_retriever = get_rag_retriever() if settings.ENABLE_RAG else None
+        self.rag_retriever = None  # Disabled for now
         self.session_manager = get_session_manager()
         self.session = session
 
@@ -68,9 +67,7 @@ class DevOpsAgent:
             memory.add_message("user", message)
 
             # Step 1: Determine if RAG retrieval is needed
-            rag_context = ""
-            if use_rag and self.rag_retriever:
-                rag_context = await self._retrieve_rag_context(message)
+            rag_context = ""  # Disabled for now
 
             # Step 2: Build context for LLM
             system_context = self._build_system_context(memory, rag_context)
