@@ -3,7 +3,7 @@ requires = ["setuptools>=68.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "ai-devops-copilot"
+name = "ai-devops-assistant"
 version = "0.1.0"
 description = "An AI-powered DevOps assistant that analyzes logs, infrastructure, and provides intelligent recommendations"
 readme = "README.md"
@@ -30,8 +30,8 @@ dependencies = [
     # FastAPI & Web
     "fastapi==0.110.0",
     "uvicorn[standard]==0.27.0",
-    "pydantic==2.6.1",
-    "pydantic-settings==2.2.0",
+    "pydantic==2.11.3",
+    "pydantic-settings==2.10.1",
     
     # Database
     "sqlalchemy==2.0.25",
@@ -41,9 +41,8 @@ dependencies = [
     # AI/ML
     "langchain==0.1.7",
     "langchain-community==0.0.20",
-    "langchain-core==0.1.24",
+    "langchain-core==0.1.23",
     "chromadb==0.4.22",
-    "sentence-transformers==2.2.2",
     "ollama==0.6.1",
     
     # Kubernetes
@@ -54,7 +53,7 @@ dependencies = [
     
     # Utilities
     "requests==2.31.0",
-    "httpx==0.25.2",
+    "httpx==0.27.2",
     "python-dotenv==1.0.0",
     "pyyaml==6.0.1",
     "tenacity==8.2.3",
@@ -83,18 +82,18 @@ test = [
     "pytest==7.4.3",
     "pytest-asyncio==0.23.2",
     "pytest-cov==4.1.0",
-    "httpx==0.25.2",
+    "httpx==0.27.2",
 ]
 
 [project.urls]
-Homepage = "https://github.com/yourusername/ai-devops-copilot"
-Documentation = "https://github.com/yourusername/ai-devops-copilot/tree/main/docs"
-Repository = "https://github.com/yourusername/ai-devops-copilot.git"
-Issues = "https://github.com/yourusername/ai-devops-copilot/issues"
+Homepage = "https://github.com/yourusername/ai-devops-assistant"
+Documentation = "https://github.com/yourusername/ai-devops-assistant/tree/main/docs"
+Repository = "https://github.com/yourusername/ai-devops-assistant.git"
+Issues = "https://github.com/yourusername/ai-devops-assistant/issues"
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["ai_devops_copilot*"]
+include = ["ai_devops_assistant*"]
 
 [tool.black]
 line-length = 100
@@ -169,7 +168,7 @@ markers = [
 ]
 
 [tool.coverage.run]
-source = ["ai_devops_copilot"]
+source = ["ai_devops_assistant"]
 omit = [
     "*/tests/*",
     "*/__init__.py",

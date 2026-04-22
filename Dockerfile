@@ -1,40 +1,15 @@
-# Multi-stage build for AI DevOps Copilot
-
-# ============================================================================
-# Stage 1: Builder
-# ============================================================================
-FROM python:3.11-slim as builder
-
-WORKDIR /build
-
-# Install build dependencies
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential \
-    libpq-dev \
-    && rm -rf /var/lib/apt/lists/*
-
-# Copy requirements
-COPY requirements.txt .
-
-# Create wheels
-RUN pip install --no-cache-dir --upgrade pip setuptools wheel && \
-    pip install --no-cache-dir --wheel --no-deps --requirement requirements.txt
-
-# ============================================================================
-# Stage 2: Runtime
-# ============================================================================
+# Runtime image for AI DevOps Assistant
 FROM python:3.11-slim
 
 WORKDIR /app
 
 # Install runtime dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    libpq-dev \
     libpq5 \
     curl \
     && rm -rf /var/lib/apt/lists/*
-
-# Copy wheels from builder
-COPY --from=builder /build/*.whl /tmp/wheels/
 
 # Create non-root user
 RUN useradd -m -u 1000 devops && \
@@ -44,9 +19,10 @@ RUN useradd -m -u 1000 devops && \
 # Copy application
 COPY --chown=devops:devops . /app
 
-# Install wheels
-RUN pip install --no-cache-dir --no-index --find-links=/tmp/wheels /tmp/wheels/* && \
-    rm -rf /tmp/wheels/
+# Install Python dependencies
+COPY requirements.txt /app/requirements.txt
+RUN pip install --no-cache-dir --upgrade pip setuptools wheel && \
+    pip install --no-cache-dir --requirement /app/requirements.txt
 
 # Switch to non-root user
 USER devops
@@ -59,4 +35,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
 EXPOSE 8000
 
 # Run application
-CMD ["uvicorn", "ai_devops_copilot.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "ai_devops_assistant.main:app", "--host", "0.0.0.0", "--port", "8000"]
