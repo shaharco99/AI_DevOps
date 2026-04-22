@@ -1,0 +1,90 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ai-devops-copilot
+  namespace: ai-devops-copilot
+  labels:
+    app: ai-devops-copilot
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: ai-devops-copilot
+  template:
+    metadata:
+      labels:
+        app: ai-devops-copilot
+    spec:
+      containers:
+      - name: ai-devops-copilot
+        image: ai-devops-copilot:latest
+        ports:
+        - containerPort: 8000
+        envFrom:
+        - configMapRef:
+            name: ai-devops-copilot-config
+        - secretRef:
+            name: ai-devops-copilot-secrets
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "1Gi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 60
+          periodSeconds: 30
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        # Graceful shutdown
+        lifecycle:
+          preStop:
+            exec:
+              command: ["/bin/sh", "-c", "sleep 15"]
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ai-devops-copilot
+  namespace: ai-devops-copilot
+  labels:
+    app: ai-devops-copilot
+spec:
+  type: ClusterIP
+  ports:
+  - port: 80
+    targetPort: 8000
+    protocol: TCP
+    name: http
+  selector:
+    app: ai-devops-copilot
+
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: ai-devops-copilot-ingress
+  namespace: ai-devops-copilot
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+spec:
+  rules:
+  - host: ai-devops-copilot.local
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: ai-devops-copilot
+            port:
+              number: 80

@@ -1,0 +1,46 @@
+name: Dependency Review
+
+on:
+  pull_request:
+    branches: [ main ]
+
+permissions:
+  contents: read
+
+jobs:
+  dependency-review:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+
+    - name: Dependency Review
+      uses: actions/dependency-review-action@v3
+
+  license-check:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Check licenses
+      run: |
+        pip install pip-licenses
+        pip install -r requirements.txt
+        pip-licenses --format=json --output-file=licenses.json
+
+    - name: Validate license compatibility
+      run: |
+        # Check for GPL licenses which might be problematic
+        if jq -e '.[] | select(.License == "GPL" or .License == "AGPL")' licenses.json > /dev/null; then
+          echo "Warning: GPL licensed dependencies found"
+          jq '.[] | select(.License == "GPL" or .License == "AGPL")' licenses.json
+        else
+          echo "No GPL licenses found"
+        fi
+
+    - name: Upload license report
+      uses: actions/upload-artifact@v3
+      with:
+        name: license-report
+        path: licenses.json

@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ai-devops-copilot
+  labels:
+    name: ai-devops-copilot
+    app: ai-devops-copilot

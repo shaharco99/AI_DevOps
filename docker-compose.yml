@@ -1,0 +1,176 @@
+version: "3.8"
+
+services:
+  # ========================================================================
+  # PostgreSQL Database
+  # ========================================================================
+  postgres:
+    image: postgres:15-alpine
+    container_name: ai-devops-copilot-postgres
+    environment:
+      POSTGRES_USER: copilot_user
+      POSTGRES_PASSWORD: copilot_password
+      POSTGRES_DB: copilot
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=en_US.UTF-8"
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - devops-copilot
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U copilot_user -d copilot" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ========================================================================
+  # Ollama LLM Service
+  # ========================================================================
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ai-devops-copilot-ollama
+    environment:
+      OLLAMA_HOST: 0.0.0.0:11434
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    networks:
+      - devops-copilot
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:11434/api/tags" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    # Pull llama3 model on startup
+    command: serve
+
+  # ========================================================================
+  # FastAPI Backend
+  # ========================================================================
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ai-devops-copilot-backend
+    environment:
+      DATABASE_URL: postgresql+asyncpg://copilot_user:copilot_password@postgres:5432/copilot
+      OLLAMA_BASE_URL: http://ollama:11434
+      CHROMA_PERSIST_DIR: /data/chroma
+      PROMETHEUS_URL: http://prometheus:9090
+      API_ENVIRONMENT: development
+      API_LOG_LEVEL: INFO
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./ai_devops_copilot:/app/ai_devops_copilot
+      - chroma_data:/data/chroma
+    depends_on:
+      postgres:
+        condition: service_healthy
+      ollama:
+        condition: service_healthy
+    networks:
+      - devops-copilot
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8000/health" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ========================================================================
+  # Prometheus Monitoring
+  # ========================================================================
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: ai-devops-copilot-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+    networks:
+      - devops-copilot
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "wget",
+          "--quiet",
+          "--tries=1",
+          "--spider",
+          "http://localhost:9090/-/healthy",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ========================================================================
+  # Grafana Visualization
+  # ========================================================================
+  grafana:
+    image: grafana/grafana:latest
+    container_name: ai-devops-copilot-grafana
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_INSTALL_PLUGINS: grafana-worldmap-panel
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning
+    depends_on:
+      - prometheus
+    networks:
+      - devops-copilot
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:3000/api/health" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ========================================================================
+  # Redis Cache (Optional but useful)
+  # ========================================================================
+  redis:
+    image: redis:7-alpine
+    container_name: ai-devops-copilot-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - devops-copilot
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+# ============================================================================
+# Volumes
+# ============================================================================
+volumes:
+  postgres_data:
+    driver: local
+  ollama_data:
+    driver: local
+  chroma_data:
+    driver: local
+  prometheus_data:
+    driver: local
+  grafana_data:
+    driver: local
+  redis_data:
+    driver: local
+
+# ============================================================================
+# Networks
+# ============================================================================
+networks:
+  devops-copilot:
+    driver: bridge

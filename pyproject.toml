@@ -1,0 +1,189 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ai-devops-copilot"
+version = "0.1.0"
+description = "An AI-powered DevOps assistant that analyzes logs, infrastructure, and provides intelligent recommendations"
+readme = "README.md"
+requires-python = ">=3.11"
+license = {text = "MIT"}
+authors = [
+    {name = "DevOps Team", email = "devops@example.com"}
+]
+keywords = ["devops", "ai", "llm", "assistant", "kubernetes", "ci-cd"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Intended Audience :: System Administrators",
+    "Intended Audience :: Information Technology",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: System :: Systems Administration",
+    "Topic :: Software Development :: Libraries :: Application Frameworks",
+]
+
+dependencies = [
+    # FastAPI & Web
+    "fastapi==0.110.0",
+    "uvicorn[standard]==0.27.0",
+    "pydantic==2.6.1",
+    "pydantic-settings==2.2.0",
+    
+    # Database
+    "sqlalchemy==2.0.25",
+    "asyncpg==0.29.0",
+    "alembic==1.13.0",
+    
+    # AI/ML
+    "langchain==0.1.7",
+    "langchain-community==0.0.11",
+    "langchain-core==0.1.24",
+    "chromadb==0.4.22",
+    "sentence-transformers==2.2.2",
+    "ollama==0.0.55",
+    
+    # Kubernetes
+    "kubernetes==29.0.0",
+    
+    # Monitoring
+    "prometheus-client==0.19.0",
+    
+    # Utilities
+    "requests==2.31.0",
+    "httpx==0.25.2",
+    "python-dotenv==1.0.0",
+    "pyyaml==6.0.1",
+    "tenacity==8.2.3",
+    
+    # Logging
+    "python-json-logger==2.0.7",
+    
+    # Security
+    "cryptography==41.0.7",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest==7.4.3",
+    "pytest-asyncio==0.23.2",
+    "pytest-cov==4.1.0",
+    "black==23.12.1",
+    "ruff==0.1.11",
+    "mypy==1.7.1",
+    "pre-commit==3.6.0",
+    "ipython==8.18.1",
+    "ipdb==0.13.13",
+]
+
+test = [
+    "pytest==7.4.3",
+    "pytest-asyncio==0.23.2",
+    "pytest-cov==4.1.0",
+    "httpx==0.25.2",
+]
+
+[project.urls]
+Homepage = "https://github.com/yourusername/ai-devops-copilot"
+Documentation = "https://github.com/yourusername/ai-devops-copilot/tree/main/docs"
+Repository = "https://github.com/yourusername/ai-devops-copilot.git"
+Issues = "https://github.com/yourusername/ai-devops-copilot/issues"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["ai_devops_copilot*"]
+
+[tool.black]
+line-length = 100
+target-version = ["py311"]
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+  # directories
+  \.eggs
+  | \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | build
+  | dist
+  | migrations
+)/
+'''
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+select = ["E", "F", "W", "I", "N", "UP"]
+extend-ignore = ["E501", "W503"]
+exclude = [
+    ".git",
+    "__pycache__",
+    "build",
+    "dist",
+    ".venv",
+    "migrations",
+]
+
+[tool.ruff.per-file-ignores]
+"__init__.py" = ["F401"]
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_configs = true
+ignore_missing_imports = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+disallow_incomplete_defs = false
+exclude = [
+    "migrations/",
+    "tests/",
+]
+
+[[tool.mypy.overrides]]
+module = [
+    "chromadb.*",
+    "kubernetes.*",
+    "ollama.*",
+]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+minversion = "7.0"
+addopts = "-ra -q --strict-markers --disable-warnings"
+testpaths = ["tests"]
+python_files = ["test_*.py", "*_test.py"]
+asyncio_mode = "auto"
+markers = [
+    "unit: Unit tests",
+    "integration: Integration tests",
+    "slow: Slow tests",
+    "external: Tests that call external services",
+]
+
+[tool.coverage.run]
+source = ["ai_devops_copilot"]
+omit = [
+    "*/tests/*",
+    "*/__init__.py",
+    "*/migrations/*",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+    "class .*\\bProtocol\\):",
+    "@(abc\\.)?abstractmethod",
+]
