@@ -1,7 +1,7 @@
 """Embeddings initialization and management."""
 
 import logging
-from typing import Any, Optional
+from typing import Any
 
 import ollama
 
@@ -15,12 +15,12 @@ class EmbeddingService:
 
     def __init__(self, model_name: str = settings.EMBEDDING_MODEL):
         """Initialize embedding service.
-        
+
         Args:
             model_name: HuggingFace model name
         """
         self.model_name = model_name
-        self.model: Optional[str] = None
+        self.model: str | None = None
         self._initialized = False
 
     async def initialize(self) -> None:
@@ -39,13 +39,13 @@ class EmbeddingService:
 
     def embed(self, text: str) -> list[float]:
         """Generate embedding for text.
-        
+
         Args:
             text: Text to embed
-            
+
         Returns:
             list: Embedding vector
-            
+
         Raises:
             ValueError: If model not initialized
         """
@@ -66,13 +66,13 @@ class EmbeddingService:
 
     def embed_batch(self, texts: list[str]) -> list[list[float]]:
         """Generate embeddings for multiple texts.
-        
+
         Args:
             texts: Texts to embed
-            
+
         Returns:
             list: List of embedding vectors
-            
+
         Raises:
             ValueError: If model not initialized
         """
@@ -92,10 +92,10 @@ class EmbeddingService:
 
     def get_dimension(self) -> int:
         """Get embedding dimension.
-        
+
         Returns:
             int: Embedding dimension
-            
+
         Raises:
             ValueError: If model not initialized
         """
@@ -105,12 +105,12 @@ class EmbeddingService:
 
 
 # Global instance
-_embedding_service: Optional[EmbeddingService] = None
+_embedding_service: EmbeddingService | None = None
 
 
 async def get_embedding_service() -> EmbeddingService:
     """Get or create embedding service.
-    
+
     Returns:
         EmbeddingService: Embedding service instance
     """
@@ -123,10 +123,10 @@ async def get_embedding_service() -> EmbeddingService:
 
 def get_embedding_service_sync() -> EmbeddingService:
     """Get embedding service (synchronous).
-    
+
     Returns:
         EmbeddingService: Embedding service instance
-        
+
     Note:
         This is for synchronous contexts. The model must already be initialized.
     """

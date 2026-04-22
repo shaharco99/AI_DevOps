@@ -1,22 +1,22 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: ai-devops
-  namespace: ai-devops
+  name: ai-devops-assistant
+  namespace: ai-devops-assistant
   labels:
-    app: ai-devops
+    app: ai-devops-assistant
 spec:
   replicas: 2
   selector:
     matchLabels:
-      app: ai-devops
+      app: ai-devops-assistant
   template:
     metadata:
       labels:
-        app: ai-devops
+        app: ai-devops-assistant
     spec:
       containers:
-      - name: ai-devops
+      - name: ai-devops-assistant
         image: ai-devops:latest
         ports:
         - containerPort: 8000

@@ -1,4 +1,4 @@
-name: Security Scan
+name: Scheduled Security Scan
 
 on:
   schedule:
@@ -20,46 +20,49 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v4
 
-    - name: Run Trivy vulnerability scanner
-      uses: aquasecurity/trivy-action@master
+    - name: Run Trivy filesystem scan
+      uses: aquasecurity/trivy-action@0.24.0
       with:
         scan-type: 'fs'
         scan-ref: '.'
         format: 'sarif'
         output: 'trivy-results.sarif'
+        severity: 'HIGH,CRITICAL'
 
     - name: Upload Trivy scan results to GitHub Security tab
-      uses: github/codeql-action/upload-sarif@v2
+      uses: github/codeql-action/upload-sarif@v3
       if: always()
       with:
         sarif_file: 'trivy-results.sarif'
 
-    - name: Run CodeQL Analysis
-      uses: github/codeql-action/init@v2
+    - name: Initialize CodeQL
+      uses: github/codeql-action/init@v3
       with:
         languages: python
 
     - name: Autobuild
-      uses: github/codeql-action/autobuild@v2
+      uses: github/codeql-action/autobuild@v3
 
     - name: Perform CodeQL Analysis
-      uses: github/codeql-action/analyze@v2
+      uses: github/codeql-action/analyze@v3
+
+    - name: Install Python security tooling
+      run: |
+        python -m pip install --upgrade pip
+        pip install bandit pip-audit
 
     - name: Run Bandit Security Linter
-      run: |
-        pip install bandit
-        bandit -r ai_devops_assistant/ -f json -o bandit-report.json || true
+      run: bandit -r ai_devops_assistant -f json -o bandit-report.json
 
-    - name: Run Safety check for Python dependencies
+    - name: Run dependency vulnerability scan
       run: |
-        pip install safety
-        safety check --output json > safety-report.json || true
+        pip-audit -r requirements.txt -f json -o pip-audit-report.json
 
     - name: Upload security reports
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       if: always()
       with:
         name: security-reports
         path: |
           bandit-report.json
-          safety-report.json
+          pip-audit-report.json

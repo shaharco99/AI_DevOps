@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: ai-devops
+  name: ai-devops-assistant
   labels:
-    name: ai-devops
+    name: ai-devops-assistant
     app: ai-devops

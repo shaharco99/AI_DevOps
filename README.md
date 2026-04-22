@@ -1,433 +1,186 @@
 # AI DevOps Assistant
 
-An intelligent AI-powered DevOps assistant that analyzes logs, queries infrastructure, and provides expert recommendations using local LLMs and advanced tool-calling capabilities.
+Production-style open-source platform demonstrating **AI Engineering + DevOps + Platform Architecture** for interview portfolios.
 
-## 🎯 Features
+It runs locally with open-source components, uses a local LLM through Ollama, and showcases practical SRE/DevSecOps workflows.
 
-### Core Capabilities
+## What This Project Demonstrates
 
-- **📊 DevOps Chat Interface**: Ask questions naturally, get intelligent responses
-- **📝 Log Analysis**: Search and analyze application and pipeline logs
-- **☸️ Kubernetes Integration**: Query cluster status, pods, deployments, and services
-- **💾 SQL Database Queries**: Execute safe SELECT queries to analyze data
-- **📈 Prometheus Metrics**: Query system and application metrics
-- **📚 RAG Knowledge Base**: Access DevOps best practices and documentation
-- **🔄 CI/CD Pipeline Status**: Check build and deployment status
+- **AI agent orchestration**: LangChain tool-calling agent that routes requests to SQL, Kubernetes, log, metrics, and pipeline tools.
+- **Operational diagnostics**: Root-cause style analysis for CI/CD failures, infra incidents, and deployment issues.
+- **RAG for DevOps**: Retrieval pipeline over docs/runbooks stored in Chroma.
+- **Observability integration**: Prometheus + Grafana for metrics, dashboards, and troubleshooting flows.
+- **DevSecOps discipline**: linting, testing, Docker build validation, dependency scanning, SAST, and container scanning in CI.
 
-### Example Queries
+## Architecture
 
-```
-"Why did my pipeline fail?"
-"Show me failing pods in the default namespace"
-"Which services have the most errors today?"
-"Explain this error: OOMKilled"
-"What are Kubernetes best practices?"
-"Query the database for errors in the last hour"
-```
+```mermaid
+flowchart TD
+    U[DevOps Engineer] --> API[FastAPI API Layer]
+    API --> AGENT[LangChain Tool-Calling Agent]
+    AGENT --> SQL[SQL Tool]
+    AGENT --> K8S[Kubernetes Tool]
+    AGENT --> LOGS[Log Analysis Tool]
+    AGENT --> METRICS[Prometheus Metrics Tool]
+    AGENT --> PIPE[Pipeline Status Tool]
+    AGENT --> RAG[RAG Retriever]
 
-## 🏗️ Architecture
+    RAG --> CHROMA[(Chroma Vector Store)]
+    RAG --> EMB[Ollama Embeddings]
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                       FastAPI Backend                            │
-│  (REST API, async request handling)                             │
-└──────────────────────────┬──────────────────────────────────────┘
-                           │
-         ┌─────────────────┼─────────────────┐
-         │                 │                 │
-         ▼                 ▼                 ▼
-    ┌─────────┐      ┌──────────┐    ┌─────────────┐
-    │  Agent  │      │LLM/Ollama│    │  Tool Layer │
-    │ Manager │      │ (llama3/ │    │  (Executor) │
-    │         │      │ mistral) │    │             │
-    └────┬────┘      └──────────┘    └─────┬───────┘
-         │                                   │
-         ├──────────────────────────────────┤
-         │                                  │
-    ┌────▼─────────────────────────────┐   │
-    │      Tool Registry & Implementations│   │
-    │  K8s  SQL  Logs  Metrics  Pipeline  │   │
-    └────┬─────────────────────────────┘   │
-         │                                  │
-    ┌────▼──────┬────────────┬────────┴───┐
-    │ PostgreSQL│  Chroma    │ External  │
-    │ (Metadata)│  (Vectors) │  Services │
-    └───────────┴────────────┴───────────┘
+    SQL --> POSTGRES[(PostgreSQL)]
+    METRICS --> PROM[Prometheus]
+    K8S --> CLUSTER[Kubernetes Cluster]
+    API --> OLLAMA[Ollama LLM]
+    PROM --> GRAFANA[Grafana Dashboards]
 ```
 
-## 🚀 Quick Start
+## Tech Stack
 
-### Prerequisites
+- **Backend**: Python, FastAPI, SQLAlchemy
+- **AI**: LangChain, tool-calling agents, RAG, Chroma
+- **LLM**: Ollama (`llama3`, `mistral`, `nomic-embed-text`)
+- **Data**: PostgreSQL
+- **Observability**: Prometheus, Grafana
+- **Platform**: Docker, Docker Compose, Kubernetes manifests
+- **CI/CD & Security**: GitHub Actions, Ruff, Black, MyPy, Pytest, Bandit, pip-audit, Trivy
 
-- Docker & Docker Compose
-- Python 3.11+ (for local development)
-- 8GB+ RAM (for running Ollama)
+## Repository Layout
 
-### Option 1: Docker Compose (Recommended)
+```text
+ai_devops_assistant/
+  agents/ tools/ rag/ database/ services/ api/
+infra/
+  kubernetes/
+monitoring/
+  prometheus/ grafana/
+tests/
+.github/workflows/
+```
 
-1. Clone the repository:
+## Quick Start (Docker)
 
 ```bash
 git clone https://github.com/yourusername/ai-devops-assistant.git
 cd ai-devops-assistant
-```
-
-2. Create environment file:
-
-```bash
 cp .env.example .env
+docker compose up -d
+docker exec ai-devops-ollama ollama pull llama3
+docker exec ai-devops-ollama ollama pull nomic-embed-text
+curl -s http://localhost:8000/health
 ```
 
-3. Start all services:
+Endpoints:
+- API docs: `http://localhost:8000/docs`
+- Prometheus: `http://localhost:9090`
+- Grafana: `http://localhost:3000` (admin/admin)
+
+## Interview Demo Script (High-Signal)
+
+### Demo Path A: Docker-based (10-15 min)
 
 ```bash
-docker-compose up -d
+# 1) Start platform
+docker compose up -d
+docker compose ps
+
+# 2) Verify health and observability
+curl -s http://localhost:8000/health
+curl -s "http://localhost:9090/api/v1/query?query=up"
+
+# 3) Ask operational AI questions
+curl -X POST http://localhost:8000/chat \
+  -H "Content-Type: application/json" \
+  -d '{"message":"Why did my pipeline fail?"}'
+
+curl -X POST http://localhost:8000/chat \
+  -H "Content-Type: application/json" \
+  -d '{"message":"Which service has the highest latency?"}'
+
+# 4) Show SQL safety controls
+curl -X POST http://localhost:8000/run_sql \
+  -H "Content-Type: application/json" \
+  -d '{"query":"SELECT * FROM application_logs LIMIT 5"}'
+
+# 5) Show blocked unsafe query
+curl -X POST http://localhost:8000/run_sql \
+  -H "Content-Type: application/json" \
+  -d '{"query":"DROP TABLE application_logs"}'
 ```
 
-4. Pull the LLM model:
+### Demo Path B: Kubernetes + Minikube (Platform Skills)
 
 ```bash
-docker exec ai-devops-assistant-ollama ollama pull llama3
+# 1) Start local cluster
+minikube start --cpus=4 --memory=8192
+kubectl create namespace ai-devops-assistant || true
+
+# 2) Deploy stack manifests
+kubectl apply -f infra/kubernetes/
+kubectl get pods -n ai-devops-assistant
+
+# 3) Port-forward key services
+kubectl port-forward svc/ai-devops-assistant 8000:8000 -n ai-devops-assistant
+kubectl port-forward svc/prometheus 9090:9090 -n ai-devops-assistant
+kubectl port-forward svc/grafana 3000:3000 -n ai-devops-assistant
+
+# 4) Validate rollout + runtime health
+kubectl rollout status deploy/ai-devops-assistant -n ai-devops-assistant
+curl -s http://localhost:8000/health
+
+# 5) Trigger AI troubleshooting
+curl -X POST http://localhost:8000/chat \
+  -H "Content-Type: application/json" \
+  -d '{"message":"Show failing pods and explain likely root cause"}'
 ```
 
-5. Access the application:
+## Security Skills Showcase
 
-- FastAPI Backend: http://localhost:8000
-- API Docs: http://localhost:8000/docs
-- Grafana: http://localhost:3000 (admin/admin)
-- Prometheus: http://localhost:9090
+- SQL guardrails: only safe read-style SQL accepted by tool layer.
+- Secret hygiene: env-based configuration; no plaintext credentials in code.
+- CI checks:
+  - `bandit` for static security analysis.
+  - `pip-audit` for dependency CVEs.
+  - `trivy` for filesystem/container vulnerability scanning.
+- Supply chain posture: deterministic Docker builds, non-root runtime container.
 
-### Option 2: Local Development
+## CI/CD Pipeline Stages
 
-1. Create and activate virtual environment:
+GitHub Actions pipeline includes:
+- **lint**: Ruff + Black + MyPy
+- **unit-tests**: pytest + coverage
+- **docker-build**: image build validation
+- **security-scan**: Bandit + pip-audit + Trivy (SARIF upload)
+
+## API Examples
+
+```bash
+curl -X POST http://localhost:8000/analyze_logs \
+  -H "Content-Type: application/json" \
+  -d '{"query":"ERROR","time_range_hours":24,"limit":50}'
+
+curl -X POST http://localhost:8000/metrics \
+  -H "Content-Type: application/json" \
+  -d '{"query":"histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[5m])) by (le))"}'
+```
+
+## Local Development
 
 ```bash
 python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-```
-
-2. Install dependencies:
-
-```bash
+source venv/bin/activate
 pip install -r requirements.txt
 pip install -e ".[dev]"
-```
-
-3. Set up environment:
-
-```bash
-cp .env.example .env
-# Edit .env with your local settings
-```
-
-4. Initialize database:
-
-```bash
-# Run migrations with Alembic
-alembic upgrade head
-```
-
-5. Start the server:
-
-```bash
-uvicorn ai_devops_assistant.main:app --reload
-```
-
-## 📖 Usage
-
-### Chat API
-
-```bash
-# Start a chat session
-curl -X POST http://localhost:8000/chat \
-  -H "Content-Type: application/json" \
-  -d '{
-    "message": "Show me failing pods",
-    "session_id": "my-session-1"
-  }'
-```
-
-### SQL Query API
-
-```bash
-# Execute SQL queries
-curl -X POST http://localhost:8000/run_sql \
-  -H "Content-Type: application/json" \
-  -d '{
-    "query": "SELECT * FROM pipeline_logs WHERE status = 'failed' LIMIT 10",
-    "limit": 100
-  }'
-```
-
-### Log Analysis API
-
-```bash
-# Search and analyze logs
-curl -X POST http://localhost:8000/analyze_logs \
-  -H "Content-Type: application/json" \
-  -d '{
-    "query": "ERROR",
-    "limit": 50,
-    "time_range_hours": 24
-  }'
-```
-
-### Metrics API
-
-```bash
-# Query Prometheus metrics
-curl -X POST http://localhost:8000/metrics \
-  -H "Content-Type: application/json" \
-  -d '{
-    "query": "up",
-    "duration": "1h"
-  }'
-```
-
-### Response Format
-
-```json
-{
-  "session_id": "my-session-1",
-  "message": "I found 2 failing pods in the default namespace...",
-  "tool_calls": [
-    {
-      "tool_name": "kubernetes_tool",
-      "parameters": {"action": "list_pods"},
-      "result": {...}
-    }
-  ]
-}
-```
-
-### Query Log Analysis
-
-```bash
-curl -X POST http://localhost:8000/chat \
-  -H "Content-Type: application/json" \
-  -d '{
-    "message": "Show me errors from the last 2 hours"
-  }'
-```
-
-### Access Session History
-
-```bash
-curl http://localhost:8000/chat/sessions/{session_id}
-```
-
-## 🔧 Configuration
-
-### Environment Variables
-
-```bash
-# LLM
-OLLAMA_BASE_URL=http://localhost:11434
-LLM_MODEL=llama3
-LLM_TEMPERATURE=0.7
-
-# Database
-DATABASE_URL=postgresql+asyncpg://user:password@localhost/devops
-
-# Kubernetes
-KUBECONFIG=/path/to/kubeconfig
-K8S_NAMESPACE=default
-
-# Monitoring
-PROMETHEUS_URL=http://localhost:9090
-
-# RAG
-ENABLE_RAG=true
-```
-
-## 🛠️ Development
-
-### Code Quality
-
-```bash
-# Run linting
-ruff check ai_devops_assistant/
-
-# Format code
-black ai_devops_assistant/
-
-# Type checking
-mypy ai_devops_assistant/
-
-# Run tests
-pytest tests/ -v
-```
-
-### Pre-commit Hooks
-
-```bash
-# Install pre-commit
 pre-commit install
-
-# Run manually
-pre-commit run --all-files
+pytest tests/unit -v
 ```
 
-### Running Tests
+## Documentation
 
-```bash
-# Unit tests
-pytest tests/unit/ -v
+- `ARCHITECTURE.md`
+- `IMPLEMENTATION_PLAN.md`
+- `infra/kubernetes/README.md`
 
-# Integration tests
-pytest tests/integration/ -v
+## License
 
-# With coverage
-pytest --cov=ai_devops_assistant tests/
-```
-
-## 📊 Monitoring
-
-### Prometheus Metrics
-
-The application exposes Prometheus metrics at `/metrics`. Grafana dashboards are pre-configured.
-
-Key metrics:
-- `http_requests_total` - Total HTTP requests
-- `http_request_duration_seconds` - Request latency
-- `llm_queries_total` - LLM API calls
-- `tool_executions_total` - Tool executions
-- `tool_errors_total` - Tool errors
-
-### Logs
-
-Logs are output in JSON format to stdout for easy parsing and aggregation.
-
-```json
-{
-  "timestamp": "2024-04-22T10:00:00",
-  "level": "INFO",
-  "logger": "ai_devops_assistant.agents.agent",
-  "message": "Processing chat request for session: abc123"
-}
-```
-
-## 🐳 Docker
-
-### Build Image
-
-```bash
-docker build -t ai-devops-assistant:latest .
-```
-
-### Run Container
-
-```bash
-docker run -p 8000:8000 \
-  -e DATABASE_URL=postgresql+asyncpg://user:password@postgres:5432/devops \
-  -e OLLAMA_BASE_URL=http://ollama:11434 \
-  ai-devops-assistant:latest
-```
-
-## ☸️ Kubernetes Deployment
-
-See [infra/kubernetes/README.md](infra/kubernetes/README.md) for full deployment instructions.
-
-Quick start:
-
-```bash
-# Create namespace
-kubectl create namespace devops-ai
-
-# Apply manifests
-kubectl apply -f infra/kubernetes/
-
-# Check status
-kubectl get pods -n devops-ai
-```
-
-## 🔐 Security
-
-- SQL queries are validated against injection attacks
-- Only SELECT queries allowed
-- LLM prompts are carefully engineered to prevent injection
-- All sensitive data in environment variables
-- No credentials in code
-
-## 🧪 Testing Examples
-
-### Example 1: Kubernetes Pod Query
-
-```bash
-curl -X POST http://localhost:8000/chat \
-  -H "Content-Type: application/json" \
-  -d '{
-    "message": "List all pods in the default namespace"
-  }'
-```
-
-### Example 2: Log Analysis
-
-```bash
-curl -X POST http://localhost:8000/chat \
-  -H "Content-Type: application/json" \
-  -d '{
-    "message": "Find ERROR logs from the last 24 hours"
-  }'
-```
-
-### Example 3: Metrics Query
-
-```bash
-curl -X POST http://localhost:8000/chat \
-  -H "Content-Type: application/json" \
-  -d '{
-    "message": "What is the current request latency?"
-  }'
-```
-
-## 📚 Documentation
-
-- [Architecture](ARCHITECTURE.md) - System design and components
-- [Implementation Plan](IMPLEMENTATION_PLAN.md) - Development roadmap
-- [API Reference](docs/API.md) - REST API documentation
-- [Contributing](docs/CONTRIBUTING.md) - Contribution guidelines
-
-## 🤝 Contributing
-
-Contributions are welcome! Please see [CONTRIBUTING.md](docs/CONTRIBUTING.md) for guidelines.
-
-## 📝 License
-
-MIT License - see [LICENSE](LICENSE) file for details.
-
-## 🎯 Project Status
-
-✅ **Core Features Implemented**
-- AI-powered DevOps chat interface
-- Tool-calling agents with multiple DevOps tools
-- REST API endpoints for chat, SQL queries, log analysis, and metrics
-- Docker Compose setup for local development
-- Kubernetes manifests for production deployment
-- Monitoring stack (Prometheus + Grafana)
-- CI/CD pipeline with GitHub Actions
-
-🚧 **Next Steps**
-- Populate RAG knowledge base with DevOps documentation
-- Add comprehensive unit and integration tests
-- Implement frontend UI (optional)
-- Add more specialized DevOps tools
-
-## 🚀 Quick Demo
-
-1. Start services: `docker-compose up -d`
-2. Pull LLM: `docker exec ai-devops-assistant-ollama ollama pull llama3`
-3. Chat with AI: `curl -X POST http://localhost:8000/chat -H "Content-Type: application/json" -d '{"message": "Show me failing pods"}'`
-
-This demonstrates a production-ready AI DevOps assistant that can intelligently query infrastructure, analyze logs, and provide expert recommendations using local LLMs.
-
-Built with:
-- [FastAPI](https://fastapi.tiangolo.com/) - Web framework
-- [LangChain](https://python.langchain.com/) - AI/ML orchestration
-- [Ollama](https://ollama.ai/) - Local LLMs
-- [Chroma](https://www.trychroma.com/) - Vector database
-- [Kubernetes Python Client](https://github.com/kubernetes-client/python)
-- [Prometheus Python Client](https://github.com/prometheus/client_python)
-
-
-**Happy DevOps-ing!** 🚀
+MIT
