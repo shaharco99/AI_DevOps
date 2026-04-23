@@ -12,93 +12,84 @@ It runs locally with open-source components, uses a local LLM through Ollama, an
 - **Observability integration**: Prometheus + Grafana for metrics, dashboards, and troubleshooting flows.
 - **DevSecOps discipline**: linting, testing, Docker build validation, dependency scanning, SAST, and container scanning in CI.
 
-## System Architecture
+## Architecture
 
-### Overall Architecture
+This project follows a service-oriented architecture where the AI assistant, observability stack, database, and model runtime are split into separate containers or pods. The backend acts as the API entry point and orchestrates tool-calling through the LangChain agent.
 
 ```mermaid
 flowchart TD
-    U[DevOps Engineer] --> API[FastAPI API Layer]
-    API --> AGENT[LangChain Tool-Calling Agent]
+    U[DevOps Engineer / API Client] --> |HTTP| API[FastAPI Backend]
+    API --> |Chat & Tool Requests| AGENT[LangChain Tool-Calling Agent]
     AGENT --> SQL[SQL Tool]
     AGENT --> K8S[Kubernetes Tool]
     AGENT --> LOGS[Log Analysis Tool]
     AGENT --> METRICS[Prometheus Metrics Tool]
     AGENT --> PIPE[Pipeline Status Tool]
-    AGENT --> RAG[RAG Retriever]
+    AGENT --> RAG[RAG Retrieval Tool]
 
     RAG --> CHROMA[(Chroma Vector Store)]
     RAG --> EMB[Ollama Embeddings]
 
-    SQL --> POSTGRES[(PostgreSQL)]
-    METRICS --> PROM[Prometheus]
-    K8S --> CLUSTER[Kubernetes Cluster]
-    API --> OLLAMA[Ollama LLM]
+    SQL --> POSTGRES[(PostgreSQL Database)]
+    METRICS --> PROM[Prometheus Server]
+    K8S --> CLUSTER[Kubernetes Cluster / API]
+    API --> OLLAMA[Ollama LLM Service]
     PROM --> GRAFANA[Grafana Dashboards]
 ```
 
-### Layered Architecture
+### Runtime Components
 
-```
-┌──────────────────────────────────────────────────────────────────┐
-│                        Client/User Interface                     │
-│                      (Chat, REST API Clients)                    │
-└────────────────────────┬─────────────────────────────────────────┘
-                         │ HTTP/REST
-                         ▼
-┌────────────────────────────────────────────────────────────────────┐
-│                     API Layer (FastAPI)                            │
-│  ┌──────────────┬─────────────────┬──────────────┬──────────────┐  │
-│  │  /chat       │  /run_sql       │  /analyze_   │  /metrics    │  │
-│  │              │                 │  logs        │              │  │
-│  └──────────────┴─────────────────┴──────────────┴──────────────┘  │
-│  ┌──────────────┬─────────────────┬─────────────────────────────┐  │
-│  │  /health     │  Middleware & Auth & Logging                  │  │
-│  └──────────────┴─────────────────┴─────────────────────────────┘  │
-└────────────────────────┬───────────────────────────────────────────┘
-                         │
-        ┌────────────────┼────────────────┐
-        │                │                │
-        ▼                ▼                ▼
-┌───────────────┐  ┌──────────────┐  ┌─────────────────┐
-│ Agent Manager │  │ LLM Service  │  │ Tool Executor   │
-│ (LangChain)   │  │ (Ollama)     │  │ & Registry      │
-└───────┬───────┘  └──────────────┘  └────────┬────────┘
-        │                                      │
-        └──────────────────┬───────────────────┘
-                           │
-        ┌──────────────────┼──────────────────┬─────────────────┐
-        │                  │                  │                 │
-        ▼                  ▼                  ▼                 ▼
-   ┌─────────┐        ┌──────────┐      ┌──────────┐       ┌──────────┐
-   │ SQL Tool│        │ K8s Tool │      │ Log Tool │       │RAG Tool  │
-   │         │        │          │      │          │       │          │
-   └────┬────┘        └────┬─────┘      └────┬─────┘       └────┬─────┘
-        │                  │                  │                  │
-        │                  │                  │                  │
-   ┌────▼────────┐  ┌─────▼──────┐  ┌────────▼────┐  ┌─────────▼──────┐
-   │ PostgreSQL  │  │ K8s Cluster│  │ Log Stores  │  │ Chroma Vector  │
-   │             │  │            │  │             │  │ Database       │
-   └─────────────┘  └────────────┘  └─────────────┘  └────────────────┘
-        │
-        ▼
-   ┌─────────────┐
-   │ Prometheus  │
-   │ Metrics Tool│
-   └─────────────┘
-        │
-        ▼
-   ┌─────────────┐
-   │ Prometheus  │
-   │ Server      │
-   └─────────────┘
-        │
-        ▼
-   ┌─────────────┐
-   │   Grafana   │
-   │ Dashboards  │
-   └─────────────┘
-```
+The platform is designed to run as a set of cooperating services. In Docker Compose the main containers are:
+
+- `ai-devops-backend`: The FastAPI application and LangChain agent that handles requests, routes tool calls, executes safe SQL, queries Prometheus and Kubernetes, and returns conversational responses.
+- `ai-devops-ollama`: The local LLM server running Ollama. It provides model inference for prompt completion, tool selection, and RAG synthesis.
+- `ai-devops-postgres`: The PostgreSQL relational database storing metadata, logs, pipeline information, and structured application data.
+- `ai-devops-prometheus`: The Prometheus time-series server that scrapes metrics from the backend, Ollama, and other services.
+- `ai-devops-grafana`: The Grafana dashboard service used for visualizing Prometheus metrics and operational health.
+- `ai-devops-redis`: An optional Redis cache service for transient data and performance-sensitive caching.
+- `ai-devops-chroma`: The Chroma vector store service used for semantic search and retrieval-augmented generation (RAG).
+
+In Kubernetes, these services map to pods/deployments as follows:
+
+- `ai-devops-assistant`: The main backend deployment running the FastAPI service.
+- `ollama`: The Ollama LLM deployment serving local model inference.
+- `postgres`: The PostgreSQL deployment storing application data.
+- `chroma`: The Chroma vector database deployment for embeddings and document search.
+- `prometheus`: The Prometheus deployment scraping metrics from the application and cluster.
+- `grafana`: The Grafana deployment providing dashboards and data visualization.
+
+### What Each Pod / Container Does
+
+- `ai-devops-backend` / `ai-devops-assistant`
+  - Exposes the `/chat`, `/run_sql`, `/analyze_logs`, `/metrics`, and `/health` endpoints.
+  - Manages request validation, tool orchestration, configuration, and logging.
+  - Calls the agent layer to decide whether to use SQL, K8s, logs, metrics, or RAG to answer the user.
+
+- `ai-devops-ollama` / `ollama`
+  - Hosts the local Ollama inference engine.
+  - Responds to prompt completions and tool-calling decisions.
+  - Stores downloaded models in persistent storage so the assistant can use them offline.
+
+- `ai-devops-postgres` / `postgres`
+  - Stores structured state for the assistant, including pipeline records, logs, and operational metadata.
+  - Serves as the primary relational database for SQL tool queries.
+
+- `ai-devops-chroma` / `chroma`
+  - Stores semantic embeddings and document vectors.
+  - Powers retrieval of runbooks, documentation, and contextual knowledge for RAG-enhanced answers.
+
+- `ai-devops-prometheus` / `prometheus`
+  - Scrapes metrics from the backend service and supported endpoints.
+  - Stores time-series metrics for dashboards and analysis.
+  - Enables queries such as HTTP latency, error rate, and resource health.
+
+- `ai-devops-grafana` / `grafana`
+  - Visualizes metrics from Prometheus.
+  - Provides preconfigured dashboards for service health, request performance, and cluster monitoring.
+
+- `ai-devops-redis`
+  - Optional cache layer used for temporary tool results and accelerated runtime performance.
+  - Helps reduce repeated work for repeated queries.
 
 ## Tech Stack
 
