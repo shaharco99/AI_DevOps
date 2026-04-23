@@ -22,6 +22,10 @@ data:
   ENABLE_METRICS_TOOL: "true"
   ENABLE_LOG_TOOL: "true"
   ENABLE_PIPELINE_TOOL: "true"
+  # Azure DevOps Configuration (set these values for your organization)
+  AZURE_DEVOPS_URL: "https://dev.azure.com"
+  AZURE_DEVOPS_ORG: "your-organization-name"
+  AZURE_DEVOPS_PROJECT: "your-project-name"
   K8S_NAMESPACE: "ai-devops-assistant"
   K8S_VERIFY_SSL: "true"
   K8S_TIMEOUT: "30"

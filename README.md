@@ -33,6 +33,7 @@ flowchart TD
     SQL --> POSTGRES[(PostgreSQL Database)]
     METRICS --> PROM[Prometheus Server]
     K8S --> CLUSTER[Kubernetes Cluster / API]
+    PIPE --> AZDO[Azure DevOps REST API]
     API --> OLLAMA[Ollama LLM Service]
     PROM --> GRAFANA[Grafana Dashboards]
 ```
@@ -123,12 +124,20 @@ Jenkinsfile           # Jenkins pipeline
 ```bash
 git clone https://github.com/yourusername/ai-devops-assistant.git
 cd ai-devops-assistant
-cp .env.example .env
+
+# For local development: copy and customize environment variables
+cp .env.example .env.local
+
+# Edit .env.local with your credentials (see .env.local.example for details)
+# DO NOT commit .env.local - it's automatically in .gitignore
+
 docker compose up -d
 docker exec ai-devops-ollama ollama pull llama3
 docker exec ai-devops-ollama ollama pull nomic-embed-text
 curl -s http://localhost:8000/health
 ```
+
+**⚠️ Secrets Management**: Never commit `.env` files with real credentials. See [SECRETS_MANAGEMENT.md](./SECRETS_MANAGEMENT.md) for best practices on handling API keys, tokens, and PATs securely in development and production.
 
 Endpoints:
 - API docs: `http://localhost:8000/docs`
@@ -278,13 +287,92 @@ kubectl get pods -n ai-devops-assistant
 kubectl rollout status deployment/ai-devops-assistant -n ai-devops-assistant
 ```
 
-### Production Considerations
+### How the AI Assistant Connects to Azure DevOps
 
-- **Secrets Management**: Use your CI/CD platform's secret management (GitHub Secrets, Azure Key Vault, Jenkins Credentials)
-- **Environment Variables**: Configure database URLs, API keys, and registry credentials
-- **Scaling**: Adjust replica counts in Kubernetes manifests based on load
-- **Monitoring**: Set up alerts for pipeline failures and deployment issues
-- **Rollback**: Implement blue-green or canary deployment strategies for production
+When you ask "Why did my pipeline fail?", here's what happens:
+
+1. **User Query** → AI Agent receives: *"Why did my pipeline fail?"*
+
+2. **Tool Selection** → Agent uses LLM to decide which tool to call:
+   - Recognizes this as a pipeline-related question
+   - Calls the `pipeline_status_tool` with action `get_recent_builds`
+
+3. **Azure DevOps API Call** → Pipeline tool makes authenticated API calls:
+   ```python
+   # Tool executes this logic:
+   async def _get_recent_builds(self, pipeline_name=None):
+       url = f"{AZURE_DEVOPS_URL}/{ORG}/{PROJECT}/_apis/build/builds"
+       headers = {"Authorization": f"Basic {base64_PAT}"}
+       # Fetches recent builds via REST API
+   ```
+
+4. **Data Retrieval** → Gets real pipeline data:
+   - Build status, results, timestamps
+   - Failed task details and logs
+   - Source branch and commit info
+
+5. **Analysis & Response** → Agent synthesizes findings:
+   - Identifies failed builds
+   - Explains likely root causes
+   - Suggests remediation steps
+
+#### Required Environment Variables
+
+```bash
+# Set these in your deployment environment
+AZURE_DEVOPS_URL=https://dev.azure.com          # Your Azure DevOps URL
+AZURE_DEVOPS_ORG=your-organization               # Organization name
+AZURE_DEVOPS_PROJECT=your-project                # Project name
+AZURE_DEVOPS_PAT=your-personal-access-token      # PAT with Build (Read) permissions
+```
+
+#### Example Conversation Flow
+
+**User:** "Why did my pipeline fail?"
+**Agent:** (calls pipeline tool) → (queries Azure DevOps API) → (gets failed build data)
+**Agent:** "The latest pipeline run #2024.04.23.1 failed during the 'Unit Tests' stage. The error shows a test failure in `test_api.py` line 45. The logs indicate a database connection timeout. This commonly occurs when the test database isn't ready. Try increasing the retry count or adding a health check before running tests."
+
+#### Azure DevOps Configuration
+
+**For Docker Deployment:**
+```bash
+# Add to your .env file
+AZURE_DEVOPS_URL=https://dev.azure.com
+AZURE_DEVOPS_ORG=your-org-name
+AZURE_DEVOPS_PROJECT=your-project-name
+AZURE_DEVOPS_PAT=your-personal-access-token
+```
+
+**For Kubernetes Deployment:**
+```yaml
+# Add to infra/kubernetes/configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ai-devops-config
+  namespace: ai-devops-assistant
+data:
+  AZURE_DEVOPS_URL: "https://dev.azure.com"
+  AZURE_DEVOPS_ORG: "your-org-name"
+  AZURE_DEVOPS_PROJECT: "your-project-name"
+
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: ai-devops-secrets
+  namespace: ai-devops-assistant
+type: Opaque
+data:
+  AZURE_DEVOPS_PAT: <base64-encoded-pat>
+```
+
+**Creating Azure DevOps PAT:**
+1. Go to Azure DevOps → User Settings → Personal Access Tokens
+2. Create new token with "Build (Read)" and "Project (Read)" scopes
+3. Copy the token value to your environment variables
+
+The assistant becomes your **intelligent DevOps companion** that can instantly diagnose pipeline issues by connecting directly to your Azure DevOps environment!
 
 ## API Examples
 
@@ -423,6 +511,21 @@ pip install -e ".[dev]"
 pre-commit install
 pytest tests/unit -v
 ```
+
+### Testing Azure DevOps Integration
+
+```bash
+# Set your Azure DevOps environment variables
+export AZURE_DEVOPS_URL="https://dev.azure.com"
+export AZURE_DEVOPS_ORG="your-organization"
+export AZURE_DEVOPS_PROJECT="your-project"
+export AZURE_DEVOPS_PAT="your-personal-access-token"
+
+# Run the test script
+python test_azure_devops.py
+```
+
+This will verify that the pipeline tool can successfully connect to your Azure DevOps environment and retrieve pipeline information.
 
 ## Documentation
 

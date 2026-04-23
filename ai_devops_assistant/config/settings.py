@@ -68,6 +68,20 @@ class Settings(BaseSettings):
     PROMETHEUS_TIMEOUT: int = 10
 
     # ========================================================================
+    # CI/CD Pipeline Settings
+    # ========================================================================
+    # Azure DevOps
+    AZURE_DEVOPS_URL: str = "https://dev.azure.com"
+    AZURE_DEVOPS_ORG: Optional[str] = None
+    AZURE_DEVOPS_PROJECT: Optional[str] = None
+    # Jenkins
+    JENKINS_URL: str = "http://localhost:8080"
+    JENKINS_USER: Optional[str] = None
+    # GitHub Actions
+    GITHUB_OWNER: Optional[str] = None
+    GITHUB_REPO: Optional[str] = None
+
+    # ========================================================================
     # Feature Flags
     # ========================================================================
     ENABLE_RAG: bool = True
