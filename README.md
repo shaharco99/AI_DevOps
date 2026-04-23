@@ -108,10 +108,14 @@ ai_devops_assistant/
   agents/ tools/ rag/ database/ services/ api/
 infra/
   kubernetes/
+    helm/           # Helm chart for Kubernetes deployment
+    *.yaml          # Individual Kubernetes manifests
 monitoring/
   prometheus/ grafana/
 tests/
-.github/workflows/
+.github/workflows/     # GitHub Actions CI/CD
+azure-pipelines.yml    # Azure DevOps pipeline
+Jenkinsfile           # Jenkins pipeline
 ```
 
 ## Quick Start (Docker)
@@ -209,6 +213,78 @@ GitHub Actions pipeline includes:
 - **unit-tests**: pytest + coverage
 - **docker-build**: image build validation
 - **security-scan**: Bandit + pip-audit + Trivy (SARIF upload)
+
+## Deployment Options
+
+### GitHub Actions (Already Configured)
+
+The repository includes GitHub Actions workflows in `.github/workflows/`:
+
+- `ci-cd.yml`: Main CI pipeline with linting, testing, Docker build, and security scanning
+- `release.yml`: Automated Docker image building and publishing to GitHub Container Registry
+- `security.yml`: Scheduled security scans with Trivy and CodeQL
+- `dependency-review.yml`: Dependency vulnerability checking
+
+**To use GitHub Actions:**
+1. Push your code to a GitHub repository
+2. Ensure GitHub Container Registry is enabled
+3. The workflows will run automatically on push/PR to main/develop branches
+
+### Azure DevOps Pipelines
+
+Create a new pipeline using the provided `azure-pipelines.yml`:
+
+1. In Azure DevOps, go to Pipelines → New Pipeline
+2. Select "GitHub" as source and connect your repository
+3. Choose "Existing Azure Pipelines YAML file"
+4. Select `azure-pipelines.yml` from the root
+5. Configure these variables in Pipeline Variables:
+   - `DOCKER_REGISTRY`: Your Azure Container Registry URL
+   - Set up service connections for Azure Container Registry and Kubernetes
+
+### Jenkins Pipeline
+
+Use the provided `Jenkinsfile` for Jenkins:
+
+1. Install required Jenkins plugins:
+   - Docker Pipeline
+   - Kubernetes CLI
+   - Cobertura (for coverage reports)
+   - JUnit (for test reports)
+
+2. Configure Jenkins credentials:
+   - `docker-registry-credentials`: For pushing to your container registry
+   - `kubeconfig`: For Kubernetes deployment
+
+3. Create a new Pipeline job and copy the `Jenkinsfile` content
+
+4. Configure the environment variables in the Jenkins job:
+   - `DOCKER_REGISTRY`: Your container registry URL
+
+### Deployment to Kubernetes
+
+After CI/CD completes successfully:
+
+```bash
+# Using kubectl directly
+kubectl apply -f infra/kubernetes/namespace.yaml
+kubectl apply -f infra/kubernetes/
+
+# Or using Helm (if available)
+helm install ai-devops-assistant infra/kubernetes/helm/
+
+# Check deployment status
+kubectl get pods -n ai-devops-assistant
+kubectl rollout status deployment/ai-devops-assistant -n ai-devops-assistant
+```
+
+### Production Considerations
+
+- **Secrets Management**: Use your CI/CD platform's secret management (GitHub Secrets, Azure Key Vault, Jenkins Credentials)
+- **Environment Variables**: Configure database URLs, API keys, and registry credentials
+- **Scaling**: Adjust replica counts in Kubernetes manifests based on load
+- **Monitoring**: Set up alerts for pipeline failures and deployment issues
+- **Rollback**: Implement blue-green or canary deployment strategies for production
 
 ## API Examples
 

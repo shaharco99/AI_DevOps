@@ -1,0 +1,88 @@
+# Default values for ai-devops-assistant.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+replicaCount: 2
+
+image:
+  repository: ghcr.io/yourusername/ai-devops-assistant
+  pullPolicy: IfNotPresent
+  tag: "latest"
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+podAnnotations: {}
+
+podSecurityContext: {}
+
+securityContext: {}
+
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 8000
+
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  hosts:
+    - host: ai-devops-assistant.local
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+
+resources:
+  limits:
+    cpu: 500m
+    memory: 1Gi
+  requests:
+    cpu: 250m
+    memory: 512Mi
+
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 100
+  targetCPUUtilizationPercentage: 80
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}
+
+# Database configuration
+postgresql:
+  enabled: true
+  auth:
+    postgresPassword: "devops_password"
+    username: "devops_user"
+    password: "devops_password"
+    database: "devops"
+
+# Ollama configuration
+ollama:
+  enabled: true
+  model: "llama3"
+
+# Chroma configuration
+chroma:
+  enabled: true
+
+# Prometheus configuration
+prometheus:
+  enabled: true
+
+# Grafana configuration
+grafana:
+  enabled: true
+  adminPassword: "admin"

@@ -1,0 +1,124 @@
+trigger:
+  - main
+  - develop
+
+pool:
+  vmImage: "ubuntu-latest"
+
+variables:
+  PYTHON_VERSION: "3.11"
+  DOCKER_REGISTRY: "your-registry.azurecr.io"
+  IMAGE_NAME: "ai-devops-assistant"
+
+stages:
+  - stage: Lint
+    jobs:
+      - job: LintAndStaticAnalysis
+        steps:
+          - task: UsePythonVersion@0
+            inputs:
+              versionSpec: $(PYTHON_VERSION)
+
+          - script: |
+              python -m pip install --upgrade pip
+              pip install -r requirements.txt
+              pip install -e ".[dev]"
+            displayName: "Install dependencies"
+
+          - script: ruff check ai_devops_assistant tests
+            displayName: "Run Ruff linting"
+
+          - script: black --check ai_devops_assistant tests
+            displayName: "Check Black formatting"
+
+          - script: mypy ai_devops_assistant
+            displayName: "Run MyPy type checking"
+
+  - stage: Test
+    dependsOn: Lint
+    jobs:
+      - job: UnitTests
+        steps:
+          - task: UsePythonVersion@0
+            inputs:
+              versionSpec: $(PYTHON_VERSION)
+
+          - script: |
+              python -m pip install --upgrade pip
+              pip install -r requirements.txt
+              pip install -e ".[dev]"
+            displayName: "Install dependencies"
+
+          - script: pytest tests/unit -v --cov=ai_devops_assistant --cov-report=xml
+              --cov-report=term-missing
+            displayName: "Run unit tests with coverage"
+
+          - task: PublishCodeCoverageResults@1
+            inputs:
+              codeCoverageTool: "Cobertura"
+              summaryFileLocation: "coverage.xml"
+
+  - stage: Security
+    dependsOn: Test
+    jobs:
+      - job: SecurityScan
+        steps:
+          - task: UsePythonVersion@0
+            inputs:
+              versionSpec: $(PYTHON_VERSION)
+
+          - script: |
+              pip install bandit pip-audit
+            displayName: "Install security tools"
+
+          - script: bandit -r ai_devops_assistant -ll
+            displayName: "Run Bandit security scan"
+
+          - script: pip-audit -r requirements.txt
+            displayName: "Run dependency vulnerability scan"
+
+          - task: Docker@2
+            inputs:
+              command: "build"
+              Dockerfile: "Dockerfile"
+              tags: "security-scan"
+            displayName: "Build Docker image for scanning"
+
+          - task: CmdLine@2
+            inputs:
+              script: |
+                docker run --rm -v /var/run/docker.sock:/var/run/docker.sock
+                aquasec/trivy:latest image --exit-code 1 --no-progress --format json
+                --output trivy-results.json security-scan
+            displayName: "Run Trivy container scan"
+
+  - stage: Build
+    dependsOn: Security
+    jobs:
+      - job: DockerBuild
+        steps:
+          - task: Docker@2
+            inputs:
+              command: "buildAndPush"
+              repository: $(IMAGE_NAME)
+              dockerfile: "Dockerfile"
+              containerRegistry: "your-azure-container-registry"
+              tags: |
+                $(Build.BuildNumber)
+                latest
+
+  - stage: Deploy
+    dependsOn: Build
+    condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+    jobs:
+      - deployment: DeployToAKS
+        environment: "production"
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - task: KubernetesManifest@0
+                  inputs:
+                    action: "deploy"
+                    namespace: "ai-devops-assistant"
+                    manifests: "infra/kubernetes/*.yaml"
