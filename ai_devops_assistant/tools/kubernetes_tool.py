@@ -53,12 +53,12 @@ class KubernetesTool(BaseTool):
         **kwargs,
     ) -> dict[str, Any]:
         """Execute Kubernetes query.
-        
+
         Args:
             action: Action to perform (list_pods, get_pod, list_deployments, etc.)
             namespace: Kubernetes namespace
             **kwargs: Additional parameters
-            
+
         Returns:
             dict: Query results
         """
@@ -102,15 +102,19 @@ class KubernetesTool(BaseTool):
             pods = self.v1.list_namespaced_pod(namespace)
             pod_list = []
             for pod in pods.items:
-                pod_list.append({
-                    "name": pod.metadata.name,
-                    "status": pod.status.phase,
-                    "ready": pod.status.conditions[-1].status if pod.status.conditions else "Unknown",
-                    "restarts": sum(
-                        c.restart_count for c in pod.status.container_statuses or []
-                    ),
-                    "age": str(pod.metadata.creation_timestamp),
-                })
+                pod_list.append(
+                    {
+                        "name": pod.metadata.name,
+                        "status": pod.status.phase,
+                        "ready": pod.status.conditions[-1].status
+                        if pod.status.conditions
+                        else "Unknown",
+                        "restarts": sum(
+                            c.restart_count for c in pod.status.container_statuses or []
+                        ),
+                        "age": str(pod.metadata.creation_timestamp),
+                    }
+                )
             return {
                 "success": True,
                 "pods": pod_list,
@@ -143,7 +147,8 @@ class KubernetesTool(BaseTool):
                             "name": c.name,
                             "image": c.image,
                             "ready": pod.status.container_statuses[i].ready
-                            if pod.status.container_statuses else False,
+                            if pod.status.container_statuses
+                            else False,
                         }
                         for i, c in enumerate(pod.spec.containers)
                     ],
@@ -169,14 +174,16 @@ class KubernetesTool(BaseTool):
             deployments = self.apps_v1.list_namespaced_deployment(namespace)
             dep_list = []
             for dep in deployments.items:
-                dep_list.append({
-                    "name": dep.metadata.name,
-                    "desired": dep.spec.replicas,
-                    "ready": dep.status.ready_replicas or 0,
-                    "updated": dep.status.updated_replicas or 0,
-                    "available": dep.status.available_replicas or 0,
-                    "age": str(dep.metadata.creation_timestamp),
-                })
+                dep_list.append(
+                    {
+                        "name": dep.metadata.name,
+                        "desired": dep.spec.replicas,
+                        "ready": dep.status.ready_replicas or 0,
+                        "updated": dep.status.updated_replicas or 0,
+                        "available": dep.status.available_replicas or 0,
+                        "age": str(dep.metadata.creation_timestamp),
+                    }
+                )
             return {
                 "success": True,
                 "deployments": dep_list,
@@ -188,7 +195,9 @@ class KubernetesTool(BaseTool):
                 "error": str(e),
             }
 
-    async def _get_deployment(self, namespace: str, deployment_name: Optional[str]) -> dict[str, Any]:
+    async def _get_deployment(
+        self, namespace: str, deployment_name: Optional[str]
+    ) -> dict[str, Any]:
         """Get specific deployment details."""
         if not deployment_name:
             return {
@@ -229,19 +238,21 @@ class KubernetesTool(BaseTool):
             services = self.v1.list_namespaced_service(namespace)
             svc_list = []
             for svc in services.items:
-                svc_list.append({
-                    "name": svc.metadata.name,
-                    "type": svc.spec.type,
-                    "cluster_ip": svc.spec.cluster_ip,
-                    "ports": [
-                        {
-                            "name": p.name,
-                            "port": p.port,
-                            "target_port": p.target_port,
-                        }
-                        for p in (svc.spec.ports or [])
-                    ],
-                })
+                svc_list.append(
+                    {
+                        "name": svc.metadata.name,
+                        "type": svc.spec.type,
+                        "cluster_ip": svc.spec.cluster_ip,
+                        "ports": [
+                            {
+                                "name": p.name,
+                                "port": p.port,
+                                "target_port": p.target_port,
+                            }
+                            for p in (svc.spec.ports or [])
+                        ],
+                    }
+                )
             return {
                 "success": True,
                 "services": svc_list,
@@ -259,17 +270,19 @@ class KubernetesTool(BaseTool):
             events = self.v1.list_namespaced_event(namespace)
             event_list = []
             for event in events.items:
-                event_list.append({
-                    "reason": event.reason,
-                    "message": event.message,
-                    "type": event.type,
-                    "count": event.count,
-                    "timestamp": str(event.last_timestamp),
-                    "involved_object": {
-                        "kind": event.involved_object.kind,
-                        "name": event.involved_object.name,
-                    },
-                })
+                event_list.append(
+                    {
+                        "reason": event.reason,
+                        "message": event.message,
+                        "type": event.type,
+                        "count": event.count,
+                        "timestamp": str(event.last_timestamp),
+                        "involved_object": {
+                            "kind": event.involved_object.kind,
+                            "name": event.involved_object.name,
+                        },
+                    }
+                )
             return {
                 "success": True,
                 "events": event_list,

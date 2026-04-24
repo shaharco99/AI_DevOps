@@ -1,6 +1,6 @@
 """Integration tests for API endpoint behavior."""
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 from fastapi.testclient import TestClient
@@ -23,7 +23,9 @@ async def test_full_chat_flow(client, monkeypatch):
             return {
                 "success": True,
                 "message": f"Processed: {message}",
-                "tool_calls": [{"name": "pipeline_status_tool", "parameters": {"action": "get_status"}}],
+                "tool_calls": [
+                    {"name": "pipeline_status_tool", "parameters": {"action": "get_status"}}
+                ],
                 "tool_results": {"pipeline_status_tool": {"success": True}},
                 "thinking": "Checking CI/CD run history.",
             }
@@ -35,7 +37,9 @@ async def test_full_chat_flow(client, monkeypatch):
         return None
 
     monkeypatch.setattr("ai_devops_assistant.api.routes.chat.get_agent", fake_get_agent)
-    monkeypatch.setattr("ai_devops_assistant.api.routes.chat.add_chat_message", fake_add_chat_message)
+    monkeypatch.setattr(
+        "ai_devops_assistant.api.routes.chat.add_chat_message", fake_add_chat_message
+    )
 
     response = client.post("/chat", json={"message": "Hello, check system status"})
     assert response.status_code == 200
@@ -58,7 +62,9 @@ async def test_sql_query_integration(client, monkeypatch):
 
     monkeypatch.setattr("ai_devops_assistant.tools.sql_tool.SQLQueryTool.execute", fake_execute)
 
-    response = client.post("/run_sql", json={"query": "SELECT COUNT(*) as count FROM application_logs"})
+    response = client.post(
+        "/run_sql", json={"query": "SELECT COUNT(*) as count FROM application_logs"}
+    )
     assert response.status_code == 200
     data = response.json()
     assert "rows" in data
@@ -69,12 +75,14 @@ async def test_sql_query_integration(client, monkeypatch):
 async def test_log_analysis_integration(client, monkeypatch):
     """Test log analysis endpoint response contract."""
 
-    async def fake_execute(self, query, log_type="application", time_range_hours=24, limit=100, **kwargs):
+    async def fake_execute(
+        self, query, log_type="application", time_range_hours=24, limit=100, **kwargs
+    ):
         return {
             "success": True,
             "logs": [
                 {
-                    "timestamp": datetime.now(timezone.utc),
+                    "timestamp": datetime.now(UTC),
                     "level": "ERROR",
                     "message": "Database connection failed",
                     "source": "api",
@@ -148,7 +156,9 @@ async def test_concurrent_chat_sessions(client, monkeypatch):
         return None
 
     monkeypatch.setattr("ai_devops_assistant.api.routes.chat.get_agent", fake_get_agent)
-    monkeypatch.setattr("ai_devops_assistant.api.routes.chat.add_chat_message", fake_add_chat_message)
+    monkeypatch.setattr(
+        "ai_devops_assistant.api.routes.chat.add_chat_message", fake_add_chat_message
+    )
 
     session_ids = []
     for i in range(3):

@@ -1,7 +1,7 @@
 """Metrics query tool for Prometheus."""
 
 import logging
-from typing import Any, Optional
+from typing import Any
 
 import httpx
 
@@ -30,12 +30,12 @@ class MetricsTool(BaseTool):
         **kwargs,
     ) -> dict[str, Any]:
         """Execute Prometheus query.
-        
+
         Args:
             query: PromQL query string
             duration: Duration for range queries
             **kwargs: Additional parameters
-            
+
         Returns:
             dict: Query results
         """
@@ -103,11 +103,13 @@ class MetricsTool(BaseTool):
         for result in results:
             metric = result.get("metric", {})
             value = result.get("value", [None, None])
-            formatted.append({
-                "metric": metric,
-                "value": float(value[1]) if value[1] else None,
-                "timestamp": value[0],
-            })
+            formatted.append(
+                {
+                    "metric": metric,
+                    "value": float(value[1]) if value[1] else None,
+                    "timestamp": value[0],
+                }
+            )
         return formatted
 
     def get_schema(self) -> dict[str, Any]:

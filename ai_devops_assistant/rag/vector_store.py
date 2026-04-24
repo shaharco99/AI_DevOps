@@ -18,7 +18,7 @@ class VectorStoreService:
 
     def __init__(self, persist_dir: str = settings.CHROMA_PERSIST_DIR):
         """Initialize vector store.
-        
+
         Args:
             persist_dir: Directory to persist vector database
         """
@@ -44,7 +44,7 @@ class VectorStoreService:
                 persist_directory=self.persist_dir,
                 anonymized_telemetry=settings.CHROMA_ANONYMIZED_TELEMETRY,
             )
-            
+
             self.client = chromadb.Client(chroma_settings)
 
             # Get or create collection
@@ -55,7 +55,7 @@ class VectorStoreService:
 
             self._initialized = True
             logger.info("Vector store initialized successfully")
-            
+
         except Exception as e:
             logger.error(f"Failed to initialize vector store: {e}")
             raise
@@ -67,12 +67,12 @@ class VectorStoreService:
         metadatas: Optional[list[dict]] = None,
     ) -> None:
         """Add documents to vector store.
-        
+
         Args:
             documents: List of document texts
             ids: List of document IDs
             metadatas: Optional list of metadata dicts
-            
+
         Raises:
             ValueError: If not initialized
         """
@@ -91,9 +91,9 @@ class VectorStoreService:
                 embeddings=embeddings,
                 metadatas=metadatas or [{} for _ in documents],
             )
-            
+
             logger.info(f"Added {len(documents)} documents to vector store")
-            
+
         except Exception as e:
             logger.error(f"Failed to add documents: {e}")
             raise
@@ -105,15 +105,15 @@ class VectorStoreService:
         where: Optional[dict] = None,
     ) -> dict:
         """Search vector store.
-        
+
         Args:
             query: Search query
             k: Number of results to return
             where: Optional metadata filter
-            
+
         Returns:
             dict: Search results with documents, metadatas, distances
-            
+
         Raises:
             ValueError: If not initialized
         """
@@ -133,20 +133,20 @@ class VectorStoreService:
             )
 
             return results
-            
+
         except Exception as e:
             logger.error(f"Search failed: {e}")
             raise
 
     def get_document(self, doc_id: str) -> Optional[dict]:
         """Get document by ID.
-        
+
         Args:
             doc_id: Document ID
-            
+
         Returns:
             dict: Document data or None
-            
+
         Raises:
             ValueError: If not initialized
         """
@@ -162,17 +162,17 @@ class VectorStoreService:
                     "metadata": result["metadatas"][0],
                 }
             return None
-            
+
         except Exception as e:
             logger.error(f"Failed to get document: {e}")
             raise
 
     def delete_document(self, doc_id: str) -> None:
         """Delete document from vector store.
-        
+
         Args:
             doc_id: Document ID
-            
+
         Raises:
             ValueError: If not initialized
         """
@@ -182,14 +182,14 @@ class VectorStoreService:
         try:
             self.collection.delete(ids=[doc_id])
             logger.info(f"Deleted document: {doc_id}")
-            
+
         except Exception as e:
             logger.error(f"Failed to delete document: {e}")
             raise
 
     def delete_all(self) -> None:
         """Delete all documents from collection.
-        
+
         Raises:
             ValueError: If not initialized
         """
@@ -202,17 +202,17 @@ class VectorStoreService:
             if all_docs["ids"]:
                 self.collection.delete(ids=all_docs["ids"])
                 logger.info(f"Deleted {len(all_docs['ids'])} documents")
-            
+
         except Exception as e:
             logger.error(f"Failed to delete all documents: {e}")
             raise
 
     def count(self) -> int:
         """Get document count.
-        
+
         Returns:
             int: Number of documents
-            
+
         Raises:
             ValueError: If not initialized
         """
@@ -232,7 +232,7 @@ _vector_store_service: Optional[VectorStoreService] = None
 
 def get_vector_store_service() -> VectorStoreService:
     """Get or create vector store service.
-    
+
     Returns:
         VectorStoreService: Vector store service instance
     """

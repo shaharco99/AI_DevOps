@@ -3,7 +3,7 @@
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import JSON, Column, DateTime, Integer, String, Text, func
+from sqlalchemy import JSON, DateTime, Integer, String, Text, func
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -22,9 +22,7 @@ class PipelineLog(Base):
     log_content: Mapped[str] = mapped_column(Text)
     error_summary: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime, default=func.now(), onupdate=func.now()
-    )
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=func.now(), onupdate=func.now())
 
     def __repr__(self) -> str:
         return f"<PipelineLog(id={self.id}, status={self.status})>"
@@ -59,9 +57,7 @@ class RAGDocument(Base):
     category: Mapped[str] = mapped_column(String(256))
     embedding_id: Mapped[Optional[str]] = mapped_column(String(256), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime, default=func.now(), onupdate=func.now()
-    )
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=func.now(), onupdate=func.now())
 
     def __repr__(self) -> str:
         return f"<RAGDocument(id={self.id}, title={self.title})>"

@@ -30,11 +30,11 @@ async def create_chat_session(
     user_id: str,
 ) -> ChatSession:
     """Create a new chat session.
-    
+
     Args:
         session: Database session
         user_id: User ID
-        
+
     Returns:
         ChatSession: Created session
     """
@@ -53,17 +53,15 @@ async def get_chat_session(
     session_id: str,
 ) -> Optional[ChatSession]:
     """Get chat session by ID.
-    
+
     Args:
         session: Database session
         session_id: Session ID
-        
+
     Returns:
         ChatSession or None
     """
-    result = await session.execute(
-        select(ChatSession).where(ChatSession.id == session_id)
-    )
+    result = await session.execute(select(ChatSession).where(ChatSession.id == session_id))
     return result.scalars().first()
 
 
@@ -75,14 +73,14 @@ async def add_chat_message(
     tools_used: Optional[list] = None,
 ) -> ChatMessage:
     """Add message to chat session.
-    
+
     Args:
         session: Database session
         session_id: Session ID
         role: Message role (user/assistant)
         content: Message content
         tools_used: Optional list of tools used
-        
+
     Returns:
         ChatMessage: Created message
     """
@@ -94,12 +92,12 @@ async def add_chat_message(
         tools_used=tools_used,
     )
     session.add(message)
-    
+
     # Update message count
     chat_session = await get_chat_session(session, session_id)
     if chat_session:
         chat_session.message_count += 1
-    
+
     await session.commit()
     await session.refresh(message)
     return message
@@ -111,12 +109,12 @@ async def get_chat_messages(
     limit: int = 100,
 ) -> list[ChatMessage]:
     """Get chat messages for a session.
-    
+
     Args:
         session: Database session
         session_id: Session ID
         limit: Maximum messages to return
-        
+
     Returns:
         List of chat messages
     """
@@ -143,7 +141,7 @@ async def store_pipeline_log(
     error_summary: Optional[str] = None,
 ) -> PipelineLog:
     """Store pipeline log.
-    
+
     Args:
         session: Database session
         pipeline_id: Pipeline ID
@@ -151,7 +149,7 @@ async def store_pipeline_log(
         status: Pipeline status
         log_content: Log content
         error_summary: Optional error summary
-        
+
     Returns:
         PipelineLog: Created log entry
     """
@@ -175,12 +173,12 @@ async def get_pipeline_logs(
     limit: int = 50,
 ) -> list[PipelineLog]:
     """Get pipeline logs.
-    
+
     Args:
         session: Database session
         pipeline_id: Pipeline ID
         limit: Maximum logs to return
-        
+
     Returns:
         List of pipeline logs
     """
@@ -206,14 +204,14 @@ async def store_metric_snapshot(
     labels: Optional[dict] = None,
 ) -> MetricSnapshot:
     """Store metric snapshot.
-    
+
     Args:
         session: Database session
         service_name: Service name
         metric_name: Metric name
         value: Metric value
         labels: Optional metric labels
-        
+
     Returns:
         MetricSnapshot: Created metric
     """
@@ -239,29 +237,26 @@ async def get_metrics_by_service(
     limit: int = 1000,
 ) -> list[MetricSnapshot]:
     """Get metrics for a service.
-    
+
     Args:
         session: Database session
         service_name: Service name
         metric_name: Optional metric name filter
         time_range_hours: Time range in hours
         limit: Maximum metrics to return
-        
+
     Returns:
         List of metrics
     """
     query = select(MetricSnapshot).where(
         MetricSnapshot.service_name == service_name,
-        MetricSnapshot.timestamp
-        >= datetime.utcnow() - timedelta(hours=time_range_hours),
+        MetricSnapshot.timestamp >= datetime.utcnow() - timedelta(hours=time_range_hours),
     )
-    
+
     if metric_name:
         query = query.where(MetricSnapshot.metric_name == metric_name)
-    
-    result = await session.execute(
-        query.order_by(MetricSnapshot.timestamp.desc()).limit(limit)
-    )
+
+    result = await session.execute(query.order_by(MetricSnapshot.timestamp.desc()).limit(limit))
     return result.scalars().all()
 
 
@@ -279,7 +274,7 @@ async def store_rag_document(
     embedding_id: Optional[str] = None,
 ) -> RAGDocument:
     """Store RAG document.
-    
+
     Args:
         session: Database session
         title: Document title
@@ -287,7 +282,7 @@ async def store_rag_document(
         source: Document source
         category: Document category
         embedding_id: Optional embedding ID
-        
+
     Returns:
         RAGDocument: Created document
     """
@@ -311,12 +306,12 @@ async def get_rag_documents_by_category(
     limit: int = 100,
 ) -> list[RAGDocument]:
     """Get RAG documents by category.
-    
+
     Args:
         session: Database session
         category: Category name
         limit: Maximum documents to return
-        
+
     Returns:
         List of RAG documents
     """
@@ -342,14 +337,14 @@ async def store_application_log(
     metadata: Optional[dict] = None,
 ) -> ApplicationLog:
     """Store application log.
-    
+
     Args:
         session: Database session
         level: Log level
         message: Log message
         source: Log source
         metadata: Optional metadata
-        
+
     Returns:
         ApplicationLog: Created log
     """
@@ -373,25 +368,22 @@ async def get_application_logs(
     limit: int = 500,
 ) -> list[ApplicationLog]:
     """Get application logs.
-    
+
     Args:
         session: Database session
         level: Optional log level filter
         time_range_hours: Time range in hours
         limit: Maximum logs to return
-        
+
     Returns:
         List of application logs
     """
     query = select(ApplicationLog).where(
-        ApplicationLog.created_at
-        >= datetime.utcnow() - timedelta(hours=time_range_hours)
+        ApplicationLog.created_at >= datetime.utcnow() - timedelta(hours=time_range_hours)
     )
-    
+
     if level:
         query = query.where(ApplicationLog.level == level)
-    
-    result = await session.execute(
-        query.order_by(ApplicationLog.created_at.desc()).limit(limit)
-    )
+
+    result = await session.execute(query.order_by(ApplicationLog.created_at.desc()).limit(limit))
     return result.scalars().all()

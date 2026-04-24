@@ -62,11 +62,7 @@ class AzureDevOpsProvider(PipelineProvider):
 
         url = f"{self.base_url}/{self.organization}/{self.project}/_apis/build/builds"
 
-        params = {
-            "api-version": "7.1",
-            "$top": "10",
-            "$orderby": "finishTime desc"
-        }
+        params = {"api-version": "7.1", "$top": "10", "$orderby": "finishTime desc"}
 
         if pipeline_name:
             pipeline_id = await self._get_pipeline_id(pipeline_name)
@@ -84,20 +80,22 @@ class AzureDevOpsProvider(PipelineProvider):
                     data = await response.json()
                     builds = []
                     for build in data.get("value", []):
-                        builds.append({
-                            "id": str(build["id"]),
-                            "buildNumber": build["buildNumber"],
-                            "status": build["status"],
-                            "result": build.get("result"),
-                            "startTime": build.get("startTime"),
-                            "finishTime": build.get("finishTime"),
-                            "sourceBranch": build.get("sourceBranch"),
-                            "sourceVersion": build.get("sourceVersion"),
-                            "definition": {
-                                "name": build["definition"]["name"],
-                                "id": build["definition"]["id"]
+                        builds.append(
+                            {
+                                "id": str(build["id"]),
+                                "buildNumber": build["buildNumber"],
+                                "status": build["status"],
+                                "result": build.get("result"),
+                                "startTime": build.get("startTime"),
+                                "finishTime": build.get("finishTime"),
+                                "sourceBranch": build.get("sourceBranch"),
+                                "sourceVersion": build.get("sourceVersion"),
+                                "definition": {
+                                    "name": build["definition"]["name"],
+                                    "id": build["definition"]["id"],
+                                },
                             }
-                        })
+                        )
 
                     return {
                         "success": True,
@@ -128,7 +126,9 @@ class AzureDevOpsProvider(PipelineProvider):
                 "Content-Type": "application/json",
             }
 
-            async with session.get(timeline_url, headers=headers, params={"api-version": "7.1"}) as response:
+            async with session.get(
+                timeline_url, headers=headers, params={"api-version": "7.1"}
+            ) as response:
                 if response.status == 200:
                     timeline = await response.json()
 
@@ -136,13 +136,15 @@ class AzureDevOpsProvider(PipelineProvider):
                     failed_tasks = []
                     for record in timeline.get("records", []):
                         if record.get("result") == "failed":
-                            failed_tasks.append({
-                                "name": record.get("name"),
-                                "type": record.get("type"),
-                                "startTime": record.get("startTime"),
-                                "finishTime": record.get("finishTime"),
-                                "log_url": f"{self.base_url}/{self.organization}/{self.project}/_apis/build/builds/{build_id}/logs/{record.get('log', {}).get('id')}"
-                            })
+                            failed_tasks.append(
+                                {
+                                    "name": record.get("name"),
+                                    "type": record.get("type"),
+                                    "startTime": record.get("startTime"),
+                                    "finishTime": record.get("finishTime"),
+                                    "log_url": f"{self.base_url}/{self.organization}/{self.project}/_apis/build/builds/{build_id}/logs/{record.get('log', {}).get('id')}",
+                                }
+                            )
 
                     return {
                         "success": True,
@@ -189,8 +191,8 @@ class AzureDevOpsProvider(PipelineProvider):
                             "reason": build.get("reason"),
                             "requestedBy": build.get("requestedBy", {}).get("displayName"),
                             "definition": build["definition"]["name"],
-                            "web_url": f"{self.base_url}/{self.organization}/{self.project}/_build/results?buildId={build_id}"
-                        }
+                            "web_url": f"{self.base_url}/{self.organization}/{self.project}/_build/results?buildId={build_id}",
+                        },
                     }
                 else:
                     return {
@@ -208,7 +210,9 @@ class AzureDevOpsProvider(PipelineProvider):
                 "Content-Type": "application/json",
             }
 
-            async with session.get(url, headers=headers, params={"api-version": "7.1", "name": pipeline_name}) as response:
+            async with session.get(
+                url, headers=headers, params={"api-version": "7.1", "name": pipeline_name}
+            ) as response:
                 if response.status == 200:
                     data = await response.json()
                     definitions = data.get("value", [])
@@ -219,6 +223,7 @@ class AzureDevOpsProvider(PipelineProvider):
     def _get_auth_token(self) -> str:
         """Get base64 encoded auth token."""
         import base64
+
         token = f":{self.pat}"
         return base64.b64encode(token.encode()).decode()
 
@@ -245,30 +250,34 @@ class JenkinsProvider(PipelineProvider):
 
         if pipeline_name:
             url = f"{self.base_url}/job/{pipeline_name}/api/json"
-            params = {"tree": "builds[number,status,timestamp,duration,result,actions[causes[shortDescription],parameters[name,value]]]{0,10}"}
+            params = {
+                "tree": "builds[number,status,timestamp,duration,result,actions[causes[shortDescription],parameters[name,value]]]{0,10}"
+            }
         else:
             url = f"{self.base_url}/api/json"
             params = {"tree": "jobs[name,builds[number,status,timestamp,duration,result]{0,5}]"}
 
         async with aiohttp.ClientSession() as session:
             auth = aiohttp.BasicAuth(self.username, self.api_token)
-            
+
             async with session.get(url, auth=auth, params=params) as response:
                 if response.status == 200:
                     data = await response.json()
-                    
+
                     if pipeline_name:
                         builds = []
                         for build in data.get("builds", []):
-                            builds.append({
-                                "id": str(build["number"]),
-                                "buildNumber": str(build["number"]),
-                                "status": "completed" if build.get("result") else "inProgress",
-                                "result": build.get("result"),
-                                "startTime": build.get("timestamp"),
-                                "duration": build.get("duration"),
-                                "definition": {"name": pipeline_name}
-                            })
+                            builds.append(
+                                {
+                                    "id": str(build["number"]),
+                                    "buildNumber": str(build["number"]),
+                                    "status": "completed" if build.get("result") else "inProgress",
+                                    "result": build.get("result"),
+                                    "startTime": build.get("timestamp"),
+                                    "duration": build.get("duration"),
+                                    "definition": {"name": pipeline_name},
+                                }
+                            )
                         return {
                             "success": True,
                             "builds": builds,
@@ -278,15 +287,19 @@ class JenkinsProvider(PipelineProvider):
                         all_builds = []
                         for job in data.get("jobs", []):
                             for build in job.get("builds", []):
-                                all_builds.append({
-                                    "id": f"{job['name']}-{build['number']}",
-                                    "buildNumber": str(build["number"]),
-                                    "status": "completed" if build.get("result") else "inProgress",
-                                    "result": build.get("result"),
-                                    "startTime": build.get("timestamp"),
-                                    "duration": build.get("duration"),
-                                    "definition": {"name": job["name"]}
-                                })
+                                all_builds.append(
+                                    {
+                                        "id": f"{job['name']}-{build['number']}",
+                                        "buildNumber": str(build["number"]),
+                                        "status": "completed"
+                                        if build.get("result")
+                                        else "inProgress",
+                                        "result": build.get("result"),
+                                        "startTime": build.get("timestamp"),
+                                        "duration": build.get("duration"),
+                                        "definition": {"name": job["name"]},
+                                    }
+                                )
                         # Sort by start time descending and take top 10
                         all_builds.sort(key=lambda x: x.get("startTime", 0), reverse=True)
                         return {
@@ -314,13 +327,13 @@ class JenkinsProvider(PipelineProvider):
                 "success": False,
                 "error": "Build ID must be in format 'job_name-build_number'",
             }
-        
+
         job_name, build_number = build_id.rsplit("-", 1)
         url = f"{self.base_url}/job/{job_name}/{build_number}/consoleText"
 
         async with aiohttp.ClientSession() as session:
             auth = aiohttp.BasicAuth(self.username, self.api_token)
-            
+
             async with session.get(url, auth=auth) as response:
                 if response.status == 200:
                     logs = await response.text()
@@ -349,13 +362,13 @@ class JenkinsProvider(PipelineProvider):
                 "success": False,
                 "error": "Build ID must be in format 'job_name-build_number'",
             }
-        
+
         job_name, build_number = build_id.rsplit("-", 1)
         url = f"{self.base_url}/job/{job_name}/{build_number}/api/json"
 
         async with aiohttp.ClientSession() as session:
             auth = aiohttp.BasicAuth(self.username, self.api_token)
-            
+
             async with session.get(url, auth=auth) as response:
                 if response.status == 200:
                     build = await response.json()
@@ -370,8 +383,12 @@ class JenkinsProvider(PipelineProvider):
                             "duration": build.get("duration"),
                             "definition": job_name,
                             "web_url": f"{self.base_url}/job/{job_name}/{build_number}",
-                            "causes": [cause.get("shortDescription") for cause in build.get("actions", []) if cause.get("causes")]
-                        }
+                            "causes": [
+                                cause.get("shortDescription")
+                                for cause in build.get("actions", [])
+                                if cause.get("causes")
+                            ],
+                        },
                     }
                 else:
                     return {
@@ -421,20 +438,19 @@ class GitHubActionsProvider(PipelineProvider):
                     data = await response.json()
                     builds = []
                     for run in data.get("workflow_runs", []):
-                        builds.append({
-                            "id": str(run["id"]),
-                            "buildNumber": str(run["run_number"]),
-                            "status": run["status"],
-                            "conclusion": run["conclusion"],
-                            "startTime": run.get("created_at"),
-                            "finishTime": run.get("updated_at"),
-                            "sourceBranch": run.get("head_branch"),
-                            "sourceVersion": run.get("head_sha"),
-                            "definition": {
-                                "name": run["name"],
-                                "id": run["workflow_id"]
+                        builds.append(
+                            {
+                                "id": str(run["id"]),
+                                "buildNumber": str(run["run_number"]),
+                                "status": run["status"],
+                                "conclusion": run["conclusion"],
+                                "startTime": run.get("created_at"),
+                                "finishTime": run.get("updated_at"),
+                                "sourceBranch": run.get("head_branch"),
+                                "sourceVersion": run.get("head_sha"),
+                                "definition": {"name": run["name"], "id": run["workflow_id"]},
                             }
-                        })
+                        )
 
                     return {
                         "success": True,
@@ -468,18 +484,20 @@ class GitHubActionsProvider(PipelineProvider):
             async with session.get(jobs_url, headers=headers) as response:
                 if response.status == 200:
                     jobs_data = await response.json()
-                    
+
                     failed_jobs = []
                     for job in jobs_data.get("jobs", []):
                         if job.get("conclusion") == "failure":
-                            failed_jobs.append({
-                                "name": job.get("name"),
-                                "status": job.get("status"),
-                                "conclusion": job.get("conclusion"),
-                                "startTime": job.get("started_at"),
-                                "finishTime": job.get("completed_at"),
-                                "log_url": f"{self.base_url}/repos/{self.owner}/{self.repo}/actions/runs/{build_id}/jobs/{job['id']}/logs"
-                            })
+                            failed_jobs.append(
+                                {
+                                    "name": job.get("name"),
+                                    "status": job.get("status"),
+                                    "conclusion": job.get("conclusion"),
+                                    "startTime": job.get("started_at"),
+                                    "finishTime": job.get("completed_at"),
+                                    "log_url": f"{self.base_url}/repos/{self.owner}/{self.repo}/actions/runs/{build_id}/jobs/{job['id']}/logs",
+                                }
+                            )
 
                     return {
                         "success": True,
@@ -526,8 +544,8 @@ class GitHubActionsProvider(PipelineProvider):
                             "trigger": run.get("event"),
                             "actor": run.get("actor", {}).get("login"),
                             "definition": run["name"],
-                            "web_url": run.get("html_url")
-                        }
+                            "web_url": run.get("html_url"),
+                        },
                     }
                 else:
                     return {
@@ -549,9 +567,14 @@ class GitHubActionsProvider(PipelineProvider):
                 if response.status == 200:
                     data = await response.json()
                     for workflow in data.get("workflows", []):
-                        if workflow["name"] == workflow_name or workflow["path"].endswith(f"{workflow_name}.yml") or workflow["path"].endswith(f"{workflow_name}.yaml"):
+                        if (
+                            workflow["name"] == workflow_name
+                            or workflow["path"].endswith(f"{workflow_name}.yml")
+                            or workflow["path"].endswith(f"{workflow_name}.yaml")
+                        ):
                             return str(workflow["id"])
                 return None
+
 
 class PipelineTool(BaseTool):
     """Tool for querying CI/CD pipeline status from multiple providers."""

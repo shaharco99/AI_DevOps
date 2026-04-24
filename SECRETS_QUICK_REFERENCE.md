@@ -35,11 +35,12 @@ cp .env.local.example .env.local
 ```
 
 **Credentials needed:**
+
 - `SECRET_KEY` - Generate: `python -c "import secrets; print(secrets.token_urlsafe(32))"`
 - `DATABASE_URL` - Your database connection string
-- `AZURE_DEVOPS_PAT` - From https://dev.azure.com/_usersSettings/tokens
+- `AZURE_DEVOPS_PAT` - From <https://dev.azure.com/_usersSettings/tokens>
 - `JENKINS_API_TOKEN` - From Jenkins User Configure
-- `GITHUB_TOKEN` - From https://github.com/settings/tokens
+- `GITHUB_TOKEN` - From <https://github.com/settings/tokens>
 
 ### Option B: Secrets Files (.secrets/)
 
@@ -107,17 +108,20 @@ python -c "import secrets; print(secrets.token_urlsafe(32))"
 ### Create Personal Access Tokens
 
 **Azure DevOps:**
-1. Go to https://dev.azure.com/_usersSettings/tokens
+
+1. Go to <https://dev.azure.com/_usersSettings/tokens>
 2. Create new token with "Code (read & write)" scope
 3. Copy and save (shown only once!)
 
 **Jenkins:**
+
 1. Go to Jenkins > User > Configure
 2. Click "Add new Token"
 3. Copy API token
 
 **GitHub:**
-1. Go to https://github.com/settings/tokens
+
+1. Go to <https://github.com/settings/tokens>
 2. Create new token (classic) with `repo` and `workflow` scopes
 3. Copy token
 
@@ -220,4 +224,3 @@ kubectl exec <pod-name> -n ai-devops-assistant -- env | grep SECRET_KEY
 - **Kubernetes**: See [infra/kubernetes/README.md](./infra/kubernetes/README.md)
 - **External Secrets**: See [infra/kubernetes/external-secrets-config.yaml](./infra/kubernetes/external-secrets-config.yaml)
 - **Setup helper**: Run `./infra/kubernetes/setup-secrets.sh`
-

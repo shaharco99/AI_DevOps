@@ -12,7 +12,6 @@ Example:
     >>> model_info = registry.get_model_info("meta-llama/Llama-2-7b")
 """
 
-import asyncio
 import json
 import logging
 from dataclasses import dataclass
@@ -66,9 +65,7 @@ class ModelRegistry:
         """
         raise NotImplementedError
 
-    async def download_model(
-        self, model_id: str, destination: str, progress_callback=None
-    ) -> bool:
+    async def download_model(self, model_id: str, destination: str, progress_callback=None) -> bool:
         """Download a model to local storage.
 
         Args:
@@ -125,9 +122,7 @@ class HuggingFaceRegistry(ModelRegistry):
                 "sort": "downloads",
             }
 
-            async with session.get(
-                f"{self.BASE_URL}{self.MODELS_ENDPOINT}", params=params
-            ) as resp:
+            async with session.get(f"{self.BASE_URL}{self.MODELS_ENDPOINT}", params=params) as resp:
                 if resp.status == 200:
                     data = await resp.json()
                     return [self._parse_model(model) for model in data]
@@ -151,9 +146,7 @@ class HuggingFaceRegistry(ModelRegistry):
         try:
             session = await self._get_session()
 
-            async with session.get(
-                f"{self.BASE_URL}{self.MODELS_ENDPOINT}/{model_id}"
-            ) as resp:
+            async with session.get(f"{self.BASE_URL}{self.MODELS_ENDPOINT}/{model_id}") as resp:
                 if resp.status == 200:
                     data = await resp.json()
                     return self._parse_model(data)
@@ -215,9 +208,7 @@ class OllamaRegistry(ModelRegistry):
                 models = data.get("models", [])
 
                 # Filter by query
-                filtered = [
-                    m for m in models if query.lower() in m.get("name", "").lower()
-                ][:limit]
+                filtered = [m for m in models if query.lower() in m.get("name", "").lower()][:limit]
 
                 return [
                     ModelInfo(
@@ -321,9 +312,7 @@ class CompositeRegistry(ModelRegistry):
 
         # Search HuggingFace
         try:
-            hf_results = await self.registries["huggingface"].search_models(
-                query, limit
-            )
+            hf_results = await self.registries["huggingface"].search_models(query, limit)
             results.extend(hf_results)
         except Exception as e:
             logger.warning(f"HuggingFace search failed: {e}")

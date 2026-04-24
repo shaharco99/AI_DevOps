@@ -1,7 +1,7 @@
 """Dependency injection for FastAPI routes."""
 
 import logging
-from typing import AsyncGenerator
+from collections.abc import AsyncGenerator
 
 from sqlalchemy.ext.asyncio import AsyncSession
 

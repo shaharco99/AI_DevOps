@@ -9,10 +9,7 @@ from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse
 
-from ai_devops_assistant.observability.ai_observability import (
-    generate_request_id,
-    set_request_id,
-)
+from ai_devops_assistant.observability.ai_observability import generate_request_id, set_request_id
 
 logger = logging.getLogger(__name__)
 

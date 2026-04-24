@@ -72,6 +72,7 @@ ruff check --fix ai_devops_assistant/
 #### Model Registry (`ai_devops_assistant/services/model_registry.py`)
 
 Discover and download LLM models:
+
 - Hugging Face Hub integration
 - Ollama registry support
 - Composite registry (search multiple sources)
@@ -85,6 +86,7 @@ models = await registry.search_models("llama")
 #### Multi-LLM Support (`ai_devops_assistant/services/multi_llm.py`)
 
 Unified interface for multiple LLM providers:
+
 - Ollama (local)
 - OpenAI (cloud)
 - Anthropic Claude (cloud)
@@ -101,6 +103,7 @@ response = await llm.generate("Analyze logs")
 #### Web Scraping (`ai_devops_assistant/rag/scraper.py`)
 
 Ingest website content into RAG:
+
 - BeautifulSoup-based scraping
 - Sitemap support
 - robots.txt compliance
@@ -117,6 +120,7 @@ content = await scraper.scrape_url("https://docs.example.com")
 #### Fine-Tuning (`ai_devops_assistant/ml/finetuning.py`)
 
 Fine-tune local LLMs on custom data:
+
 - LoRA/QLoRA support
 - HuggingFace PEFT integration
 - Dataset preparation
@@ -134,6 +138,7 @@ finetuner.train()
 #### Prompt Manager (`ai_devops_assistant/agents/prompt_manager.py`)
 
 Versioned prompt management with templating:
+
 - Jinja2 template support
 - Version control
 - Metadata tracking
@@ -178,6 +183,7 @@ ENABLE_SCRAPING_TOOL=true
 ### Dependencies Added
 
 **Development (`pyproject.toml`)**:
+
 ```
 ruff, black, isort
 mypy, pylint

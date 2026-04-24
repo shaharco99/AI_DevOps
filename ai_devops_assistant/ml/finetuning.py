@@ -23,7 +23,6 @@ import json
 import logging
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -65,7 +64,7 @@ class FineTuningDataset:
         {"text": "training example 2"}
         """
         try:
-            with open(self.data_path, "r") as f:
+            with open(self.data_path) as f:
                 for line in f:
                     if line.strip():
                         try:
@@ -88,7 +87,7 @@ class FineTuningDataset:
         try:
             import csv
 
-            with open(self.data_path, "r") as f:
+            with open(self.data_path) as f:
                 reader = csv.DictReader(f)
                 for row in reader:
                     if text_column in row:
@@ -254,8 +253,9 @@ class FineTuner:
                 logger.error("Training data not prepared. Call prepare_dataset() first.")
                 return False
 
+            from transformers import DataCollatorForLanguageModeling, Trainer, TrainingArguments
+
             from datasets import Dataset
-            from transformers import DataCollatorForLanguageModeling, Trainer,             TrainingArguments
 
             logger.info("Preparing training data...")
 
@@ -276,9 +276,7 @@ class FineTuner:
             )
 
             # Create data collator
-            data_collator = DataCollatorForLanguageModeling(
-                self.tokenizer, mlm=False
-            )
+            data_collator = DataCollatorForLanguageModeling(self.tokenizer, mlm=False)
 
             # Training arguments
             training_args = TrainingArguments(

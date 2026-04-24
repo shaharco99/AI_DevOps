@@ -21,7 +21,7 @@ NAMESPACE="ai-devops-assistant"
 # ==============================================================================
 function setup_manual_secrets() {
     echo -e "${BLUE}Setting up secrets using kubectl...${NC}"
-    
+
     read -p "SECRET_KEY: " SECRET_KEY
     read -p "DATABASE_URL: " DATABASE_URL
     read -p "AZURE_DEVOPS_ORG: " AZURE_DEVOPS_ORG
@@ -32,9 +32,9 @@ function setup_manual_secrets() {
     echo ""
     read -s -p "GITHUB_TOKEN: " GITHUB_TOKEN
     echo ""
-    
+
     kubectl create namespace $NAMESPACE --dry-run=client -o yaml | kubectl apply -f -
-    
+
     kubectl create secret generic ai-devops-secrets \
         --from-literal=SECRET_KEY="$SECRET_KEY" \
         --from-literal=DATABASE_URL="$DATABASE_URL" \
@@ -48,7 +48,7 @@ function setup_manual_secrets() {
         --from-literal=GITHUB_TOKEN="$GITHUB_TOKEN" \
         -n $NAMESPACE \
         --dry-run=client -o yaml | kubectl apply -f -
-    
+
     echo -e \"${GREEN}Secrets created successfully!${NC}\"
 }
 
@@ -57,9 +57,9 @@ function setup_manual_secrets() {
 # ==============================================================================
 function setup_from_files() {
     echo -e \"${BLUE}Setting up secrets from files...${NC}\"
-    
+
     SECRETS_DIR=\".secrets\"
-    
+
     if [ ! -d \"$SECRETS_DIR\" ]; then
         echo -e \"${RED}Error: .secrets directory not found${NC}\"
         echo \"Create .secrets directory with the following files:\"
@@ -75,9 +75,9 @@ function setup_from_files() {
         echo \"  - github_token\"
         exit 1
     fi
-    
+
     kubectl create namespace $NAMESPACE --dry-run=client -o yaml | kubectl apply -f -
-    
+
     kubectl create secret generic ai-devops-secrets \\
         --from-file=SECRET_KEY=$SECRETS_DIR/secret_key \\
         --from-file=DATABASE_URL=$SECRETS_DIR/database_url \\
@@ -91,7 +91,7 @@ function setup_from_files() {
         --from-file=GITHUB_TOKEN=$SECRETS_DIR/github_token \\
         -n $NAMESPACE \\
         --dry-run=client -o yaml | kubectl apply -f -
-    
+
     echo -e \"${GREEN}Secrets created from files!${NC}\"
 }
 
@@ -143,16 +143,16 @@ function delete_secrets() {
 # ==============================================================================
 function verify_secrets() {
     echo -e \"${BLUE}Verifying secrets...${NC}\"
-    
+
     if ! kubectl get secret ai-devops-secrets -n $NAMESPACE &> /dev/null; then
         echo -e \"${RED}✗ Secret ai-devops-secrets not found${NC}\"
         return 1
     fi
-    
+
     echo -e \"${GREEN}✓ Secret exists${NC}\"
-    
+
     required_keys=(\"SECRET_KEY\" \"DATABASE_URL\" \"AZURE_DEVOPS_PAT\" \"JENKINS_API_TOKEN\" \"GITHUB_TOKEN\")
-    
+
     for key in \"${required_keys[@]}\"; do
         if kubectl get secret ai-devops-secrets -n $NAMESPACE -o jsonpath=\"{.data.$key}\" &> /dev/null; then
             echo -e \"${GREEN}✓ $key${NC}\"
@@ -177,7 +177,7 @@ function show_menu() {
     echo \"7) Exit\"
     echo \"\"
     read -p \"Select an option (1-7): \" choice
-    
+
     case $choice in
         1) setup_manual_secrets ;;
         2) setup_from_files ;;
@@ -188,7 +188,7 @@ function show_menu() {
         7) echo \"Exiting...\"; exit 0 ;;
         *) echo \"Invalid option\"; show_menu ;;
     esac
-    
+
     echo \"\"
     read -p \"Press Enter to continue...\"
     clear

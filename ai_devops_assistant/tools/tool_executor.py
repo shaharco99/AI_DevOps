@@ -12,6 +12,7 @@ from ai_devops_assistant.tools.log_tool import LogAnalysisTool
 from ai_devops_assistant.tools.metrics_tool import MetricsTool
 from ai_devops_assistant.tools.pipeline_tool import PipelineTool
 from ai_devops_assistant.tools.sql_tool import SQLQueryTool
+
 # from ai_devops_assistant.rag.retriever import get_rag_retriever  # Disabled for now
 
 logger = logging.getLogger(__name__)
@@ -76,7 +77,7 @@ class ToolExecutor:
 
     def __init__(self, registry: Optional[ToolRegistry] = None):
         """Initialize executor.
-        
+
         Args:
             registry: Tool registry (creates new if not provided)
         """
@@ -89,11 +90,11 @@ class ToolExecutor:
         **parameters,
     ) -> dict[str, Any]:
         """Execute a tool.
-        
+
         Args:
             tool_name: Name of tool to execute
             **parameters: Tool parameters
-            
+
         Returns:
             dict: Execution result
         """
@@ -113,11 +114,11 @@ class ToolExecutor:
         category: Optional[str] = None,
     ) -> dict[str, Any]:
         """Execute RAG retrieval.
-        
+
         Args:
             query: Search query
             category: Optional category filter
-            
+
         Returns:
             dict: Retrieved documents
         """

@@ -146,6 +146,7 @@ from ai_devops_assistant.agents.prompt_manager import PromptManager
 ### 🚀 CI/CD Pipeline
 
 Jobs that run on every commit:
+
 1. Lint (Ruff, Black, isort, MyPy)
 2. Unit Tests (3.11, 3.12)
 3. Integration Tests
@@ -343,24 +344,28 @@ isort ai_devops_assistant/
 ## Key Benefits
 
 ### Development
+
 ✅ No style debates
 ✅ Auto-formatting on save
 ✅ Consistent imports
 ✅ Type checking
 
 ### Security
+
 ✅ Catches issues early
 ✅ Dependency safety
 ✅ Container scanning
 ✅ No secrets in code
 
 ### Collaboration
+
 ✅ Team standards
 ✅ Shared environment config
 ✅ Consistent debugging
 ✅ Shared prompt management
 
 ### Operations
+
 ✅ Multi-provider LLMs
 ✅ Custom fine-tuning
 ✅ Versioned prompts

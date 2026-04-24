@@ -14,7 +14,7 @@ class RAGRetriever:
 
     def __init__(self, top_k: int = RAG_TOP_K, score_threshold: float = RAG_SCORE_THRESHOLD):
         """Initialize retriever.
-        
+
         Args:
             top_k: Number of documents to retrieve
             score_threshold: Minimum similarity score
@@ -28,17 +28,17 @@ class RAGRetriever:
         category: Optional[str] = None,
     ) -> list[dict]:
         """Retrieve relevant documents.
-        
+
         Args:
             query: Search query
             category: Optional category filter
-            
+
         Returns:
             list: List of retrieved documents
         """
         try:
             vector_store = get_vector_store_service()
-            
+
             # Build metadata filter if category specified
             where_filter = None
             if category:
@@ -59,7 +59,7 @@ class RAGRetriever:
                         # Chroma returns distances, convert to similarity score
                         distance = results["distances"][0][i]
                         similarity = 1 / (1 + distance)  # Convert distance to similarity
-                        
+
                         if similarity >= self.score_threshold:
                             documents.append(
                                 {
@@ -83,17 +83,17 @@ class RAGRetriever:
         limit: int = 10,
     ) -> list[dict]:
         """Retrieve documents by category.
-        
+
         Args:
             category: Category name
             limit: Maximum documents to return
-            
+
         Returns:
             list: List of documents
         """
         try:
             vector_store = get_vector_store_service()
-            
+
             # Get all documents with category filter
             all_docs = vector_store.collection.get(
                 where={"category": category},
@@ -120,10 +120,10 @@ class RAGRetriever:
 
     def format_context(self, documents: list[dict]) -> str:
         """Format retrieved documents as context string.
-        
+
         Args:
             documents: List of retrieved documents
-            
+
         Returns:
             str: Formatted context
         """
@@ -135,7 +135,7 @@ class RAGRetriever:
             metadata = doc.get("metadata", {})
             title = metadata.get("title", "Document")
             similarity = doc.get("similarity", 0)
-            
+
             context_parts.append(
                 f"[{i}] {title} (relevance: {similarity:.2%})\n{doc.get('content', '')}"
             )
@@ -145,7 +145,7 @@ class RAGRetriever:
 
 def get_rag_retriever(top_k: int = RAG_TOP_K) -> RAGRetriever:
     """Get RAG retriever instance.
-    
+
     Returns:
         RAGRetriever: Retriever instance
     """

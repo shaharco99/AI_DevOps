@@ -4,7 +4,6 @@ import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
 
 from ai_devops_assistant.config.logging import setup_logging
 from ai_devops_assistant.config.settings import settings
@@ -17,34 +16,37 @@ logger = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan context manager.
-    
+
     Handles startup and shutdown events.
     """
     # Startup
     logger.info(f"Starting {settings.APP_NAME} v{settings.APP_VERSION}")
     logger.info(f"Environment: {settings.API_ENVIRONMENT}")
     logger.info(f"LLM Model: {settings.LLM_MODEL}")
-    logger.info(f"Database URL: {settings.DATABASE_URL.split('@')[1] if '@' in settings.DATABASE_URL else 'N/A'}")
-    
+    logger.info(
+        f"Database URL: {settings.DATABASE_URL.split('@')[1] if '@' in settings.DATABASE_URL else 'N/A'}"
+    )
+
     try:
         # Initialize database
-        from ai_devops_assistant.database.session import init_db, close_db
+        from ai_devops_assistant.database.session import close_db, init_db
+
         await init_db()
     except Exception as e:
         logger.error(f"Failed to initialize database: {e}")
-    
+
     yield
-    
+
     # Shutdown
     try:
         from ai_devops_assistant.database.session import close_db
         from ai_devops_assistant.services.llm_service import close_ollama_service
-        
+
         await close_db()
         await close_ollama_service()
     except Exception as e:
         logger.error(f"Error during shutdown: {e}")
-    
+
     logger.info(f"Shutting down {settings.APP_NAME}")
 
 
@@ -58,7 +60,7 @@ def create_app() -> FastAPI:
     )
 
     # Include routes
-    from ai_devops_assistant.api.routes import health, chat, run_sql, analyze_logs, metrics
+    from ai_devops_assistant.api.routes import analyze_logs, chat, health, metrics, run_sql
 
     app.include_router(health.router)
     app.include_router(chat.router)
@@ -67,8 +69,8 @@ def create_app() -> FastAPI:
     app.include_router(metrics.router)
 
     # Add middleware
-    from ai_devops_assistant.api.middleware import LoggingMiddleware, ErrorHandlingMiddleware
-    
+    from ai_devops_assistant.api.middleware import ErrorHandlingMiddleware, LoggingMiddleware
+
     app.add_middleware(LoggingMiddleware)
     app.add_middleware(ErrorHandlingMiddleware)
 

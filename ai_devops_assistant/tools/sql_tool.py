@@ -27,7 +27,7 @@ class SQLQueryTool(BaseTool):
 
     def set_session(self, session: AsyncSession) -> None:
         """Set database session.
-        
+
         Args:
             session: SQLAlchemy async session
         """
@@ -35,10 +35,10 @@ class SQLQueryTool(BaseTool):
 
     def validate_sql_injection(self, query: str) -> tuple[bool, Optional[str]]:
         """Check for potential SQL injection patterns.
-        
+
         Args:
             query: SQL query to validate
-            
+
         Returns:
             tuple: (is_safe, error_message)
         """
@@ -50,9 +50,21 @@ class SQLQueryTool(BaseTool):
 
         # Block dangerous keywords
         dangerous_keywords = [
-            "DROP", "DELETE", "INSERT", "UPDATE", "ALTER",
-            "CREATE", "TRUNCATE", "EXEC", "EXECUTE",
-            ";--", "/*", "*/", "--", "xp_", "sp_"
+            "DROP",
+            "DELETE",
+            "INSERT",
+            "UPDATE",
+            "ALTER",
+            "CREATE",
+            "TRUNCATE",
+            "EXEC",
+            "EXECUTE",
+            ";--",
+            "/*",
+            "*/",
+            "--",
+            "xp_",
+            "sp_",
         ]
 
         for keyword in dangerous_keywords:
@@ -76,10 +88,10 @@ class SQLQueryTool(BaseTool):
 
     def validate_parameters(self, **kwargs) -> tuple[bool, Optional[str]]:
         """Validate tool parameters.
-        
+
         Args:
             **kwargs: Parameters
-            
+
         Returns:
             tuple: (is_valid, error_message)
         """
@@ -95,12 +107,12 @@ class SQLQueryTool(BaseTool):
 
     async def execute(self, query: str, limit: Optional[int] = None, **kwargs) -> dict[str, Any]:
         """Execute SQL query.
-        
+
         Args:
             query: SQL query to execute
             limit: Optional row limit
             **kwargs: Additional parameters
-            
+
         Returns:
             dict: Query results
         """

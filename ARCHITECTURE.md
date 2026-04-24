@@ -57,24 +57,28 @@ The AI DevOps Assistant is a production-grade system that combines AI, DevOps to
 ## Core Components
 
 ### 1. **FastAPI Application Core**
+
 - RESTful API server
 - Request/response handling
 - Authentication & authorization
 - Error handling and logging
 
 ### 2. **LangChain Agent System**
+
 - Tool-calling agent orchestration
 - Multi-turn conversation support
 - Memory management
 - Tool execution chain
 
 ### 3. **LLM Integration (Ollama)**
+
 - Local LLM inference
 - Model management
 - Prompt engineering
 - Token optimization
 
 ### 4. **Tool Layer**
+
 - Kubernetes query tool
 - SQL query tool
 - Log analysis tool
@@ -83,18 +87,21 @@ The AI DevOps Assistant is a production-grade system that combines AI, DevOps to
 - RAG retrieval tool
 
 ### 5. **RAG System**
+
 - Document ingestion
 - Embedding generation
 - Vector storage (Chroma)
 - Semantic search
 
 ### 6. **Data Layer**
+
 - PostgreSQL for structured data
 - Vector database for embeddings
 - Connection pooling
 - Query optimization
 
 ### 7. **Observability**
+
 - Prometheus metrics
 - Grafana dashboards
 - Application logging
@@ -144,12 +151,14 @@ The AI DevOps Assistant is a production-grade system that combines AI, DevOps to
 ## Technical Stack Details
 
 ### Backend
+
 - **Framework**: FastAPI (async, high performance)
 - **Language**: Python 3.11+
 - **ORM**: SQLAlchemy (async support)
 - **Validation**: Pydantic v2
 
 ### AI/ML
+
 - **Framework**: LangChain
 - **LLM**: Ollama (local inference)
 - **Models**: Llama 3 (70B or 8B) or Mistral 7B
@@ -157,17 +166,20 @@ The AI DevOps Assistant is a production-grade system that combines AI, DevOps to
 - **Vector DB**: Chroma (embedded)
 
 ### Data
+
 - **Primary DB**: PostgreSQL 15+
 - **Vector Store**: Chroma
 - **Connection Pool**: asyncpg with connection pooling
 
 ### DevOps & Infrastructure
+
 - **Containerization**: Docker & Docker Compose
 - **Orchestration**: Kubernetes (optional)
 - **Monitoring**: Prometheus + Grafana
 - **CI/CD**: GitHub Actions
 
 ### Development
+
 - **Linting**: Ruff
 - **Formatting**: Black
 - **Type Checking**: Mypy
@@ -181,12 +193,14 @@ The AI DevOps Assistant is a production-grade system that combines AI, DevOps to
 ### `ai_devops_assistant/`
 
 #### `agents/`
+
 - `agent.py` - Main LangChain agent orchestration
 - `prompts.py` - System prompts and prompt templates
 - `memory.py` - Conversation memory management
 - `tool_registry.py` - Tool registration and validation
 
 #### `tools/`
+
 - `__init__.py` - Tool factory
 - `kubernetes_tool.py` - K8s cluster queries
 - `sql_tool.py` - SQL query generation & execution
@@ -196,6 +210,7 @@ The AI DevOps Assistant is a production-grade system that combines AI, DevOps to
 - `tool_executor.py` - Tool execution engine
 
 #### `rag/`
+
 - `__init__.py` - RAG initialization
 - `embeddings.py` - Embedding model setup
 - `vector_store.py` - Chroma vector store management
@@ -203,6 +218,7 @@ The AI DevOps Assistant is a production-grade system that combines AI, DevOps to
 - `retriever.py` - Semantic search interface
 
 #### `database/`
+
 - `__init__.py` - Database initialization
 - `models.py` - SQLAlchemy models (Pipeline logs, metrics, etc.)
 - `session.py` - Async session management
@@ -210,6 +226,7 @@ The AI DevOps Assistant is a production-grade system that combines AI, DevOps to
 - `queries.py` - Common queries
 
 #### `services/`
+
 - `llm_service.py` - Ollama integration
 - `log_service.py` - Log ingestion and processing
 - `metrics_service.py` - Metrics collection
@@ -217,6 +234,7 @@ The AI DevOps Assistant is a production-grade system that combines AI, DevOps to
 - `cache_service.py` - Caching layer
 
 #### `api/`
+
 - `routes/` - API endpoints
   - `chat.py` - Chat endpoint
   - `sql.py` - SQL query endpoint
@@ -228,6 +246,7 @@ The AI DevOps Assistant is a production-grade system that combines AI, DevOps to
 - `middleware.py` - Logging, CORS, error handling
 
 #### `config/`
+
 - `settings.py` - Environment configuration
 - `constants.py` - Application constants
 - `logging.py` - Logging configuration
@@ -239,6 +258,7 @@ The AI DevOps Assistant is a production-grade system that combines AI, DevOps to
 ### Tables
 
 #### `pipeline_logs`
+
 ```
 id: UUID
 pipeline_id: string
@@ -251,6 +271,7 @@ updated_at: timestamp
 ```
 
 #### `metric_snapshots`
+
 ```
 id: UUID
 service_name: string
@@ -261,6 +282,7 @@ labels: jsonb
 ```
 
 #### `rag_documents`
+
 ```
 id: UUID
 title: string
@@ -272,6 +294,7 @@ created_at: timestamp
 ```
 
 #### `chat_sessions`
+
 ```
 id: UUID
 user_id: string
@@ -281,6 +304,7 @@ message_count: int
 ```
 
 #### `chat_messages`
+
 ```
 id: UUID
 session_id: UUID (FK)
@@ -367,6 +391,7 @@ SECRET_KEY=your-secret-key-here
 ## Deployment Scenarios
 
 ### Local Development
+
 ```
 docker-compose up
 - PostgreSQL
@@ -378,6 +403,7 @@ docker-compose up
 ```
 
 ### Production (Kubernetes)
+
 ```
 - Deployments for FastAPI replicas
 - StatefulSet for PostgreSQL
@@ -444,18 +470,21 @@ docker-compose up
 ## Testing Strategy
 
 ### Unit Tests
+
 - Tool implementations
 - Database queries
 - RAG retrieval
 - LLM prompt formatting
 
 ### Integration Tests
+
 - Agent end-to-end flows
 - Tool-calling chains
 - Database transactions
 - External service mocks
 
 ### E2E Tests
+
 - Full chat scenarios
 - Multi-turn conversations
 - Error handling flows

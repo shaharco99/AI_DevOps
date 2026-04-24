@@ -20,7 +20,7 @@ from typing import Optional
 from urllib.parse import urljoin, urlparse
 
 import aiohttp
-from bs4 import BeautifulSoup, NavigableString
+from bs4 import BeautifulSoup
 
 logger = logging.getLogger(__name__)
 
@@ -65,9 +65,7 @@ class WebScraper:
             self.session = aiohttp.ClientSession(headers=headers)
         return self.session
 
-    async def scrape_url(
-        self, url: str, include_links: bool = True
-    ) -> Optional[ScrapedContent]:
+    async def scrape_url(self, url: str, include_links: bool = True) -> Optional[ScrapedContent]:
         """Scrape content from a single URL.
 
         Args:
@@ -80,9 +78,7 @@ class WebScraper:
         try:
             session = await self._get_session()
 
-            async with session.get(
-                url, timeout=aiohttp.ClientTimeout(total=self.timeout)
-            ) as resp:
+            async with session.get(url, timeout=aiohttp.ClientTimeout(total=self.timeout)) as resp:
                 if resp.status != 200:
                     logger.warning(f"Failed to fetch {url}: {resp.status}")
                     return None

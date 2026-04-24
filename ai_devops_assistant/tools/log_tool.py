@@ -38,7 +38,7 @@ class LogAnalysisTool(BaseTool):
         **kwargs,
     ) -> dict[str, Any]:
         """Execute log search.
-        
+
         Args:
             query: Search query
             log_type: Type of logs to search
@@ -46,7 +46,7 @@ class LogAnalysisTool(BaseTool):
             time_range_hours: Time range in hours
             limit: Maximum logs to return
             **kwargs: Additional parameters
-            
+
         Returns:
             dict: Search results
         """
@@ -58,9 +58,7 @@ class LogAnalysisTool(BaseTool):
 
         try:
             if log_type == "application":
-                return await self._search_application_logs(
-                    query, level, time_range_hours, limit
-                )
+                return await self._search_application_logs(query, level, time_range_hours, limit)
             else:
                 return {
                     "success": False,

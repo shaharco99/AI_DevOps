@@ -223,7 +223,6 @@ exclude_lines = [
 [tool.isort]
 profile = "black"
 line_length = 100
-multi_line_mode = 3
 include_trailing_comma = true
 force_grid_wrap = 0
 use_parentheses = true
@@ -235,3 +234,9 @@ known_first_party = ["ai_devops_assistant"]
 exclude_dirs = ["tests", ".venv", "venv"]
 tests = ["B201", "B301"]
 skips = ["B101"]
+
+[tool.codespell]
+skip = ".git,*.pyc,.env.example,*.lock"
+count = true
+quiet-level = 3
+ignore-words-list = ["cna", "nd", "sav", "ser", "ans"]

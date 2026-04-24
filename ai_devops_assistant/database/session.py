@@ -1,13 +1,9 @@
 """Database session and connection management."""
 
 import logging
-from typing import AsyncGenerator
+from collections.abc import AsyncGenerator
 
-from sqlalchemy.ext.asyncio import (
-    AsyncSession,
-    async_sessionmaker,
-    create_async_engine,
-)
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from ai_devops_assistant.config.settings import settings
 
@@ -40,7 +36,7 @@ AsyncSessionLocal = async_sessionmaker(
 
 async def get_session() -> AsyncGenerator[AsyncSession, None]:
     """Get database session for dependency injection.
-    
+
     Yields:
         AsyncSession: Database session
     """

@@ -87,12 +87,12 @@ repos:
 
   # Spell checking with codespell
   - repo: https://github.com/codespell-project/codespell
-    rev: v2.2.6
+    rev: v2.4.1
     hooks:
       - id: codespell
         args:
-          - --ignore-words=can,and,save,set,ans
-          - --skip=.git,.*,*.pyc,.env.example,*.lock
+          - --check-hidden
+          - --ignore-words-list=cna,nd,sav,ser,ans
 
 
   # ========================================================================

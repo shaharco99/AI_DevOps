@@ -2,7 +2,6 @@
 
 import logging
 import uuid
-from typing import Optional
 
 from ai_devops_assistant.config.settings import settings
 from ai_devops_assistant.rag.vector_store import get_vector_store_service
@@ -13,9 +12,13 @@ logger = logging.getLogger(__name__)
 class DocumentIngestionService:
     """Handle document ingestion for RAG."""
 
-    def __init__(self, chunk_size: int = settings.RAG_CHUNK_SIZE, chunk_overlap: int = settings.RAG_CHUNK_OVERLAP):
+    def __init__(
+        self,
+        chunk_size: int = settings.RAG_CHUNK_SIZE,
+        chunk_overlap: int = settings.RAG_CHUNK_OVERLAP,
+    ):
         """Initialize ingestion service.
-        
+
         Args:
             chunk_size: Size of text chunks
             chunk_overlap: Overlap between chunks
@@ -25,10 +28,10 @@ class DocumentIngestionService:
 
     def chunk_text(self, text: str) -> list[str]:
         """Split text into chunks.
-        
+
         Args:
             text: Text to chunk
-            
+
         Returns:
             list: List of text chunks
         """
@@ -49,13 +52,13 @@ class DocumentIngestionService:
         category: str = "general",
     ) -> None:
         """Ingest a document into RAG system.
-        
+
         Args:
             title: Document title
             content: Document content
             source: Document source (URL, file path, etc.)
             category: Document category
-            
+
         Raises:
             ValueError: If ingestion fails
         """
@@ -85,7 +88,7 @@ class DocumentIngestionService:
             )
 
             logger.info(f"Successfully ingested '{title}'")
-            
+
         except Exception as e:
             logger.error(f"Failed to ingest document '{title}': {e}")
             raise
@@ -95,10 +98,10 @@ class DocumentIngestionService:
         documents: list[dict],
     ) -> None:
         """Ingest multiple documents.
-        
+
         Args:
             documents: List of dicts with 'title', 'content', 'source', 'category'
-            
+
         Raises:
             ValueError: If ingestion fails
         """
@@ -116,18 +119,18 @@ class DocumentIngestionService:
         category: str = "general",
     ) -> None:
         """Ingest document from file.
-        
+
         Args:
             file_path: Path to file
             category: Document category
-            
+
         Raises:
             ValueError: If file not found or reading fails
         """
         try:
-            with open(file_path, "r", encoding="utf-8") as f:
+            with open(file_path, encoding="utf-8") as f:
                 content = f.read()
-            
+
             title = file_path.split("/")[-1]
             self.ingest_document(
                 title=title,
@@ -135,7 +138,7 @@ class DocumentIngestionService:
                 source=file_path,
                 category=category,
             )
-            
+
         except FileNotFoundError:
             logger.error(f"File not found: {file_path}")
             raise

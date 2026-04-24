@@ -9,7 +9,6 @@ Example:
     >>> rendered = manager.render_prompt(prompt, context={"issue": "high_cpu"})
 """
 
-import json
 import logging
 import re
 from dataclasses import dataclass
@@ -54,9 +53,7 @@ class PromptManager:
             lstrip_blocks=True,
         )
 
-    def load_prompt(
-        self, name: str, version: Optional[str] = None
-    ) -> Optional[Template]:
+    def load_prompt(self, name: str, version: Optional[str] = None) -> Optional[Template]:
         """Load a prompt template.
 
         Args:
@@ -93,9 +90,7 @@ class PromptManager:
             logger.error(f"Error loading prompt {name}: {e}")
             return None
 
-    def load_prompt_text(
-        self, name: str, version: Optional[str] = None
-    ) -> Optional[str]:
+    def load_prompt_text(self, name: str, version: Optional[str] = None) -> Optional[str]:
         """Load raw prompt text without templating.
 
         Args:
@@ -115,7 +110,7 @@ class PromptManager:
                 return None
 
             filepath = self.prompts_dir / filename
-            with open(filepath, "r") as f:
+            with open(filepath) as f:
                 return f.read()
 
         except Exception as e:

@@ -1,8 +1,7 @@
 """Pytest fixtures and configuration."""
 
 import asyncio
-import os
-from typing import AsyncGenerator
+from collections.abc import AsyncGenerator
 
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
@@ -25,17 +24,17 @@ async def test_db_session() -> AsyncGenerator[AsyncSession, None]:
     # Use in-memory SQLite for tests
     db_url = "sqlite+aiosqlite:///:memory:"
     engine = create_async_engine(db_url, echo=False)
-    
+
     # Create tables
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
-    
+
     # Create session
     async_session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
-    
+
     async with async_session() as session:
         yield session
-    
+
     # Cleanup
     await engine.dispose()
 

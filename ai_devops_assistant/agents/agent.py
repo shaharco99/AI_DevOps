@@ -8,7 +8,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ai_devops_assistant.agents.memory import ConversationMemory, get_session_manager
 from ai_devops_assistant.agents.prompts import SYSTEM_PROMPT
-from ai_devops_assistant.config.settings import settings
 from ai_devops_assistant.services.llm_service import get_ollama_service
 from ai_devops_assistant.tools.tool_executor import get_tool_executor
 
@@ -20,7 +19,7 @@ class DevOpsAgent:
 
     def __init__(self, session: Optional[AsyncSession] = None):
         """Initialize agent.
-        
+
         Args:
             session: SQLAlchemy async session for database tools
         """
@@ -47,12 +46,12 @@ class DevOpsAgent:
         use_rag: bool = True,
     ) -> dict[str, Any]:
         """Process user message and generate response.
-        
+
         Args:
             message: User message
             session_id: Optional session ID for multi-turn conversations
             use_rag: Whether to use RAG for knowledge retrieval
-            
+
         Returns:
             dict: Response with message, tool calls, and metadata
         """
@@ -88,9 +87,7 @@ class DevOpsAgent:
             # If tools were used, ask LLM to synthesize results
             final_response = llm_response
             if tool_results:
-                synthesis_prompt = self._build_synthesis_prompt(
-                    message, tool_results
-                )
+                synthesis_prompt = self._build_synthesis_prompt(message, tool_results)
                 final_messages = messages + [
                     {"role": "assistant", "content": llm_response},
                     {"role": "user", "content": synthesis_prompt},
@@ -114,7 +111,7 @@ class DevOpsAgent:
 
         except Exception as e:
             logger.error(f"Chat error: {e}", exc_info=True)
-            return self._error_response(str(e), memory if 'memory' in locals() else None)
+            return self._error_response(str(e), memory if "memory" in locals() else None)
 
     async def _retrieve_rag_context(self, query: str) -> str:
         """Retrieve context from RAG system."""
@@ -141,22 +138,28 @@ class DevOpsAgent:
 
         return "\n".join(context_parts)
 
-    def _format_messages_for_llm(self, memory: ConversationMemory, current_message: str) -> list[dict]:
+    def _format_messages_for_llm(
+        self, memory: ConversationMemory, current_message: str
+    ) -> list[dict]:
         """Format conversation history for LLM."""
         messages = []
 
         # Add system message
-        messages.append({
-            "role": "system",
-            "content": SYSTEM_PROMPT,
-        })
+        messages.append(
+            {
+                "role": "system",
+                "content": SYSTEM_PROMPT,
+            }
+        )
 
         # Add previous messages from memory
         for msg in memory.get_last_n_messages(6):  # Keep last 6 messages
-            messages.append({
-                "role": msg["role"],
-                "content": msg["content"],
-            })
+            messages.append(
+                {
+                    "role": msg["role"],
+                    "content": msg["content"],
+                }
+            )
 
         return messages
 
@@ -166,7 +169,7 @@ class DevOpsAgent:
         user_query: str,
     ) -> tuple[list[dict], dict[str, Any]]:
         """Extract and execute tool calls from LLM response.
-        
+
         Returns:
             tuple: (tool_calls, tool_results)
         """
@@ -205,8 +208,7 @@ class DevOpsAgent:
     ) -> str:
         """Build synthesis prompt for final response."""
         results_text = "\n".join(
-            f"- {tool_name}: {result}"
-            for tool_name, result in tool_results.items()
+            f"- {tool_name}: {result}" for tool_name, result in tool_results.items()
         )
 
         return f"""Based on the tool results below, provide a comprehensive answer to the user's question.
@@ -218,7 +220,9 @@ Tool Results:
 
 Please synthesize these results into a clear, actionable response."""
 
-    def _error_response(self, error: str, memory: Optional[ConversationMemory] = None) -> dict[str, Any]:
+    def _error_response(
+        self, error: str, memory: Optional[ConversationMemory] = None
+    ) -> dict[str, Any]:
         """Build error response."""
         return {
             "success": False,
@@ -235,10 +239,10 @@ _agent: Optional[DevOpsAgent] = None
 
 async def get_agent(session: Optional[AsyncSession] = None) -> DevOpsAgent:
     """Get or create DevOps agent.
-    
+
     Args:
         session: Optional database session
-        
+
     Returns:
         DevOpsAgent: Agent instance
     """
