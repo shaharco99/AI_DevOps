@@ -12,13 +12,13 @@ Example:
     >>> response = await llm.generate("Analyze this log")
 """
 
-import asyncio
 import logging
 from abc import ABC, abstractmethod
 from typing import Optional
 
 import aiohttp
-import requests
+
+from ai_devops_assistant.observability.ai_observability import LLMTrace
 
 logger = logging.getLogger(__name__)
 
@@ -283,9 +283,7 @@ class OpenAIProvider(LLMProvider):
 
                                     try:
                                         data = json.loads(line_str[6:])
-                                        delta = data.get("choices", [{}])[0].get(
-                                            "delta", {}
-                                        )
+                                        delta = data.get("choices", [{}])[0].get("delta", {})
                                         content = delta.get("content", "")
                                         if content:
                                             yield content
@@ -399,10 +397,7 @@ class AnthropicProvider(LLMProvider):
 
                                     try:
                                         data = json.loads(line_str[6:])
-                                        if (
-                                            data.get("type")
-                                            == "content_block_delta"
-                                        ):
+                                        if data.get("type") == "content_block_delta":
                                             delta = data.get("delta", {})
                                             text = delta.get("text", "")
                                             if text:
@@ -454,3 +449,34 @@ class LLMFactory:
             List of provider names
         """
         return list(cls._providers.keys())
+
+
+class FallbackLLMClient:
+    """Fallback client that tries multiple model targets in order."""
+
+    def __init__(self, targets: list[dict]):
+        self.targets = targets
+
+    async def generate(self, prompt: str, **kwargs) -> str:
+        last_error = None
+        for target in self.targets:
+            provider = target["provider"]
+            model = target["model"]
+            provider_kwargs = target.get("kwargs", {})
+            llm = LLMFactory.create(provider, model=model, **provider_kwargs)
+            if llm is None:
+                continue
+
+            trace = LLMTrace(provider=provider, model=model, prompt=prompt)
+            try:
+                response = await llm.generate(prompt, **kwargs)
+                if response:
+                    trace.complete(response=response)
+                    return response
+            except Exception as exc:
+                last_error = str(exc)
+                trace.complete(response="", error=last_error)
+                logger.warning(f"Fallback target failed {provider}/{model}: {exc}")
+
+        logger.error(f"All fallback models failed: {last_error}")
+        return ""

@@ -61,10 +61,14 @@ dependencies = [
 
     # Logging
     "python-json-logger==2.0.7",
+    "opentelemetry-api==1.37.0",
 
     # Security
     "cryptography==41.0.7",
 ]
+
+[project.scripts]
+ai-devops = "ai_devops_assistant.cli:main"
 
 [project.optional-dependencies]
 dev = [
@@ -231,16 +235,3 @@ known_first_party = ["ai_devops_assistant"]
 exclude_dirs = ["tests", ".venv", "venv"]
 tests = ["B201", "B301"]
 skips = ["B101"]
-
-[tool.pytest.ini_options]
-minversion = "7.0"
-addopts = "-ra -q --strict-markers --disable-warnings"
-testpaths = ["tests"]
-python_files = ["test_*.py", "*_test.py"]
-asyncio_mode = "auto"
-markers = [
-    "unit: Unit tests",
-    "integration: Integration tests",
-    "slow: Slow tests",
-    "external: Tests that call external services",
-]

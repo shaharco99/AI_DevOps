@@ -2,12 +2,17 @@
 
 import logging
 import time
+from collections.abc import Callable
 from datetime import datetime
-from typing import Callable
 
 from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse
+
+from ai_devops_assistant.observability.ai_observability import (
+    generate_request_id,
+    set_request_id,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -18,11 +23,18 @@ class LoggingMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
         """Log request and response."""
         start_time = time.time()
-        
+        request_id = request.headers.get("X-Request-ID", generate_request_id())
+        set_request_id(request_id)
+
         # Log request
         logger.debug(
-            f"Request: {request.method} {request.url.path} "
-            f"Client: {request.client.host if request.client else 'Unknown'}"
+            "request_started",
+            extra={
+                "request_id": request_id,
+                "method": request.method,
+                "path": request.url.path,
+                "client": request.client.host if request.client else "unknown",
+            },
         )
 
         try:
@@ -42,13 +54,20 @@ class LoggingMiddleware(BaseHTTPMiddleware):
 
         # Log response
         logger.debug(
-            f"Response: {request.method} {request.url.path} "
-            f"Status: {response.status_code} Duration: {duration_ms:.2f}ms"
+            "request_finished",
+            extra={
+                "request_id": request_id,
+                "method": request.method,
+                "path": request.url.path,
+                "status_code": response.status_code,
+                "duration_ms": round(duration_ms, 2),
+            },
         )
 
         # Add response headers
         response.headers["X-Process-Time"] = str(duration_ms)
-        
+        response.headers["X-Request-ID"] = request_id
+
         return response
 
 

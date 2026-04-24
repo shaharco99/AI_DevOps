@@ -42,6 +42,18 @@ spec:
               value: "http://{{ include "ai-devops-assistant.fullname" . }}-ollama:11434"
             - name: CHROMA_PERSIST_DIR
               value: "/data/chroma"
+            {{- range $key, $value := .Values.env }}
+            - name: {{ $key }}
+              value: {{ $value | quote }}
+            {{- end }}
+            {{- with .Values.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- if or .Values.secrets.existingSecret .Values.secrets.create }}
+          envFrom:
+            - secretRef:
+                name: {{ .Values.secrets.existingSecret | default (printf "%s-app" (include "ai-devops-assistant.fullname" .)) }}
+          {{- end }}
           livenessProbe:
             httpGet:
               path: /health
@@ -57,8 +69,12 @@ spec:
               mountPath: /data/chroma
       volumes:
         - name: chroma-data
+          {{- if and .Values.chroma.enabled .Values.chroma.persistence.enabled }}
           persistentVolumeClaim:
             claimName: {{ include "ai-devops-assistant.fullname" . }}-chroma
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}

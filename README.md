@@ -140,6 +140,7 @@ curl -s http://localhost:8000/health
 **⚠️ Secrets Management**: Never commit `.env` files with real credentials. See [SECRETS_MANAGEMENT.md](./SECRETS_MANAGEMENT.md) for best practices on handling API keys, tokens, and PATs securely in development and production.
 
 Endpoints:
+
 - API docs: `http://localhost:8000/docs`
 - Prometheus: `http://localhost:9090`
 - Grafana: `http://localhost:3000` (admin/admin)
@@ -218,6 +219,7 @@ curl -X POST http://localhost:8000/chat \
 ## CI/CD Pipeline Stages
 
 GitHub Actions pipeline includes:
+
 - **lint**: Ruff + Black + MyPy
 - **unit-tests**: pytest + coverage
 - **docker-build**: image build validation
@@ -235,6 +237,7 @@ The repository includes GitHub Actions workflows in `.github/workflows/`:
 - `dependency-review.yml`: Dependency vulnerability checking
 
 **To use GitHub Actions:**
+
 1. Push your code to a GitHub repository
 2. Ensure GitHub Container Registry is enabled
 3. The workflows will run automatically on push/PR to main/develop branches
@@ -298,6 +301,7 @@ When you ask "Why did my pipeline fail?", here's what happens:
    - Calls the `pipeline_status_tool` with action `get_recent_builds`
 
 3. **Azure DevOps API Call** → Pipeline tool makes authenticated API calls:
+
    ```python
    # Tool executes this logic:
    async def _get_recent_builds(self, pipeline_name=None):
@@ -335,6 +339,7 @@ AZURE_DEVOPS_PAT=your-personal-access-token      # PAT with Build (Read) permiss
 #### Azure DevOps Configuration
 
 **For Docker Deployment:**
+
 ```bash
 # Add to your .env file
 AZURE_DEVOPS_URL=https://dev.azure.com
@@ -344,6 +349,7 @@ AZURE_DEVOPS_PAT=your-personal-access-token
 ```
 
 **For Kubernetes Deployment:**
+
 ```yaml
 # Add to infra/kubernetes/configmap.yaml
 apiVersion: v1
@@ -368,6 +374,7 @@ data:
 ```
 
 **Creating Azure DevOps PAT:**
+
 1. Go to Azure DevOps → User Settings → Personal Access Tokens
 2. Create new token with "Build (Read)" and "Project (Read)" scopes
 3. Copy the token value to your environment variables
@@ -431,6 +438,7 @@ When running demo checks after `docker compose up -d`:
 ```
 
 **What it means:**
+
 - All containers are running and healthy
 - API is responding to requests
 - Chat/LLM functionality is working (Ollama model available)
@@ -464,6 +472,7 @@ When running demo checks after `kubectl apply -f infra/kubernetes/`:
 ```
 
 **What it means:**
+
 - Kubernetes cluster is accessible
 - All required resources are deployed in the namespace
 - Pods are in Running state
@@ -485,19 +494,23 @@ When running demo checks after `kubectl apply -f infra/kubernetes/`:
 ### Troubleshooting Demo Checks
 
 **"No AI DevOps deployment detected"**
+
 - For Docker: Run `docker compose up -d` in the repo root
 - For Kubernetes: Run `kubectl apply -f infra/kubernetes/`
 
 **"API Health Checks: Connection refused"**
+
 - For Docker: Ensure containers are running (`docker ps`)
 - For Kubernetes: Port-forward with `kubectl port-forward svc/ai-devops-assistant 8000:80`
 
 **"/chat endpoint: Timeout"**
+
 - Normal during first LLM inference (model loading)
 - Ollama is running but model initialization takes 30+ seconds
 - Try again after waiting for model to load
 
 **"Unit tests failed"**
+
 - Ensure virtual environment is activated: `source venv/bin/activate`
 - Install dev dependencies: `pip install -r requirements.txt`
 
@@ -892,6 +905,7 @@ bandit -r ai_devops_assistant/ -t B101  # Test for assertions
 ### Security Findings
 
 Common issues detected:
+
 - Hardcoded passwords/tokens
 - Insecure random generation
 - Use of pickle with untrusted input
@@ -1511,33 +1525,39 @@ README.md                           # This comprehensive guide
 ## Production Readiness Checklist
 
 ✅ **Code Quality**
+
 - Linting (Ruff)
 - Formatting (Black, isort)
 - Type checking (MyPy)
 
 ✅ **Security**
+
 - SAST scanning (Bandit)
 - SCA scanning (pip-audit)
 - Container scanning (Trivy)
 - Environment security (no secrets in code)
 
 ✅ **Testing**
+
 - Unit tests with coverage
 - Integration tests
 - Multi-version testing (3.11, 3.12)
 
 ✅ **Documentation**
+
 - Markdown linting
 - Spell checking (codespell)
 - Prompt versioning
 
 ✅ **Development Experience**
+
 - Pre-commit hooks
 - VS Code configuration
 - Debugging setup
 - Multi-LLM support
 
 ✅ **Observability**
+
 - Structured JSON logging
 - Request tracing capability
 - Error tracking
@@ -1551,5 +1571,19 @@ README.md                           # This comprehensive guide
 3. **Copy .env template**: `cp .env.example .env`
 4. **Run tests locally**: `pytest tests/`
 5. **Review CI pipeline**: `.github/workflows/ci-cd.yml`
+
+## Helm Reliability Update
+
+The Helm chart now includes missing runtime resources and safer deployment behavior without removing kubectl support:
+
+- Added `ServiceAccount` template so the deployment's `serviceAccountName` always resolves.
+- Added optional Chroma PVC template and fallback to `emptyDir` when persistence is disabled.
+- Added `infra/kubernetes/helm/deploy.sh` with error handling (`lint`, `template`, `--atomic --wait`, and automatic diagnostics on failure).
+
+Recommended command:
+
+```bash
+./infra/kubernetes/helm/deploy.sh ai-devops-assistant ai-devops-assistant values.yaml
+```
 
 ---

@@ -25,7 +25,7 @@ repos:
     rev: 23.12.1
     hooks:
       - id: black
-        language_version: python3.11
+        language_version: python3.12
         args: [--line-length=100]
 
   # Import sorting with isort
@@ -40,7 +40,7 @@ repos:
     rev: v0.1.11
     hooks:
       - id: ruff
-        args: [--fix, --exit-zero]
+        args: [--fix]
       - id: ruff-format
 
   # Type checking with Mypy
@@ -91,23 +91,23 @@ repos:
     hooks:
       - id: codespell
         args:
-          - --ignore-words-list=cna,nd,sav,ser,ans
+          - --ignore-words=can,and,save,set,ans
           - --skip=.git,.*,*.pyc,.env.example,*.lock
+
 
   # ========================================================================
   # Dependency Scanning
   # ========================================================================
 
-  # Dependency vulnerability scanning
-  - repo: https://github.com/PyCQA/pip-audit
-    rev: v2.6.1
+  - repo: https://github.com/pypa/pip-audit
+    rev: v2.10.0
     hooks:
-      - id: pip-audit
-        args: [--skip-editable]
-        stages: [commit]
+      -   id: pip-audit
+          args: ["-r", "requirements.txt"]
+
 
 default_language_version:
-  python: python3.11
+  python: python3.12
 
 ci:
   autofix_commit_msg: |
@@ -118,5 +118,5 @@ ci:
   autoupdate_branch: ""
   autoupdate_commit_msg: "[pre-commit.ci] pre-commit autoupdate"
   autoupdate_schedule: weekly
-  skip: []
+  skip: [pip-audit]
   submodules: false

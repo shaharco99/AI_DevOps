@@ -38,6 +38,12 @@ class Settings(BaseSettings):
     LLM_TEMPERATURE: float = 0.7
     LLM_MAX_TOKENS: int = 2048
     LLM_TIMEOUT: int = 60
+    LLM_PROVIDER: str = "ollama"
+    LLM_FALLBACK_MODELS: str = "mistral,llama3"
+    OPENAI_API_KEY: Optional[str] = None
+    OPENAI_BASE_URL: str = "https://api.openai.com/v1"
+    ANTHROPIC_API_KEY: Optional[str] = None
+    HUGGINGFACE_API_KEY: Optional[str] = None
 
     # ========================================================================
     # Vector Database Settings
@@ -96,6 +102,16 @@ class Settings(BaseSettings):
     # ========================================================================
     LOG_LEVEL: str = "INFO"
     LOG_FORMAT: str = "json"  # json or text
+    LOG_INCLUDE_STACKTRACE: bool = True
+    DEBUG_LOG_SQL: bool = False
+
+    # ========================================================================
+    # AI Observability
+    # ========================================================================
+    ENABLE_AI_OBSERVABILITY: bool = True
+    LANGFUSE_PUBLIC_KEY: Optional[str] = None
+    LANGFUSE_SECRET_KEY: Optional[str] = None
+    LANGFUSE_HOST: str = "https://cloud.langfuse.com"
 
     class Config:
         """Pydantic config."""

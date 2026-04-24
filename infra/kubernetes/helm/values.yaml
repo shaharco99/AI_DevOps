@@ -24,6 +24,20 @@ podSecurityContext: {}
 
 securityContext: {}
 
+env:
+  API_ENVIRONMENT: "production"
+  LOG_FORMAT: "json"
+  LOG_LEVEL: "INFO"
+  LLM_PROVIDER: "ollama"
+  LLM_MODEL: "llama3"
+
+extraEnv: []
+
+secrets:
+  create: false
+  existingSecret: ""
+  data: {}
+
 service:
   type: ClusterIP
   port: 80
@@ -64,9 +78,9 @@ affinity: {}
 postgresql:
   enabled: true
   auth:
-    postgresPassword: "devops_password"
+    postgresPassword: "change-me"
     username: "devops_user"
-    password: "devops_password"
+    password: "change-me"
     database: "devops"
 
 # Ollama configuration
@@ -77,6 +91,11 @@ ollama:
 # Chroma configuration
 chroma:
   enabled: true
+  persistence:
+    enabled: true
+    accessMode: ReadWriteOnce
+    size: 10Gi
+    storageClassName: ""
 
 # Prometheus configuration
 prometheus:
@@ -85,4 +104,4 @@ prometheus:
 # Grafana configuration
 grafana:
   enabled: true
-  adminPassword: "admin"
+  adminPassword: "change-me"
