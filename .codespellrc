@@ -1,0 +1,22 @@
+[codespell]
+# Codespell configuration for spell checking
+
+# Skip specific file types
+skip = .git,.*,*.pyc,.env.example,*.lock,*.egg-info,build,dist,node_modules
+
+# Ignore common false positives
+ignore-words-list = cna,nd,sav,ser,ans,pres,hist,thru,teh,uint
+
+# Directories to check recursively
+dirs = .
+include_lines = 0
+
+# Custom dictionary
+# dict =
+
+# Suppress suggestions
+quiet-level = 2
+
+# Only check these file types
+check-filenames = true
+check-hidden = false

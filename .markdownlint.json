@@ -1,0 +1,80 @@
+{
+  "extends": "markdownlint/style/default",
+  "line-length": {
+    "line_length": 120,
+    "code_lines": false,
+    "code_blocks": false
+  },
+  "no-hard-tabs": {
+    "code_blocks": false
+  },
+  "proper-names": {
+    "names": [
+      "AI DevOps Assistant",
+      "DevOps",
+      "GitHub",
+      "Kubernetes",
+      "PostgreSQL",
+      "Prometheus",
+      "Grafana",
+      "FastAPI",
+      "LangChain",
+      "Ollama",
+      "Chroma",
+      "Azure DevOps",
+      "Jenkins",
+      "AWS",
+      "GCP",
+      "Docker",
+      "Python",
+      "TypeScript",
+      "JavaScript",
+      "Ruff",
+      "Black",
+      "MyPy",
+      "Pylint",
+      "pytest",
+      "OpenAI",
+      "Anthropic",
+      "HuggingFace",
+      "RAG",
+      "LLM",
+      "SAST",
+      "SCA",
+      "CICD",
+      "API",
+      "REST",
+      "SQL"
+    ]
+  },
+  "no-multiple-blanks": {
+    "maximum": 2
+  },
+  "blanks-around-fences": true,
+  "blanks-around-headings": true,
+  "blanks-around-lists": true,
+  "heading-increment": true,
+  "heading-style": "consistent",
+  "list-item-content-indent": false,
+  "list-style": "consistent",
+  "ordered-list-prefix": "1.",
+  "code-fence-style": "backtick",
+  "code-fence-length": 3,
+  "indent": {
+    "indent": 2
+  },
+  "ul-start-left": true,
+  "emphasis-style": "consistent",
+  "strong-style": "consistent",
+  "link-image-reference-definitions": {
+    "ignore_definitions": false
+  },
+  "no-inline-html": {
+    "allowed_elements": [
+      "br",
+      "hr",
+      "img",
+      "a"
+    ]
+  }
+}
