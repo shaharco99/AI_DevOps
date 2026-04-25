@@ -1,9 +1,8 @@
 """Ollama LLM service integration."""
 
-import asyncio
 import json
 import logging
-from typing import Any, Optional
+from typing import Optional
 
 import httpx
 
@@ -24,7 +23,7 @@ class OllamaService:
         timeout: int = settings.LLM_TIMEOUT,
     ):
         """Initialize Ollama service.
-        
+
         Args:
             base_url: Ollama base URL
             model: Model name to use
@@ -41,7 +40,7 @@ class OllamaService:
 
     async def health_check(self) -> bool:
         """Check if Ollama is healthy.
-        
+
         Returns:
             bool: True if healthy, False otherwise
         """
@@ -54,7 +53,7 @@ class OllamaService:
 
     async def list_models(self) -> list[str]:
         """List available models.
-        
+
         Returns:
             list: Model names
         """
@@ -71,10 +70,10 @@ class OllamaService:
 
     async def pull_model(self, model: str) -> bool:
         """Pull a model from Ollama registry.
-        
+
         Args:
             model: Model name to pull
-            
+
         Returns:
             bool: True if successful
         """
@@ -100,11 +99,11 @@ class OllamaService:
         system: Optional[str] = None,
     ) -> str:
         """Generate text from prompt.
-        
+
         Args:
             prompt: Input prompt
             system: Optional system prompt
-            
+
         Returns:
             str: Generated text
         """
@@ -115,7 +114,7 @@ class OllamaService:
                 "temperature": self.temperature,
                 "stream": False,
             }
-            
+
             if system:
                 payload["system"] = system
 
@@ -123,7 +122,7 @@ class OllamaService:
                 f"{self.base_url}/api/generate",
                 json=payload,
             )
-            
+
             if response.status_code == 200:
                 data = response.json()
                 generated_text = data.get("response", "")
@@ -132,7 +131,7 @@ class OllamaService:
             else:
                 logger.error(f"Generation failed: {response.status_code}")
                 return ""
-                
+
         except Exception as e:
             logger.error(f"Generation error: {e}")
             return ""
@@ -142,10 +141,10 @@ class OllamaService:
         messages: list[dict[str, str]],
     ) -> str:
         """Chat with model.
-        
+
         Args:
             messages: List of message dicts with 'role' and 'content'
-            
+
         Returns:
             str: Assistant response
         """
@@ -161,7 +160,7 @@ class OllamaService:
                 f"{self.base_url}/api/chat",
                 json=payload,
             )
-            
+
             if response.status_code == 200:
                 data = response.json()
                 assistant_message = data.get("message", {}).get("content", "")
@@ -169,7 +168,7 @@ class OllamaService:
             else:
                 logger.error(f"Chat failed: {response.status_code}")
                 return ""
-                
+
         except Exception as e:
             logger.error(f"Chat error: {e}")
             return ""
@@ -180,11 +179,11 @@ class OllamaService:
         system: Optional[str] = None,
     ):
         """Generate text with streaming.
-        
+
         Args:
             prompt: Input prompt
             system: Optional system prompt
-            
+
         Yields:
             str: Generated text chunks
         """
@@ -195,7 +194,7 @@ class OllamaService:
                 "temperature": self.temperature,
                 "stream": True,
             }
-            
+
             if system:
                 payload["system"] = system
 
@@ -213,7 +212,7 @@ class OllamaService:
                                 yield chunk
                 else:
                     logger.error(f"Stream generation failed: {response.status_code}")
-                    
+
         except Exception as e:
             logger.error(f"Stream generation error: {e}")
 
@@ -223,11 +222,11 @@ class OllamaService:
         model: Optional[str] = None,
     ) -> Optional[list[float]]:
         """Generate embeddings for text.
-        
+
         Args:
             text: Text to embed
             model: Optional model (uses default if not specified)
-            
+
         Returns:
             list: Embedding vector or None
         """
@@ -239,14 +238,14 @@ class OllamaService:
                     "prompt": text,
                 },
             )
-            
+
             if response.status_code == 200:
                 data = response.json()
                 return data.get("embedding")
             else:
                 logger.error(f"Embeddings failed: {response.status_code}")
                 return None
-                
+
         except Exception as e:
             logger.error(f"Embeddings error: {e}")
             return None
@@ -270,7 +269,7 @@ _ollama_service: Optional[OllamaService] = None
 
 async def get_ollama_service() -> OllamaService:
     """Get or create Ollama service instance.
-    
+
     Returns:
         OllamaService: Ollama service instance
     """

@@ -1,7 +1,6 @@
 """Log analysis endpoint for DevOps assistant."""
 
 import logging
-from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -21,11 +20,11 @@ async def analyze_logs(
     db_session: AsyncSession = Depends(get_db_session),
 ) -> list[LogEntry]:
     """Analyze and search logs.
-    
+
     Args:
         request: Log analysis request
         db_session: Database session
-        
+
     Returns:
         list[LogEntry]: Matching log entries
     """
@@ -33,7 +32,7 @@ async def analyze_logs(
         # Initialize log tool
         log_tool = LogAnalysisTool()
         log_tool.set_session(db_session)
-        
+
         # Search logs
         logger.info(f"Searching logs with query: {request.query}")
         result = await log_tool.execute(
@@ -42,27 +41,29 @@ async def analyze_logs(
             time_range_hours=request.time_range_hours,
             limit=request.limit,
         )
-        
+
         if not result.get("success"):
             raise HTTPException(
                 status_code=400,
                 detail=result.get("error", "Log search failed"),
             )
-        
+
         logs = result["logs"]
-        
+
         # Convert to response format
         log_entries = []
         for log in logs:
-            log_entries.append(LogEntry(
-                timestamp=log["timestamp"],
-                level=log["level"],
-                message=log["message"],
-                source=log.get("source", "unknown"),
-            ))
-        
+            log_entries.append(
+                LogEntry(
+                    timestamp=log["timestamp"],
+                    level=log["level"],
+                    message=log["message"],
+                    source=log.get("source", "unknown"),
+                )
+            )
+
         return log_entries
-        
+
     except Exception as e:
         logger.error(f"Log analysis error: {e}", exc_info=True)
         raise HTTPException(

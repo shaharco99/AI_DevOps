@@ -2,6 +2,7 @@
 
 import asyncio
 import os
+
 from ai_devops_assistant.tools.pipeline_tool import PipelineTool
 
 
@@ -23,10 +24,7 @@ async def test_azure_devops_connection():
     if result.get("success") and result.get("builds"):
         # Test getting details of first build
         first_build_id = str(result["builds"][0]["id"])
-        details_result = await tool.execute(
-            action="get_build_details",
-            build_id=first_build_id
-        )
+        details_result = await tool.execute(action="get_build_details", build_id=first_build_id)
         print(f"\nBuild {first_build_id} details:")
         print(details_result)
 

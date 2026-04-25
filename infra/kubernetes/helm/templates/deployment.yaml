@@ -4,6 +4,9 @@ metadata:
   name: {{ include "ai-devops-assistant.fullname" . }}
   labels:
     {{- include "ai-devops-assistant.labels" . | nindent 4 }}
+    {{- with .Values.podLabels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
 spec:
   replicas: {{ .Values.replicaCount }}
   selector:
@@ -17,6 +20,9 @@ spec:
       {{- end }}
       labels:
         {{- include "ai-devops-assistant.selectorLabels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
     spec:
       {{- with .Values.imagePullSecrets }}
       imagePullSecrets:
@@ -29,36 +35,102 @@ spec:
         - name: ai-devops-assistant
           securityContext:
             {{- toYaml .Values.securityContext | nindent 12 }}
-          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          image: "{{ if .Values.image.registry }}{{ .Values.image.registry }}/{{ end }}{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           ports:
             - name: http
               containerPort: 8000
               protocol: TCP
+            - name: metrics
+              containerPort: 9090
+              protocol: TCP
           env:
+            # Default environment variables
+            {{- range $key, $value := .Values.env }}
+            - name: {{ $key }}
+              value: {{ $value | quote }}
+            {{- end }}
+            # Database configuration
+            {{- if .Values.postgresql.enabled }}
             - name: DATABASE_URL
               value: "postgresql+asyncpg://{{ .Values.postgresql.auth.username }}:{{ .Values.postgresql.auth.password }}@{{ include "ai-devops-assistant.fullname" . }}-postgresql:5432/{{ .Values.postgresql.auth.database }}"
+            {{- end }}
+            # Ollama configuration
+            {{- if .Values.ollama.enabled }}
             - name: OLLAMA_BASE_URL
               value: "http://{{ include "ai-devops-assistant.fullname" . }}-ollama:11434"
-            - name: CHROMA_PERSIST_DIR
-              value: "/data/chroma"
+            {{- end }}
+            # Chroma configuration
+            {{- if .Values.chroma.enabled }}
+            - name: CHROMA_HOST
+              value: "{{ include "ai-devops-assistant.fullname" . }}-chroma"
+            - name: CHROMA_PORT
+              value: "8000"
+            {{- end }}
+            # Additional environment variables
+            {{- with .Values.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- if or .Values.extraEnvFrom .Values.configMaps.create .Values.secrets.create (and .Values.externalSecrets.enabled .Values.externalSecrets.secretStore.name) }}
+          envFrom:
+            {{- with .Values.extraEnvFrom }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+            {{- if .Values.configMaps.create }}
+            - configMapRef:
+                name: {{ include "ai-devops-assistant.fullname" . }}-config
+            {{- end }}
+            {{- if .Values.secrets.create }}
+            - secretRef:
+                name: {{ include "ai-devops-assistant.fullname" . }}-secret
+            {{- end }}
+            {{- if and .Values.externalSecrets.enabled .Values.externalSecrets.secretStore.name }}
+            - secretRef:
+                name: {{ include "ai-devops-assistant.fullname" . }}-external
+            {{- end }}
+          {{- end }}
+          {{- if .Values.healthCheck.enabled }}
           livenessProbe:
             httpGet:
-              path: /health
-              port: http
+              path: {{ .Values.healthCheck.path }}
+              port: {{ .Values.healthCheck.port }}
+            initialDelaySeconds: {{ .Values.healthCheck.initialDelaySeconds }}
+            periodSeconds: {{ .Values.healthCheck.periodSeconds }}
+            timeoutSeconds: {{ .Values.healthCheck.timeoutSeconds }}
+            failureThreshold: {{ .Values.healthCheck.failureThreshold }}
+            successThreshold: {{ .Values.healthCheck.successThreshold }}
           readinessProbe:
             httpGet:
-              path: /health
-              port: http
+              path: {{ .Values.healthCheck.path }}
+              port: {{ .Values.healthCheck.port }}
+            initialDelaySeconds: {{ .Values.healthCheck.initialDelaySeconds }}
+            periodSeconds: {{ .Values.healthCheck.periodSeconds }}
+            timeoutSeconds: {{ .Values.healthCheck.timeoutSeconds }}
+            failureThreshold: {{ .Values.healthCheck.failureThreshold }}
+            successThreshold: {{ .Values.healthCheck.successThreshold }}
+          {{- end }}
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
           volumeMounts:
+            {{- if .Values.persistence.enabled }}
+            - name: data
+              mountPath: /app/data
+            {{- end }}
+            {{- if and .Values.chroma.enabled .Values.chroma.persistence.enabled }}
             - name: chroma-data
               mountPath: /data/chroma
+            {{- end }}
       volumes:
+        {{- if .Values.persistence.enabled }}
+        - name: data
+          persistentVolumeClaim:
+            claimName: {{ include "ai-devops-assistant.fullname" . }}-data
+        {{- end }}
+        {{- if and .Values.chroma.enabled .Values.chroma.persistence.enabled }}
         - name: chroma-data
           persistentVolumeClaim:
             claimName: {{ include "ai-devops-assistant.fullname" . }}-chroma
+        {{- end }}
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}

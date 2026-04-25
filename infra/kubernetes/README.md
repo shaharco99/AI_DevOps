@@ -2,6 +2,54 @@
 
 This directory contains Kubernetes manifests for deploying the AI DevOps Assistant to a Kubernetes cluster.
 
+## Helm Deployment (Recommended)
+
+Helm packages the deployment as reusable templates, while `kubectl apply -f` applies raw manifests directly.
+Use Helm for environment overrides and secrets management, and keep `kubectl` for simple/manual operations and backward compatibility.
+
+```bash
+helm upgrade --install ai-devops-assistant ./helm \
+  --namespace ai-devops-assistant \
+  --create-namespace \
+  -f ./helm/values.yaml
+```
+
+Safer production deployment (recommended):
+
+```bash
+helm upgrade --install ai-devops-assistant ./helm \
+  --namespace ai-devops-assistant \
+  --create-namespace \
+  --rollback-on-failure \
+  --wait \
+  --timeout 10m \
+  -f ./helm/values.yaml
+```
+
+### Helm Error Handling
+
+Use the included deployment wrapper for built-in validation and diagnostics:
+
+```bash
+./helm/deploy.sh ai-devops-assistant ai-devops-assistant values.yaml
+```
+
+What it does:
+
+- Runs `helm lint` before deployment.
+- Runs `helm template` to catch rendering issues early.
+- Deploys with `--rollback-on-failure --wait --timeout` for automatic rollback.
+- On failure, prints `helm status`, `kubectl get pods`, and recent events.
+
+Environment-specific overrides:
+
+```bash
+helm upgrade --install ai-devops-assistant ./helm \
+  --namespace ai-devops-assistant \
+  -f ./helm/values.yaml \
+  -f ./helm/values-production.yaml
+```
+
 ## Prerequisites
 
 - Kubernetes cluster (v1.19+)
@@ -84,10 +132,11 @@ kubectl port-forward -n ai-devops-assistant svc/prometheus 9090:9090
 ```
 
 Then access:
-- Application: http://localhost:8080
-- API Docs: http://localhost:8080/docs
-- Grafana: http://localhost:3000 (admin/admin)
-- Prometheus: http://localhost:9090
+
+- Application: <http://localhost:8080>
+- API Docs: <http://localhost:8080/docs>
+- Grafana: <http://localhost:3000> (admin/admin)
+- Prometheus: <http://localhost:9090>
 
 ### Via Ingress
 
@@ -177,6 +226,16 @@ kubectl get events -n ai-devops-assistant
 
 # Check resource usage
 kubectl top pods -n ai-devops-assistant
+```
+
+Helm-specific diagnostics:
+
+```bash
+helm status ai-devops-assistant -n ai-devops-assistant
+helm history ai-devops-assistant -n ai-devops-assistant
+helm get values ai-devops-assistant -n ai-devops-assistant
+helm get manifest ai-devops-assistant -n ai-devops-assistant
+kubectl get events -n ai-devops-assistant --sort-by='.lastTimestamp'
 ```
 
 ## Security Considerations

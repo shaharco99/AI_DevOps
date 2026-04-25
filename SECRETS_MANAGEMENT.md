@@ -398,4 +398,3 @@ jobs:
 - [Kubernetes Secret Best Practices](https://kubernetes.io/docs/concepts/configuration/secret/)
 - [External Secrets Operator Documentation](https://external-secrets.io/)
 - [Sealed Secrets Documentation](https://sealed-secrets.netlify.app/)
-

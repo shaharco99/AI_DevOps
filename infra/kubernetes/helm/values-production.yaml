@@ -1,0 +1,353 @@
+# Production values for ai-devops-assistant
+# This file contains production-ready configurations with security best practices
+
+# Global configuration
+global:
+  imageRegistry: "ghcr.io"
+  imagePullSecrets:
+    - name: registry-secret
+  storageClass: "fast-ssd"
+
+# Application configuration
+replicaCount: 3
+
+image:
+  registry: ghcr.io
+  repository: yourusername/ai-devops-assistant
+  tag: "v1.0.0"
+  pullPolicy: Always
+
+# Security hardening
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  runAsGroup: 1000
+  fsGroup: 1000
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  runAsNonRoot: true
+  runAsUser: 1000
+  runAsGroup: 1000
+  capabilities:
+    drop:
+      - ALL
+
+# Production environment variables
+env:
+  API_ENVIRONMENT: "production"
+  LOG_FORMAT: "json"
+  LOG_LEVEL: "WARNING"
+  LLM_PROVIDER: "ollama"
+  LLM_MODEL: "llama3:8b"
+  PROMETHEUS_METRICS_ENABLED: "true"
+  ENABLE_RAG: "true"
+  ENABLE_SCRAPING: "true"
+  ENABLE_FINE_TUNING: "false"
+  ENABLE_EVALUATION: "true"
+  ENABLE_OBSERVABILITY: "true"
+
+# External secrets for production
+externalSecrets:
+  enabled: true
+  secretStore:
+    name: "vault-backend"
+    kind: "SecretStore"
+  refreshInterval: "15s"
+
+# Production ingress
+ingress:
+  enabled: true
+  className: "nginx"
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    nginx.ingress.kubernetes.io/rate-limit: "10"
+    nginx.ingress.kubernetes.io/rate-limit-window: "1m"
+  hosts:
+    - host: ai-devops.yourcompany.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: ai-devops-assistant-tls
+      hosts:
+        - ai-devops.yourcompany.com
+
+# Higher resource limits for production
+resources:
+  limits:
+    cpu: 2000m
+    memory: 4Gi
+  requests:
+    cpu: 1000m
+    memory: 2Gi
+
+# Production autoscaling
+autoscaling:
+  enabled: true
+  minReplicas: 3
+  maxReplicas: 20
+  targetCPUUtilizationPercentage: 70
+  targetMemoryUtilizationPercentage: 80
+
+# Production persistence
+persistence:
+  enabled: true
+  accessMode: ReadWriteOnce
+  size: 100Gi
+  storageClassName: "fast-ssd"
+
+# Production PostgreSQL
+postgresql:
+  enabled: true
+  architecture: standalone
+  auth:
+    existingSecret: "postgres-secret"
+  primary:
+    persistence:
+      enabled: true
+      size: 50Gi
+      storageClass: "fast-ssd"
+    resources:
+      limits:
+        cpu: 1000m
+        memory: 2Gi
+      requests:
+        cpu: 500m
+        memory: 1Gi
+
+# Production Ollama
+ollama:
+  enabled: true
+  models:
+    - llama3:8b
+    - codellama:13b
+    - mistral:7b
+  persistence:
+    enabled: true
+    size: 100Gi
+    storageClass: "fast-ssd"
+  resources:
+    limits:
+      cpu: 4000m
+      memory: 16Gi
+    requests:
+      cpu: 2000m
+      memory: 8Gi
+
+# Production Chroma
+chroma:
+  enabled: true
+  persistence:
+    enabled: true
+    accessMode: ReadWriteOnce
+    size: 100Gi
+    storageClass: "fast-ssd"
+  resources:
+    limits:
+      cpu: 2000m
+      memory: 8Gi
+    requests:
+      cpu: 1000m
+      memory: 4Gi
+
+# Production Prometheus (kube-prometheus-stack)
+prometheus:
+  enabled: true
+  prometheus:
+    service:
+      type: ClusterIP
+      port: 9090
+    persistentVolume:
+      enabled: true
+      size: 50Gi
+      storageClass: "fast-ssd"
+    resources:
+      limits:
+        cpu: 1000m
+        memory: 4Gi
+      requests:
+        cpu: 500m
+        memory: 2Gi
+  alertmanager:
+    enabled: true
+  grafana:
+    enabled: false
+  kubeStateMetrics:
+    enabled: true
+  nodeExporter:
+    enabled: true
+  prometheusOperator:
+    enabled: true
+
+# Production Grafana
+grafana:
+  enabled: true
+  adminPassword: ""  # Should be set via secret
+  persistence:
+    enabled: true
+    size: 20Gi
+    storageClass: "fast-ssd"
+  service:
+    type: ClusterIP
+    port: 3000
+  datasources:
+    datasources.yaml:
+      apiVersion: 1
+      datasources:
+      - name: Prometheus
+        type: prometheus
+        url: http://ai-devops-assistant-prometheus-server
+        access: proxy
+        isDefault: true
+  dashboardProviders:
+    dashboardproviders.yaml:
+      apiVersion: 1
+      providers:
+      - name: 'ai-devops'
+        type: file
+        disableDeletion: false
+        updateIntervalSeconds: 10
+        allowUiUpdates: true
+        options:
+          path: /var/lib/grafana/dashboards/ai-devops
+  dashboards:
+    ai-devops:
+      ai-devops-dashboard:
+        json: |
+          {
+            "dashboard": {
+              "id": null,
+              "title": "AI DevOps Dashboard",
+              "tags": [
+                "ai-devops",
+                "monitoring"
+              ],
+              "timezone": "browser",
+              "panels": [
+                {
+                  "id": 1,
+                  "title": "Backend Service Status",
+                  "type": "stat",
+                  "targets": [
+                    {
+                      "expr": "up{job=\"backend\"}",
+                      "legendFormat": "{{job}}"
+                    }
+                  ],
+                  "fieldConfig": {
+                    "defaults": {
+                      "mappings": [
+                        {
+                          "options": {
+                            "0": {
+                              "text": "DOWN",
+                              "color": "red"
+                            },
+                            "1": {
+                              "text": "UP",
+                              "color": "green"
+                            }
+                          },
+                          "type": "value"
+                        }
+                      ]
+                    }
+                  },
+                  "gridPos": {
+                    "h": 8,
+                    "w": 12,
+                    "x": 0,
+                    "y": 0
+                  }
+                },
+                {
+                  "id": 2,
+                  "title": "HTTP Request Rate",
+                  "type": "graph",
+                  "targets": [
+                    {
+                      "expr": "rate(http_requests_total[5m])",
+                      "legendFormat": "Requests/sec"
+                    }
+                  ],
+                  "gridPos": {
+                    "h": 8,
+                    "w": 12,
+                    "x": 12,
+                    "y": 0
+                  }
+                },
+                {
+                  "id": 3,
+                  "title": "Error Rate",
+                  "type": "graph",
+                  "targets": [
+                    {
+                      "expr": "rate(http_requests_total{status=~\"5..\"}[5m]) / rate(http_requests_total[5m]) * 100",
+                      "legendFormat": "Error Rate %"
+                    }
+                  ],
+                  "gridPos": {
+                    "h": 8,
+                    "w": 12,
+                    "x": 0,
+                    "y": 8
+                  }
+                },
+                {
+                  "id": 4,
+                  "title": "Response Time (P95)",
+                  "type": "graph",
+                  "targets": [
+                    {
+                      "expr": "histogram_quantile(0.95, http_request_duration_seconds_bucket)",
+                      "legendFormat": "P95 Latency"
+                    }
+                  ],
+                  "gridPos": {
+                    "h": 8,
+                    "w": 12,
+                    "x": 12,
+                    "y": 8
+                  }
+                }
+              ],
+              "time": {
+                "from": "now-1h",
+                "to": "now"
+              },
+              "timepicker": {},
+              "templating": {
+                "list": []
+              },
+              "annotations": {
+                "list": []
+              },
+              "refresh": "30s",
+              "schemaVersion": 27,
+              "version": 0,
+              "links": []
+            }
+          }
+
+# Enable network policies in production
+networkPolicy:
+  enabled: true
+
+# Production service monitor
+serviceMonitor:
+  enabled: true
+  labels:
+    prometheus: "main"
+
+# Production health checks
+healthCheck:
+  enabled: true
+  initialDelaySeconds: 60
+  periodSeconds: 30
+  timeoutSeconds: 10
+  failureThreshold: 5

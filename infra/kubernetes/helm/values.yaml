@@ -2,12 +2,20 @@
 # This is a YAML-formatted file.
 # Declare variables to be passed into your templates.
 
+# Global configuration
+global:
+  imageRegistry: ""
+  imagePullSecrets: []
+  storageClass: ""
+
+# Application configuration
 replicaCount: 2
 
 image:
-  repository: ghcr.io/yourusername/ai-devops-assistant
-  pullPolicy: IfNotPresent
+  registry: docker.io
+  repository: ai-devops-backend
   tag: "latest"
+  pullPolicy: Never
 
 imagePullSecrets: []
 nameOverride: ""
@@ -19,70 +27,476 @@ serviceAccount:
   name: ""
 
 podAnnotations: {}
+podLabels: {}
 
-podSecurityContext: {}
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  runAsGroup: 1000
+  fsGroup: 1000
 
-securityContext: {}
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  runAsNonRoot: true
+  runAsUser: 1000
+  runAsGroup: 1000
+  capabilities:
+    drop:
+      - ALL
 
+# Environment variables
+env:
+  API_ENVIRONMENT: "production"
+  LOG_FORMAT: "json"
+  LOG_LEVEL: "INFO"
+  LLM_PROVIDER: "ollama"
+  LLM_MODEL: "llama3"
+  # LLM Services
+  OPENAI_API_KEY: ""
+  ANTHROPIC_API_KEY: ""
+  # Security
+  SECRET_KEY: ""
+  JWT_SECRET_KEY: ""
+  # Monitoring
+  PROMETHEUS_METRICS_ENABLED: "true"
+  # Features
+  ENABLE_RAG: "true"
+  ENABLE_SCRAPING: "true"
+  ENABLE_FINE_TUNING: "false"
+  ENABLE_EVALUATION: "true"
+  ENABLE_OBSERVABILITY: "true"
+
+# Additional environment variables from secrets/configmaps
+extraEnv: []
+extraEnvFrom: []
+
+# Secrets management
+secrets:
+  create: true
+  name: ""
+  annotations: {}
+  # Data can be provided here or through external secrets
+  data:
+    # API keys and secrets
+    openai-api-key: ""
+    anthropic-api-key: ""
+    jwt-secret-key: ""
+    secret-key: ""
+    # Database credentials
+    database-url: ""
+    # Other secrets
+    github-token: ""
+    docker-registry-token: ""
+
+# External secrets operator configuration
+externalSecrets:
+  enabled: false
+  secretStore:
+    name: ""
+    kind: "SecretStore"
+  refreshInterval: "15s"
+  secretKeys:
+    - name: "openai-api-key"
+      key: "openai-api-key"
+    - name: "anthropic-api-key"
+      key: "anthropic-api-key"
+    - name: "jwt-secret-key"
+      key: "jwt-secret-key"
+    - name: "database-url"
+      key: "database-url"
+
+# ConfigMaps for configuration
+configMaps:
+  create: true
+  name: ""
+  data:
+    # Application configuration
+    config.yaml: |
+      api:
+        environment: production
+        log_level: INFO
+        log_format: json
+      llm:
+        provider: ollama
+        model: llama3
+        temperature: 0.7
+        max_tokens: 2048
+      database:
+        type: postgresql
+        pool_size: 10
+        max_overflow: 20
+      vector_db:
+        type: chroma
+        host: chroma
+        port: 8000
+      monitoring:
+        enabled: true
+        metrics_port: 9090
+      security:
+        jwt_expiry: 3600
+        bcrypt_rounds: 12
+
+# Service configuration
 service:
   type: ClusterIP
   port: 80
   targetPort: 8000
+  annotations: {}
+  labels: {}
 
+# Ingress configuration
 ingress:
   enabled: false
   className: ""
-  annotations: {}
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
   hosts:
     - host: ai-devops-assistant.local
       paths:
         - path: /
           pathType: Prefix
-  tls: []
+  tls:
+    - secretName: ai-devops-assistant-tls
+      hosts:
+        - ai-devops-assistant.local
 
+# Resource limits and requests
 resources:
   limits:
+    cpu: 1000m
+    memory: 2Gi
+  requests:
     cpu: 500m
     memory: 1Gi
-  requests:
-    cpu: 250m
-    memory: 512Mi
 
+# Horizontal Pod Autoscaler
 autoscaling:
-  enabled: false
-  minReplicas: 1
-  maxReplicas: 100
-  targetCPUUtilizationPercentage: 80
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 70
+  targetMemoryUtilizationPercentage: 80
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+        - type: Percent
+          value: 50
+          periodSeconds: 60
 
+# Node selector, tolerations, and affinity
 nodeSelector: {}
-
 tolerations: []
+affinity:
+  podAntiAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        podAffinityTerm:
+          labelSelector:
+            matchExpressions:
+              - key: app.kubernetes.io/name
+                operator: In
+                values:
+                  - ai-devops-assistant
+          topologyKey: kubernetes.io/hostname
 
-affinity: {}
+# Persistence configuration
+persistence:
+  enabled: true
+  accessMode: ReadWriteOnce
+  size: 50Gi
+  storageClassName: ""
+  annotations: {}
 
-# Database configuration
+# Database configuration (PostgreSQL)
 postgresql:
   enabled: true
+  architecture: standalone
   auth:
-    postgresPassword: "devops_password"
+    postgresPassword: ""
     username: "devops_user"
-    password: "devops_password"
+    password: ""
     database: "devops"
+    existingSecret: ""
+  image:
+    registry: registry-1.docker.io
+    repository: bitnami/postgresql
+    tag: latest
+    pullPolicy: IfNotPresent
+  primary:
+    persistence:
+      enabled: true
+      size: 20Gi
+      storageClass: ""
+    resources:
+      limits:
+        cpu: 500m
+        memory: 1Gi
+      requests:
+        cpu: 250m
+        memory: 512Mi
+    nodeSelector: {}
+    tolerations: []
+    affinity: {}
 
 # Ollama configuration
 ollama:
   enabled: true
-  model: "llama3"
+  image:
+    registry: docker.io
+    repository: ollama/ollama
+    tag: latest
+  models:
+    - llama3:8b
+    - codellama:7b
+  service:
+    type: ClusterIP
+    port: 11434
+  persistence:
+    enabled: true
+    size: 50Gi
+    storageClass: ""
+  resources:
+    limits:
+      cpu: 2000m
+      memory: 8Gi
+    requests:
+      cpu: 1000m
+      memory: 4Gi
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
 
-# Chroma configuration
+# Chroma Vector Database configuration
 chroma:
   enabled: true
+  image:
+    registry: docker.io
+    repository: chromadb/chroma
+    tag: latest
+  service:
+    type: ClusterIP
+    port: 8000
+  persistence:
+    enabled: true
+    accessMode: ReadWriteOnce
+    size: 50Gi
+    storageClass: ""
+  resources:
+    limits:
+      cpu: 1000m
+      memory: 4Gi
+    requests:
+      cpu: 500m
+      memory: 2Gi
+  env:
+    CHROMA_SERVER_HOST: "0.0.0.0"
+    CHROMA_SERVER_HTTP_PORT: "8000"
+    IS_PERSISTENT: "true"
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
 
-# Prometheus configuration
+# Prometheus monitoring configuration (kube-prometheus-stack)
 prometheus:
   enabled: true
+  prometheus:
+    service:
+      type: ClusterIP
+      port: 9090
+  alertmanager:
+    enabled: false
+  grafana:
+    enabled: false
+  kubeStateMetrics:
+    enabled: false
+  nodeExporter:
+    enabled: false
+  prometheusOperator:
+    enabled: true
 
-# Grafana configuration
+# Grafana dashboard configuration
 grafana:
   enabled: true
-  adminPassword: "admin"
+  adminPassword: ""
+  persistence:
+    enabled: true
+    size: 10Gi
+  service:
+    type: ClusterIP
+    port: 3000
+  datasources:
+    datasources.yaml:
+      apiVersion: 1
+      datasources:
+      - name: Prometheus
+        type: prometheus
+        url: http://ai-devops-assistant-prometheus-server
+        access: proxy
+        isDefault: true
+  dashboardProviders:
+    dashboardproviders.yaml:
+      apiVersion: 1
+      providers:
+      - name: 'ai-devops'
+        type: file
+        disableDeletion: false
+        updateIntervalSeconds: 10
+        allowUiUpdates: true
+        options:
+          path: /var/lib/grafana/dashboards/ai-devops
+  dashboards:
+    ai-devops:
+      ai-devops-dashboard:
+        json: |
+          {
+            "dashboard": {
+              "id": null,
+              "title": "AI DevOps Dashboard",
+              "tags": [
+                "ai-devops",
+                "monitoring"
+              ],
+              "timezone": "browser",
+              "panels": [
+                {
+                  "id": 1,
+                  "title": "Backend Service Status",
+                  "type": "stat",
+                  "targets": [
+                    {
+                      "expr": "up{job=\"backend\"}",
+                      "legendFormat": "{{job}}"
+                    }
+                  ],
+                  "fieldConfig": {
+                    "defaults": {
+                      "mappings": [
+                        {
+                          "options": {
+                            "0": {
+                              "text": "DOWN",
+                              "color": "red"
+                            },
+                            "1": {
+                              "text": "UP",
+                              "color": "green"
+                            }
+                          },
+                          "type": "value"
+                        }
+                      ]
+                    }
+                  },
+                  "gridPos": {
+                    "h": 8,
+                    "w": 12,
+                    "x": 0,
+                    "y": 0
+                  }
+                },
+                {
+                  "id": 2,
+                  "title": "HTTP Request Rate",
+                  "type": "graph",
+                  "targets": [
+                    {
+                      "expr": "rate(http_requests_total[5m])",
+                      "legendFormat": "Requests/sec"
+                    }
+                  ],
+                  "gridPos": {
+                    "h": 8,
+                    "w": 12,
+                    "x": 12,
+                    "y": 0
+                  }
+                },
+                {
+                  "id": 3,
+                  "title": "Error Rate",
+                  "type": "graph",
+                  "targets": [
+                    {
+                      "expr": "rate(http_requests_total{status=~\"5..\"}[5m]) / rate(http_requests_total[5m]) * 100",
+                      "legendFormat": "Error Rate %"
+                    }
+                  ],
+                  "gridPos": {
+                    "h": 8,
+                    "w": 12,
+                    "x": 0,
+                    "y": 8
+                  }
+                },
+                {
+                  "id": 4,
+                  "title": "Response Time (P95)",
+                  "type": "graph",
+                  "targets": [
+                    {
+                      "expr": "histogram_quantile(0.95, http_request_duration_seconds_bucket)",
+                      "legendFormat": "P95 Latency"
+                    }
+                  ],
+                  "gridPos": {
+                    "h": 8,
+                    "w": 12,
+                    "x": 12,
+                    "y": 8
+                  }
+                }
+              ],
+              "time": {
+                "from": "now-1h",
+                "to": "now"
+              },
+              "timepicker": {},
+              "templating": {
+                "list": []
+              },
+              "annotations": {
+                "list": []
+              },
+              "refresh": "30s",
+              "schemaVersion": 27,
+              "version": 0,
+              "links": []
+            }
+          }
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+# Network policies
+networkPolicy:
+  enabled: false
+  allowedIngressPods: []
+  allowedEgressPods: []
+
+# Pod disruption budget
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+
+# Service monitor for Prometheus
+serviceMonitor:
+  enabled: true
+  namespace: ""
+  interval: 30s
+  scrapeTimeout: 10s
+  labels: {}
+
+# Health checks
+healthCheck:
+  enabled: true
+  path: /health
+  port: 8000
+  initialDelaySeconds: 30
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 3
+  successThreshold: 1

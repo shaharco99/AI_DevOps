@@ -1,14 +1,13 @@
 """Logging configuration and utilities."""
 
-import json
 import logging
-import logging.config
 import sys
 from typing import Any
 
 from pythonjsonlogger import jsonlogger
 
 from ai_devops_assistant.config.settings import settings
+from ai_devops_assistant.observability.ai_observability import get_request_id
 
 
 class CustomJsonFormatter(jsonlogger.JsonFormatter):
@@ -25,6 +24,7 @@ class CustomJsonFormatter(jsonlogger.JsonFormatter):
         log_record["level"] = record.levelname
         log_record["logger"] = record.name
         log_record["timestamp"] = self.formatTime(record)
+        log_record["request_id"] = get_request_id()
 
 
 def setup_logging() -> None:
@@ -37,29 +37,27 @@ def setup_logging() -> None:
 
 def setup_json_logging() -> None:
     """Configure JSON structured logging."""
-    formatter = CustomJsonFormatter(
-        "%(timestamp)s %(level)s %(logger)s %(message)s"
-    )
+    formatter = CustomJsonFormatter("%(timestamp)s %(level)s %(logger)s %(message)s")
 
     handler = logging.StreamHandler(sys.stdout)
     handler.setFormatter(formatter)
 
     root_logger = logging.getLogger()
     root_logger.setLevel(getattr(logging, settings.LOG_LEVEL))
+    root_logger.handlers.clear()
     root_logger.addHandler(handler)
 
 
 def setup_text_logging() -> None:
     """Configure text/human-readable logging."""
-    formatter = logging.Formatter(
-        "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-    )
+    formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 
     handler = logging.StreamHandler(sys.stdout)
     handler.setFormatter(formatter)
 
     root_logger = logging.getLogger()
     root_logger.setLevel(getattr(logging, settings.LOG_LEVEL))
+    root_logger.handlers.clear()
     root_logger.addHandler(handler)
 
 

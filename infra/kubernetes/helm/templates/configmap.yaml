@@ -1,0 +1,13 @@
+{{- if .Values.configMaps.create }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "ai-devops-assistant.fullname" . }}-config
+  labels:
+    {{- include "ai-devops-assistant.labels" . | nindent 4 }}
+data:
+  {{- range $key, $value := .Values.configMaps.data }}
+  {{ $key }}: |
+{{ $value | indent 4 }}
+  {{- end }}
+{{- end }}

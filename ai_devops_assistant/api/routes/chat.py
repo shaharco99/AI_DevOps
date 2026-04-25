@@ -2,8 +2,6 @@
 
 import logging
 import uuid
-from datetime import datetime
-from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -11,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ai_devops_assistant.agents.agent import get_agent
 from ai_devops_assistant.api.dependencies import get_db_session
 from ai_devops_assistant.api.schemas import ChatRequest, ChatResponse, ToolCall
-from ai_devops_assistant.database.queries import add_chat_message, create_chat_session
+from ai_devops_assistant.database.queries import add_chat_message
 
 logger = logging.getLogger(__name__)
 
@@ -24,18 +22,18 @@ async def chat(
     db_session: AsyncSession = Depends(get_db_session),
 ) -> ChatResponse:
     """Process chat request and return response.
-    
+
     Args:
         request: Chat request with message and optional session ID
         db_session: Database session
-        
+
     Returns:
         ChatResponse: Chat response with AI response and tool usage info
     """
     try:
         # Get or create session
         session_id = request.session_id or str(uuid.uuid4())
-        
+
         # Get agent
         agent = await get_agent(db_session)
 
@@ -109,16 +107,16 @@ async def get_session_info(
     db_session: AsyncSession = Depends(get_db_session),
 ) -> dict:
     """Get information about a chat session.
-    
+
     Args:
         session_id: Session ID
         db_session: Database session
-        
+
     Returns:
         dict: Session information
     """
     try:
-        from ai_devops_assistant.database.queries import get_chat_session, get_chat_messages
+        from ai_devops_assistant.database.queries import get_chat_messages, get_chat_session
 
         session = await get_chat_session(db_session, session_id)
         if not session:

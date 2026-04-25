@@ -1,6 +1,6 @@
 """Agent prompts and prompt templates."""
 
-SYSTEM_PROMPT = """You are an AI DevOps Assistant. Your role is to help DevOps engineers analyze logs, 
+SYSTEM_PROMPT = """You are an AI DevOps Assistant. Your role is to help DevOps engineers analyze logs,
 query infrastructure, and provide intelligent recommendations.
 
 You have access to the following capabilities:
@@ -32,7 +32,7 @@ Based on the question, which tools should be used to answer it? Respond with a J
 Example: ["kubernetes_tool", "log_analysis_tool"]
 """
 
-RESPONSE_GENERATION_PROMPT = """Based on the following information gathered from various tools, provide a 
+RESPONSE_GENERATION_PROMPT = """Based on the following information gathered from various tools, provide a
 comprehensive answer to the user's question.
 
 Question: {question}

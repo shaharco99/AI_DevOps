@@ -1,0 +1,17 @@
+{{- if and .Values.chroma.enabled .Values.chroma.persistence.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "ai-devops-assistant.fullname" . }}-chroma
+  labels:
+    {{- include "ai-devops-assistant.labels" . | nindent 4 }}
+spec:
+  accessModes:
+    - {{ .Values.chroma.persistence.accessMode }}
+  resources:
+    requests:
+      storage: {{ .Values.chroma.persistence.size }}
+  {{- if .Values.chroma.persistence.storageClassName }}
+  storageClassName: {{ .Values.chroma.persistence.storageClassName }}
+  {{- end }}
+{{- end }}

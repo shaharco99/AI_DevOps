@@ -13,7 +13,7 @@ class ConversationMemory:
 
     def __init__(self, max_turns: int = 20):
         """Initialize conversation memory.
-        
+
         Args:
             max_turns: Maximum number of turns to keep in memory
         """
@@ -24,7 +24,7 @@ class ConversationMemory:
 
     def add_message(self, role: str, content: str, metadata: Optional[dict] = None) -> None:
         """Add message to memory.
-        
+
         Args:
             role: Message role (user, assistant, system)
             content: Message content
@@ -85,7 +85,7 @@ class SessionManager:
 
     def __init__(self, session_ttl_minutes: int = 60):
         """Initialize session manager.
-        
+
         Args:
             session_ttl_minutes: Session time-to-live in minutes
         """
@@ -94,10 +94,10 @@ class SessionManager:
 
     def create_session(self, session_id: str) -> ConversationMemory:
         """Create new session.
-        
+
         Args:
             session_id: Session identifier
-            
+
         Returns:
             ConversationMemory: New session memory
         """
@@ -112,10 +112,10 @@ class SessionManager:
 
     def get_session(self, session_id: str) -> Optional[ConversationMemory]:
         """Get existing session.
-        
+
         Args:
             session_id: Session identifier
-            
+
         Returns:
             ConversationMemory or None
         """
@@ -123,7 +123,7 @@ class SessionManager:
 
     def delete_session(self, session_id: str) -> None:
         """Delete session.
-        
+
         Args:
             session_id: Session identifier
         """

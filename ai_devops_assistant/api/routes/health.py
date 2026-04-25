@@ -16,7 +16,7 @@ router = APIRouter(prefix="/health", tags=["health"])
 @router.get("", response_model=HealthResponse)
 async def health_check() -> HealthResponse:
     """Health check endpoint.
-    
+
     Returns:
         HealthResponse: Health status information
     """
@@ -31,7 +31,7 @@ async def health_check() -> HealthResponse:
 @router.get("/live")
 async def liveness_check() -> dict:
     """Kubernetes liveness probe endpoint.
-    
+
     Returns:
         dict: Status
     """
@@ -41,7 +41,7 @@ async def liveness_check() -> dict:
 @router.get("/ready")
 async def readiness_check() -> dict:
     """Kubernetes readiness probe endpoint.
-    
+
     Returns:
         dict: Status
     """

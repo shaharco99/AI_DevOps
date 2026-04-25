@@ -1,7 +1,6 @@
 """SQL query endpoint for DevOps assistant."""
 
 import logging
-from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -21,11 +20,11 @@ async def run_sql(
     db_session: AsyncSession = Depends(get_db_session),
 ) -> SQLQueryResponse:
     """Execute a safe SQL query and return results.
-    
+
     Args:
         request: SQL query request
         db_session: Database session
-        
+
     Returns:
         SQLQueryResponse: Query results
     """

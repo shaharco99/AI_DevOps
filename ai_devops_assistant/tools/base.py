@@ -12,7 +12,7 @@ class BaseTool(ABC):
 
     def __init__(self, name: str, description: str):
         """Initialize tool.
-        
+
         Args:
             name: Tool name
             description: Tool description
@@ -23,10 +23,10 @@ class BaseTool(ABC):
     @abstractmethod
     async def execute(self, **kwargs) -> dict[str, Any]:
         """Execute tool with given parameters.
-        
+
         Args:
             **kwargs: Tool-specific parameters
-            
+
         Returns:
             dict: Execution result
         """
@@ -34,10 +34,10 @@ class BaseTool(ABC):
 
     def validate_parameters(self, **kwargs) -> tuple[bool, Optional[str]]:
         """Validate tool parameters.
-        
+
         Args:
             **kwargs: Parameters to validate
-            
+
         Returns:
             tuple: (is_valid, error_message)
         """
@@ -45,7 +45,7 @@ class BaseTool(ABC):
 
     def get_schema(self) -> dict[str, Any]:
         """Get tool schema for LLM.
-        
+
         Returns:
             dict: JSON schema of tool parameters
         """
@@ -61,10 +61,10 @@ class BaseTool(ABC):
 
     async def __call__(self, **kwargs) -> dict[str, Any]:
         """Call tool with validation.
-        
+
         Args:
             **kwargs: Tool parameters
-            
+
         Returns:
             dict: Execution result
         """
