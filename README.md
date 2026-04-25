@@ -1,20 +1,21 @@
 # AI DevOps Assistant
 
-Production-style open-source platform demonstrating **AI Engineering + DevOps + Platform Architecture** for interview portfolios.
+A production-grade, open-source platform demonstrating **AI Engineering + DevOps + Platform Architecture** for building intelligent DevOps automation systems.
 
-It runs locally with open-source components, uses a local LLM through Ollama, and showcases practical SRE/DevSecOps workflows.
+This platform combines AI agent orchestration, retrieval-augmented generation (RAG), observability, and DevSecOps practices to create a comprehensive DevOps assistant that can diagnose issues, provide recommendations, and automate operational tasks.
 
-## What This Project Demonstrates
+## Project Overview
 
-- **AI agent orchestration**: LangChain tool-calling agent that routes requests to SQL, Kubernetes, log, metrics, and pipeline tools.
-- **Operational diagnostics**: Root-cause style analysis for CI/CD failures, infra incidents, and deployment issues.
-- **RAG for DevOps**: Retrieval pipeline over docs/runbooks stored in Chroma.
-- **Observability integration**: Prometheus + Grafana for metrics, dashboards, and troubleshooting flows.
-- **DevSecOps discipline**: linting, testing, Docker build validation, dependency scanning, SAST, and container scanning in CI.
+The AI DevOps Assistant is a full-stack platform that leverages large language models (LLMs) to provide intelligent DevOps capabilities. It features:
+
+- **AI Agent System**: Tool-calling agents that can query databases, analyze logs, check metrics, and interact with CI/CD systems
+- **RAG Pipeline**: Retrieval-augmented generation over DevOps documentation and runbooks
+- **Multi-LLM Support**: Integration with Ollama, OpenAI, and Anthropic models
+- **Observability Stack**: Prometheus + Grafana for monitoring AI usage and system health
+- **DevSecOps Pipeline**: Comprehensive CI/CD with security scanning and quality gates
+- **Kubernetes Deployment**: Production-ready Helm charts with high availability
 
 ## Architecture
-
-This project follows a service-oriented architecture where the AI assistant, observability stack, database, and model runtime are split into separate containers or pods. The backend acts as the API entry point and orchestrates tool-calling through the LangChain agent.
 
 ```mermaid
 flowchart TD
@@ -36,18 +37,546 @@ flowchart TD
     PIPE --> AZDO[Azure DevOps REST API]
     API --> OLLAMA[Ollama LLM Service]
     PROM --> GRAFANA[Grafana Dashboards]
+
+    EVAL[LLM Evaluator] --> API
+    OBS[AI Observability] --> PROM
+    BENCH[Model Benchmarking] --> API
 ```
 
-### Runtime Components
+### Core Components
 
-The platform is designed to run as a set of cooperating services. In Docker Compose the main containers are:
+- **AI Agent Framework**: LangChain-based tool-calling agents with memory and prompt management
+- **RAG System**: Document ingestion, embedding generation, and semantic retrieval
+- **Multi-LLM Service**: Unified interface for Ollama, OpenAI, and Anthropic models
+- **Observability**: AI usage tracking, performance metrics, and error monitoring
+- **Evaluation Framework**: Automated testing and quality assessment of LLM outputs
+- **Benchmarking Suite**: Performance comparison across different models and configurations
 
-- `ai-devops-backend`: The FastAPI application and LangChain agent that handles requests, routes tool calls, executes safe SQL, queries Prometheus and Kubernetes, and returns conversational responses.
-- `ai-devops-ollama`: The local LLM server running Ollama. It provides model inference for prompt completion, tool selection, and RAG synthesis.
-- `ai-devops-postgres`: The PostgreSQL relational database storing metadata, logs, pipeline information, and structured application data.
-- `ai-devops-prometheus`: The Prometheus time-series server that scrapes metrics from the backend, Ollama, and other services.
-- `ai-devops-grafana`: The Grafana dashboard service used for visualizing Prometheus metrics and operational health.
-- `ai-devops-redis`: An optional Redis cache service for transient data and performance-sensitive caching.
+## Features
+
+### AI Capabilities
+- **Conversational Interface**: Natural language queries about system status and issues
+- **Tool Orchestration**: Automatic selection and execution of appropriate tools
+- **Root Cause Analysis**: Intelligent diagnosis of deployment failures and incidents
+- **Automated Remediation**: AI-generated suggestions for fixing common issues
+
+### DevOps Integration
+- **CI/CD Analysis**: Pipeline status checking and failure diagnosis
+- **Infrastructure Monitoring**: Kubernetes cluster health and resource usage
+- **Log Analysis**: Intelligent parsing and summarization of application logs
+- **Metrics Correlation**: Relating system metrics to performance issues
+
+### Data Processing
+- **Web Scraping**: Automated ingestion of documentation and runbooks
+- **Document Chunking**: Intelligent text segmentation for RAG
+- **Vector Embeddings**: Semantic search over technical documentation
+- **Knowledge Base**: Curated DevOps knowledge and best practices
+
+### Production Features
+- **High Availability**: Horizontal scaling and pod disruption budgets
+- **Security Hardening**: Non-root containers and network policies
+- **Secrets Management**: External secrets operator integration
+- **Monitoring**: Comprehensive observability with Prometheus and Grafana
+
+## Installation
+
+### Prerequisites
+
+- Python 3.11+
+- Docker & Docker Compose
+- kubectl (for Kubernetes deployment)
+- Helm 3+ (for Helm deployment)
+
+### Quick Start with Docker Compose
+
+```bash
+# Clone the repository
+git clone https://github.com/yourusername/ai-devops-assistant.git
+cd ai-devops-assistant
+
+# Copy environment template
+cp .env.example .env
+
+# Start all services
+docker-compose up -d
+
+# Check service health
+docker-compose ps
+
+# View logs
+docker-compose logs -f ai-devops-assistant
+```
+
+### Local Development Setup
+
+```bash
+# Create virtual environment
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+
+# Install dependencies
+pip install -r requirements.txt
+pip install -e ".[dev]"
+
+# Install pre-commit hooks
+pre-commit install
+
+# Copy environment configuration
+cp .env.example .env
+
+# Run database migrations
+alembic upgrade head
+
+# Start the application
+uvicorn ai_devops_assistant.main:app --reload
+```
+
+## Configuration
+
+### Environment Variables
+
+Copy `.env.example` to `.env` and configure the following key variables:
+
+```bash
+# Application
+API_ENVIRONMENT=development
+LOG_LEVEL=INFO
+SECRET_KEY=your-secret-key
+
+# Database
+DATABASE_URL=postgresql+asyncpg://user:password@localhost/devops
+
+# LLM Configuration
+LLM_PROVIDER=ollama
+LLM_MODEL=llama3
+OLLAMA_BASE_URL=http://localhost:11434
+
+# External APIs
+AZURE_DEVOPS_URL=https://dev.azure.com
+AZURE_DEVOPS_ORG=your-org
+AZURE_DEVOPS_PROJECT=your-project
+AZURE_DEVOPS_PAT=your-pat
+
+# Feature Flags
+ENABLE_RAG=true
+ENABLE_SCRAPING=true
+ENABLE_EVALUATION=true
+ENABLE_OBSERVABILITY=true
+```
+
+### Advanced Configuration
+
+The application uses Pydantic settings for type-safe configuration. All settings are documented in `ai_devops_assistant/config/settings.py`.
+
+## Running the System
+
+### Starting Services
+
+```bash
+# With Docker Compose (recommended for development)
+docker-compose up -d
+
+# With Kubernetes
+kubectl apply -f infra/kubernetes/namespace.yaml
+kubectl apply -f infra/kubernetes/
+
+# With Helm
+helm install ai-devops-assistant infra/kubernetes/helm/
+```
+
+### API Access
+
+Once running, access the API at `http://localhost:8000`
+
+```bash
+# Health check
+curl http://localhost:8000/health
+
+# API documentation
+open http://localhost:8000/docs
+
+# Chat interface
+curl -X POST http://localhost:8000/chat \
+  -H "Content-Type: application/json" \
+  -d '{"message": "Why did my pipeline fail?"}'
+```
+
+### Demo Script
+
+Run the comprehensive demo to see all features:
+
+```bash
+# Run demo checks
+./run_demo_checks.sh
+
+# Or manually
+python demo_checks.py
+```
+
+## Downloading LLM Models
+
+The platform supports multiple LLM providers. Models are automatically downloaded on first use.
+
+### Ollama Models (Local)
+
+```bash
+# Pull models via API
+curl http://localhost:11434/api/pull -d '{"name": "llama3"}'
+
+# Or via Kubernetes
+OLLAMA_POD=$(kubectl get pod -n ai-devops-assistant -l app=ollama -o jsonpath='{.items[0].metadata.name}')
+kubectl exec -n ai-devops-assistant "$OLLAMA_POD" -- ollama pull llama3
+```
+
+### Model Registry
+
+The application includes a model registry for discovering and downloading models:
+
+```python
+from ai_devops_assistant.services.model_registry import ModelRegistry
+
+registry = ModelRegistry()
+await registry.search_models("llama")
+await registry.download_model("llama3:8b")
+```
+
+## Scraping Data
+
+The platform can ingest documentation and runbooks for RAG:
+
+### Web Scraping
+
+```python
+from ai_devops_assistant.rag.scraper import WebScraper
+
+scraper = WebScraper()
+documents = await scraper.scrape_url("https://kubernetes.io/docs/")
+```
+
+### Bulk Ingestion
+
+```bash
+# Scrape multiple sites
+python -c "
+from ai_devops_assistant.rag.scraper import SitemapScraper
+scraper = SitemapScraper()
+await scraper.scrape_sitemap('https://example.com/sitemap.xml')
+"
+```
+
+### Document Processing
+
+```python
+from ai_devops_assistant.rag.document_ingestion import DocumentIngestion
+
+ingestor = DocumentIngestion()
+chunks = await ingestor.ingest_documents(documents)
+```
+
+## RAG Usage
+
+The RAG system provides semantic search over technical documentation:
+
+### Basic Retrieval
+
+```python
+from ai_devops_assistant.rag.retriever import RAGRetriever
+
+retriever = RAGRetriever()
+results = await retriever.retrieve("How to debug Kubernetes pods?")
+```
+
+### Pipeline Integration
+
+```python
+from ai_devops_assistant.rag.pipeline import RAGPipeline
+
+pipeline = RAGPipeline()
+response = await pipeline.query("Why is my deployment failing?")
+```
+
+### Vector Store Management
+
+```python
+from ai_devops_assistant.rag.vector_store import VectorStore
+
+store = VectorStore()
+await store.add_documents(chunks)
+results = await store.search("deployment issues", limit=5)
+```
+
+## Deployment with kubectl
+
+### Basic Deployment
+
+```bash
+# Create namespace
+kubectl apply -f infra/kubernetes/namespace.yaml
+
+# Deploy all components
+kubectl apply -f infra/kubernetes/
+
+# Check status
+kubectl get pods -n ai-devops-assistant
+kubectl get services -n ai-devops-assistant
+
+# Port forward for access
+kubectl port-forward svc/ai-devops-assistant 8000:80 -n ai-devops-assistant
+```
+
+### Troubleshooting kubectl Deployment
+
+```bash
+# Check pod status
+kubectl get pods -n ai-devops-assistant
+
+# View logs
+kubectl logs -n ai-devops-assistant deployment/ai-devops-assistant
+
+# Debug container issues
+kubectl describe pod <pod-name> -n ai-devops-assistant
+
+# Check events
+kubectl get events -n ai-devops-assistant --sort-by='.lastTimestamp'
+```
+
+## Deployment with Helm
+
+### Prerequisites
+
+```bash
+# Add Helm repositories
+helm repo add bitnami https://charts.bitnami.com/bitnami
+helm repo add otwld https://otwld.github.io/ollama-helm/
+helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+helm repo add grafana https://grafana.github.io/helm-charts
+helm repo update
+```
+
+### Basic Installation
+
+```bash
+# Install with default values
+helm install ai-devops-assistant infra/kubernetes/helm/ \
+  --namespace ai-devops-assistant \
+  --create-namespace
+
+# Install with custom values
+helm install ai-devops-assistant infra/kubernetes/helm/ \
+  --namespace ai-devops-assistant \
+  --values infra/kubernetes/helm/values-production.yaml
+```
+
+### Using the Deploy Script
+
+```bash
+# Deploy to production
+./infra/kubernetes/helm/deploy.sh prod-release prod-namespace values-production.yaml
+
+# Dry run
+DRY_RUN=true ./infra/kubernetes/helm/deploy.sh
+```
+
+### Helm Features
+
+- **Dependency Management**: Automatic PostgreSQL, Ollama, Prometheus, Grafana deployment
+- **Security Hardening**: Non-root containers, network policies, secrets management
+- **High Availability**: HPA, PDB, anti-affinity rules
+- **External Secrets**: Vault/AWS Secrets Manager integration
+- **Monitoring**: ServiceMonitors, custom dashboards
+
+## Development Setup
+
+### Code Quality Tools
+
+```bash
+# Install development dependencies
+pip install -e ".[dev]"
+
+# Run linting
+ruff check ai_devops_assistant/
+black ai_devops_assistant/
+isort ai_devops_assistant/
+
+# Run tests
+pytest tests/ -v --cov=ai_devops_assistant
+
+# Type checking
+mypy ai_devops_assistant/
+```
+
+### Pre-commit Hooks
+
+```bash
+# Install hooks
+pre-commit install
+
+# Run on all files
+pre-commit run --all-files
+```
+
+### VS Code Configuration
+
+The repository includes VS Code settings for:
+- Python interpreter configuration
+- Linting and formatting on save
+- Debug configurations
+- Task definitions
+
+## Security Features
+
+### DevSecOps Pipeline
+
+- **SAST Scanning**: Bandit for Python security issues
+- **Dependency Scanning**: pip-audit for vulnerable packages
+- **Container Scanning**: Trivy for Docker image vulnerabilities
+- **Secret Detection**: GitLeaks for credential leaks
+
+### Runtime Security
+
+- **Non-root Containers**: All containers run as non-root users
+- **Network Policies**: Kubernetes network segmentation
+- **Secrets Management**: External secrets operator integration
+- **RBAC**: Proper service account permissions
+
+### Code Security
+
+```bash
+# Run security scans
+bandit -r ai_devops_assistant/
+pip-audit
+trivy image ghcr.io/yourusername/ai-devops-assistant:latest
+```
+
+## Troubleshooting
+
+### Common Issues
+
+#### Database Connection Issues
+
+```bash
+# Check database pod
+kubectl logs -n ai-devops-assistant deployment/postgresql
+
+# Test connection
+kubectl exec -n ai-devops-assistant deployment/ai-devops-assistant -- python -c "
+import asyncpg
+import asyncio
+async def test():
+    conn = await asyncpg.connect('postgresql://user:pass@postgresql/db')
+    await conn.close()
+asyncio.run(test())
+"
+```
+
+#### LLM Service Issues
+
+```bash
+# Check Ollama status
+kubectl logs -n ai-devops-assistant deployment/ollama
+
+# Test LLM connection
+curl http://localhost:11434/api/tags
+```
+
+#### High Memory Usage
+
+```bash
+# Check resource usage
+kubectl top pods -n ai-devops-assistant
+
+# Adjust resource limits in values.yaml
+resources:
+  limits:
+    memory: 2Gi
+  requests:
+    memory: 1Gi
+```
+
+### Debug Mode
+
+```bash
+# Enable debug logging
+kubectl set env deployment/ai-devops-assistant LOG_LEVEL=DEBUG -n ai-devops-assistant
+
+# View detailed logs
+kubectl logs -n ai-devops-assistant deployment/ai-devops-assistant -f
+```
+
+### Performance Tuning
+
+```yaml
+# In values.yaml
+autoscaling:
+  enabled: true
+  minReplicas: 3
+  maxReplicas: 10
+
+postgresql:
+  primary:
+    resources:
+      limits:
+        memory: 2Gi
+      requests:
+        memory: 1Gi
+```
+
+## API Examples
+
+### Chat Interface
+
+```bash
+# Simple query
+curl -X POST http://localhost:8000/chat \
+  -H "Content-Type: application/json" \
+  -d '{"message": "Check the status of my Kubernetes pods"}'
+
+# With context
+curl -X POST http://localhost:8000/chat \
+  -H "Content-Type: application/json" \
+  -d '{
+    "message": "Why is the payment service slow?",
+    "context": {"time_range": "1h"}
+  }'
+```
+
+### Tool Execution
+
+```bash
+# Direct tool call
+curl -X POST http://localhost:8000/tools/sql \
+  -H "Content-Type: application/json" \
+  -d '{"query": "SELECT * FROM deployments LIMIT 5"}'
+```
+
+### Health Checks
+
+```bash
+# Application health
+curl http://localhost:8000/health
+
+# Dependencies health
+curl http://localhost:8000/health/dependencies
+```
+
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Run tests and linting
+5. Submit a pull request
+
+## License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
+
+## Support
+
+- **Documentation**: See `docs/` directory
+- **Issues**: GitHub Issues
+- **Discussions**: GitHub Discussions
+- **Demo**: Run `./run_demo_checks.sh`
 - `ai-devops-chroma`: The Chroma vector store service used for semantic search and retrieval-augmented generation (RAG).
 
 In Kubernetes, these services map to pods/deployments as follows:
@@ -1578,7 +2107,7 @@ The Helm chart now includes missing runtime resources and safer deployment behav
 
 - Added `ServiceAccount` template so the deployment's `serviceAccountName` always resolves.
 - Added optional Chroma PVC template and fallback to `emptyDir` when persistence is disabled.
-- Added `infra/kubernetes/helm/deploy.sh` with error handling (`lint`, `template`, `--atomic --wait`, and automatic diagnostics on failure).
+- Added `infra/kubernetes/helm/deploy.sh` with error handling (`lint`, `template`, `--rollback-on-failure --wait`, and automatic diagnostics on failure).
 
 Recommended command:
 

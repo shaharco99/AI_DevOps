@@ -1,0 +1,15 @@
+dependencies:
+- name: postgresql
+  repository: https://charts.bitnami.com/bitnami
+  version: 15.5.38
+- name: ollama
+  repository: https://otwld.github.io/ollama-helm/
+  version: 0.1.2
+- name: kube-prometheus-stack
+  repository: https://prometheus-community.github.io/helm-charts
+  version: 55.11.0
+- name: grafana
+  repository: https://grafana.github.io/helm-charts
+  version: 8.15.0
+digest: sha256:757b3f432df8c58280f63b697417556bf1976cdab8454d95b996b7658a6138f5
+generated: "2026-04-25T09:06:22.728020529+03:00"

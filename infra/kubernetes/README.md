@@ -20,7 +20,7 @@ Safer production deployment (recommended):
 helm upgrade --install ai-devops-assistant ./helm \
   --namespace ai-devops-assistant \
   --create-namespace \
-  --atomic \
+  --rollback-on-failure \
   --wait \
   --timeout 10m \
   -f ./helm/values.yaml
@@ -38,7 +38,7 @@ What it does:
 
 - Runs `helm lint` before deployment.
 - Runs `helm template` to catch rendering issues early.
-- Deploys with `--atomic --wait --timeout` for automatic rollback.
+- Deploys with `--rollback-on-failure --wait --timeout` for automatic rollback.
 - On failure, prints `helm status`, `kubectl get pods`, and recent events.
 
 Environment-specific overrides:

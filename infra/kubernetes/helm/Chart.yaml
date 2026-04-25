@@ -1,6 +1,41 @@
 apiVersion: v2
 name: ai-devops-assistant
-description: A Helm chart for AI DevOps Assistant
+description: A comprehensive Helm chart for AI DevOps Assistant with integrated monitoring, vector database, and LLM services
 type: application
-version: 0.1.0
+version: 1.0.0
 appVersion: "1.0.0"
+
+keywords:
+  - ai
+  - devops
+  - llm
+  - kubernetes
+  - monitoring
+  - observability
+
+home: https://github.com/yourusername/ai-devops-assistant
+sources:
+  - https://github.com/yourusername/ai-devops-assistant
+
+maintainers:
+  - name: AI DevOps Team
+    email: devops@company.com
+
+dependencies:
+  - name: postgresql
+    version: "15.x.x"
+    repository: "https://charts.bitnami.com/bitnami"
+    condition: postgresql.enabled
+  - name: ollama
+    version: "0.1.x"
+    repository: "https://otwld.github.io/ollama-helm/"
+    condition: ollama.enabled
+  - name: kube-prometheus-stack
+    version: "55.x.x"
+    repository: "https://prometheus-community.github.io/helm-charts"
+    condition: prometheus.enabled
+    alias: prometheus
+  - name: grafana
+    version: "8.x.x"
+    repository: "https://grafana.github.io/helm-charts"
+    condition: grafana.enabled

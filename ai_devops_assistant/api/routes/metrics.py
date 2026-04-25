@@ -2,9 +2,10 @@
 
 import logging
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Response
 
 from ai_devops_assistant.api.schemas import MetricsQueryRequest, MetricsQueryResponse
+from ai_devops_assistant.observability.monitoring import monitoring_integration
 from ai_devops_assistant.tools.metrics_tool import MetricsTool
 
 logger = logging.getLogger(__name__)
@@ -48,6 +49,67 @@ async def query_metrics(
 
     except Exception as e:
         logger.error(f"Metrics query error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/ai/prometheus")
+async def get_ai_prometheus_metrics() -> Response:
+    """Get AI observability metrics in Prometheus format.
+
+    Returns:
+        Prometheus-formatted metrics text
+    """
+    try:
+        metrics_text = monitoring_integration.get_prometheus_metrics()
+        return Response(
+            content=metrics_text,
+            media_type="text/plain; charset=utf-8"
+        )
+    except Exception as e:
+        logger.error(f"Error getting AI Prometheus metrics: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/ai/health")
+async def get_ai_health_status() -> dict:
+    """Get AI system health status.
+
+    Returns:
+        Health status information
+    """
+    try:
+        return monitoring_integration.get_health_status()
+    except Exception as e:
+        logger.error(f"Error getting AI health status: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/ai/liveness")
+async def get_ai_liveness() -> dict:
+    """Kubernetes liveness probe for AI components.
+
+    Returns:
+        Liveness status
+    """
+    try:
+        return monitoring_integration.get_liveness_status()
+    except Exception as e:
+        logger.error(f"Error getting AI liveness status: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/ai/readiness")
+async def get_ai_readiness() -> dict:
+    """Kubernetes readiness probe for AI components.
+
+    Returns:
+        Readiness status
+    """
+    try:
+        return monitoring_integration.get_readiness_status()
+    except Exception as e:
+        logger.error(f"Error getting AI readiness status: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
         raise HTTPException(
             status_code=400,
             detail=f"Metrics query failed: {str(e)}",

@@ -103,7 +103,7 @@ class VectorStoreService:
         query: str,
         k: int = 5,
         where: Optional[dict] = None,
-    ) -> dict:
+    ) -> List[Dict[str, Any]]:
         """Search vector store.
 
         Args:
@@ -112,7 +112,7 @@ class VectorStoreService:
             where: Optional metadata filter
 
         Returns:
-            dict: Search results with documents, metadatas, distances
+            List of search results with content, metadata, and scores
 
         Raises:
             ValueError: If not initialized
@@ -132,11 +132,64 @@ class VectorStoreService:
                 where=where,
             )
 
-            return results
+            # Format results
+            formatted_results = []
+            if results and results["documents"]:
+                for i, doc in enumerate(results["documents"][0]):
+                    result = {
+                        "content": doc,
+                        "metadata": results["metadatas"][0][i] if results["metadatas"] else {},
+                        "score": 1.0 - results["distances"][0][i] if results["distances"] else 0.0,
+                    }
+                    formatted_results.append(result)
+
+            return formatted_results
 
         except Exception as e:
             logger.error(f"Search failed: {e}")
             raise
+
+    def get_all_documents(self, limit: int = 1000) -> List[Dict[str, Any]]:
+        """Get all documents (limited for performance).
+
+        Args:
+            limit: Maximum number of documents to return
+
+        Returns:
+            List of all documents
+        """
+        if not self._initialized or self.collection is None:
+            raise ValueError("Vector store not initialized")
+
+        try:
+            results = self.collection.get(limit=limit)
+            documents = []
+
+            if results and results["documents"]:
+                for i, doc in enumerate(results["documents"]):
+                    documents.append({
+                        "content": doc,
+                        "metadata": results["metadatas"][i] if results["metadatas"] else {},
+                        "id": results["ids"][i] if results["ids"] else f"doc_{i}",
+                    })
+
+            return documents
+
+        except Exception as e:
+            logger.error(f"Failed to get all documents: {e}")
+            return []
+
+    def get_collection_count(self) -> int:
+        """Get total number of documents in collection.
+
+        Returns:
+            Number of documents
+        """
+        return self.count()
+
+    def clear_collection(self) -> None:
+        """Clear all documents from collection."""
+        self.delete_all()
 
     def get_document(self, doc_id: str) -> Optional[dict]:
         """Get document by ID.
