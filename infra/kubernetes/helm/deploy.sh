@@ -33,6 +33,49 @@ log_success() {
   echo -e "${GREEN}[SUCCESS]${NC} $1"
 }
 
+decode_secret_value() {
+  local secret="$1" key="$2"
+  local raw
+
+  raw=$(kubectl get secret -n "${NAMESPACE}" "${secret}" -o jsonpath="{.data['${key}']}" 2>/dev/null || true)
+  if [[ -n "${raw}" ]]; then
+    printf '%s' "${raw}" | base64 --decode
+  fi
+}
+
+print_credentials() {
+  echo
+  log_info "Deployment credentials:"
+
+  if kubectl get secret -n "${NAMESPACE}" "${RELEASE_NAME}-grafana" >/dev/null 2>&1; then
+    local grafana_user grafana_password
+    grafana_user=$(decode_secret_value "${RELEASE_NAME}-grafana" "admin-user")
+    grafana_password=$(decode_secret_value "${RELEASE_NAME}-grafana" "admin-password")
+
+    echo "Grafana:"
+    echo "  Username: ${grafana_user:-admin}"
+    echo "  Password: ${grafana_password:-<not set>}"
+  fi
+
+  if kubectl get secret -n "${NAMESPACE}" "${RELEASE_NAME}-postgresql" >/dev/null 2>&1; then
+    local pg_user_password pg_postgres_password
+    pg_user_password=$(decode_secret_value "${RELEASE_NAME}-postgresql" "password")
+    pg_postgres_password=$(decode_secret_value "${RELEASE_NAME}-postgresql" "postgres-password")
+
+    echo "PostgreSQL:"
+    [[ -n "${pg_user_password}" ]] && echo "  User password: ${pg_user_password}"
+    [[ -n "${pg_postgres_password}" ]] && echo "  Postgres password: ${pg_postgres_password}"
+  fi
+
+  if kubectl get secret -n "${NAMESPACE}" "${RELEASE_NAME}-secret" >/dev/null 2>&1; then
+    local database_url
+    database_url=$(decode_secret_value "${RELEASE_NAME}-secret" "database-url")
+    if [[ -n "${database_url}" ]]; then
+      echo "Application database URL: ${database_url}"
+    fi
+  fi
+}
+
 on_error() {
   log_error "Helm deployment failed. Collecting diagnostics..."
   echo
@@ -167,6 +210,8 @@ else
     log_info "Ingress status:"
     kubectl get ingress -n "${NAMESPACE}" -l "app.kubernetes.io/instance=${RELEASE_NAME}"
   fi
+
+  print_credentials
 
   echo
   log_success "🎉 Deployment completed successfully!"

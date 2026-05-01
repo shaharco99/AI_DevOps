@@ -312,9 +312,9 @@ prometheus:
   grafana:
     enabled: false
   kubeStateMetrics:
-    enabled: false
+    enabled: true
   nodeExporter:
-    enabled: false
+    enabled: true
   prometheusOperator:
     enabled: true
 
@@ -336,7 +336,7 @@ grafana:
       datasources:
       - name: Prometheus
         type: prometheus
-        url: http://ai-devops-assistant-prometheus-server
+        url: http://ai-devops-assistant-promet-prometheus:9090
         access: proxy
         isDefault: true
   dashboardProviders:
@@ -357,11 +357,14 @@ grafana:
           {
             "dashboard": {
               "id": null,
+              "uid": "ai-devops-dashboard",
               "title": "AI DevOps Dashboard",
               "tags": [
                 "ai-devops",
-                "monitoring"
+                "monitoring",
+                "interview"
               ],
+              "description": "A unified view of backend health, request metrics, and pod resource usage for the AI DevOps Assistant.",
               "timezone": "browser",
               "panels": [
                 {
@@ -403,10 +406,10 @@ grafana:
                 {
                   "id": 2,
                   "title": "HTTP Request Rate",
-                  "type": "graph",
+                  "type": "timeseries",
                   "targets": [
                     {
-                      "expr": "rate(http_requests_total[5m])",
+                      "expr": "sum(rate(http_requests_total[5m]))",
                       "legendFormat": "Requests/sec"
                     }
                   ],
@@ -420,13 +423,18 @@ grafana:
                 {
                   "id": 3,
                   "title": "Error Rate",
-                  "type": "graph",
+                  "type": "timeseries",
                   "targets": [
                     {
-                      "expr": "rate(http_requests_total{status=~\"5..\"}[5m]) / rate(http_requests_total[5m]) * 100",
+                      "expr": "sum(rate(http_requests_total{status=~\"5..\"}[5m])) / sum(rate(http_requests_total[5m])) * 100",
                       "legendFormat": "Error Rate %"
                     }
                   ],
+                  "fieldConfig": {
+                    "defaults": {
+                      "unit": "percent"
+                    }
+                  },
                   "gridPos": {
                     "h": 8,
                     "w": 12,
@@ -437,18 +445,106 @@ grafana:
                 {
                   "id": 4,
                   "title": "Response Time (P95)",
-                  "type": "graph",
+                  "type": "timeseries",
                   "targets": [
                     {
-                      "expr": "histogram_quantile(0.95, http_request_duration_seconds_bucket)",
+                      "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[5m])) by (le))",
                       "legendFormat": "P95 Latency"
+                    }
+                  ],
+                  "fieldConfig": {
+                    "defaults": {
+                      "unit": "ms"
+                    }
+                  },
+                  "gridPos": {
+                    "h": 8,
+                    "w": 12,
+                    "x": 12,
+                    "y": 8
+                  }
+                },
+                {
+                  "id": 5,
+                  "title": "Backend CPU Usage",
+                  "type": "timeseries",
+                  "targets": [
+                    {
+                      "expr": "sum(rate(container_cpu_usage_seconds_total{pod=~\"ai-devops-assistant.*\"}[5m])) by (pod) * 1000",
+                      "legendFormat": "{{pod}}"
+                    }
+                  ],
+                  "fieldConfig": {
+                    "defaults": {
+                      "unit": "milliCPU"
+                    }
+                  },
+                  "gridPos": {
+                    "h": 8,
+                    "w": 12,
+                    "x": 0,
+                    "y": 16
+                  }
+                },
+                {
+                  "id": 6,
+                  "title": "Backend Memory Usage",
+                  "type": "timeseries",
+                  "targets": [
+                    {
+                      "expr": "sum(container_memory_working_set_bytes{pod=~\"ai-devops-assistant.*\"}) by (pod)",
+                      "legendFormat": "{{pod}}"
+                    }
+                  ],
+                  "fieldConfig": {
+                    "defaults": {
+                      "unit": "bytes"
+                    }
+                  },
+                  "gridPos": {
+                    "h": 8,
+                    "w": 12,
+                    "x": 12,
+                    "y": 16
+                  }
+                },
+                {
+                  "id": 7,
+                  "title": "Pod Ready Ratio",
+                  "type": "stat",
+                  "targets": [
+                    {
+                      "expr": "sum(kube_pod_status_ready{condition=\"true\", pod=~\"ai-devops-assistant.*\"}) / max(sum(kube_pod_status_ready{pod=~\"ai-devops-assistant.*\"}), 1)",
+                      "legendFormat": "Ready Ratio"
+                    }
+                  ],
+                  "fieldConfig": {
+                    "defaults": {
+                      "unit": "percent"
+                    }
+                  },
+                  "gridPos": {
+                    "h": 8,
+                    "w": 12,
+                    "x": 0,
+                    "y": 24
+                  }
+                },
+                {
+                  "id": 8,
+                  "title": "App Replica Count",
+                  "type": "stat",
+                  "targets": [
+                    {
+                      "expr": "count(kube_pod_info{pod=~\"ai-devops-assistant.*\"})",
+                      "legendFormat": "Replicas"
                     }
                   ],
                   "gridPos": {
                     "h": 8,
                     "w": 12,
                     "x": 12,
-                    "y": 8
+                    "y": 24
                   }
                 }
               ],
