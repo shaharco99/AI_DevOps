@@ -3,6 +3,7 @@
 import asyncio
 import json
 import logging
+import re
 import uuid
 from dataclasses import dataclass, field
 from enum import Enum
@@ -46,7 +47,9 @@ class AgentConfig:
     """Configuration for an AI agent."""
     role: AgentRole = AgentRole.GENERAL
     capabilities: List[AgentCapability] = field(default_factory=lambda: [
-        AgentCapability.TOOL_USE, AgentCapability.RAG_RETRIEVAL
+        AgentCapability.TOOL_USE,
+        AgentCapability.RAG_RETRIEVAL,
+        AgentCapability.PLANNING,
     ])
     model_name: str = "llama3"
     temperature: float = 0.7
@@ -61,8 +64,8 @@ class AgentConfig:
 @dataclass
 class AgentTask:
     """Represents a task for an agent to execute."""
-    id: str = field(default_factory=lambda: str(uuid.uuid4()))
     description: str
+    id: str = field(default_factory=lambda: str(uuid.uuid4()))
     priority: int = 1
     requires_tools: List[str] = field(default_factory=list)
     context: Dict[str, Any] = field(default_factory=dict)
@@ -170,7 +173,7 @@ class DevOpsAgent:
             try:
                 # Initialize conversation memory if needed
                 if session_id and not self.conversation_memory:
-                    self.conversation_memory = await self.session_manager.get_or_create_session(session_id)
+                    self.conversation_memory = self.session_manager.get_or_create_session(session_id)
 
                 # Create task for this interaction
                 task = AgentTask(description=message, context={"session_id": session_id})
@@ -180,8 +183,8 @@ class DevOpsAgent:
 
                 # Update conversation memory
                 if self.conversation_memory:
-                    await self.conversation_memory.add_message("user", message)
-                    await self.conversation_memory.add_message("assistant", response.content)
+                    self.conversation_memory.add_message("user", message)
+                    self.conversation_memory.add_message("assistant", response.content)
 
                 # Record execution
                 self.execution_history.append({
@@ -194,6 +197,7 @@ class DevOpsAgent:
 
                 return {
                     "content": response.content,
+                    "message": response.content,
                     "tool_calls": [call.to_dict() for call in response.tool_calls],
                     "metadata": response.metadata,
                     "confidence_score": response.confidence_score,
@@ -205,6 +209,7 @@ class DevOpsAgent:
                 logger.error(f"Agent chat failed: {e}", exc_info=True)
                 return {
                     "content": f"I apologize, but I encountered an error: {str(e)}",
+                    "message": f"I apologize, but I encountered an error: {str(e)}",
                     "error": str(e),
                     "tool_calls": [],
                     "metadata": {},
@@ -282,7 +287,7 @@ class DevOpsAgent:
 
         # Add conversation history if available
         if self.conversation_memory:
-            history = await self.conversation_memory.get_recent_messages(limit=5)
+            history = self.conversation_memory.get_last_n_messages(5)
             if history:
                 context_parts.append("Recent conversation:")
                 for msg in history[-3:]:  # Last 3 messages for context
@@ -330,21 +335,31 @@ class DevOpsAgent:
                 provider="ollama",
                 model=self.config.model_name,
                 prompt=planning_prompt,
-                call_fn=lambda: self.llm_service.generate(
-                    planning_prompt,
-                    temperature=0.3,  # Lower temperature for planning
-                    max_tokens=1024
-                )
+                call_fn=lambda: self.llm_service.chat([
+                    {"role": "user", "content": planning_prompt}
+                ])
             )
 
             # Parse JSON response
             plan_text = response.strip()
+            match = re.search(r"```json\s*(.*?)```", plan_text, re.S)
+            if match:
+                plan_text = match.group(1).strip()
             if plan_text.startswith("```json"):
                 plan_text = plan_text[7:]
             if plan_text.endswith("```"):
                 plan_text = plan_text[:-3]
 
             plan = json.loads(plan_text)
+            if isinstance(plan, dict) and "tools" in plan:
+                return [
+                    {
+                        "action": "tool_call",
+                        "tool_name": tool.get("name"),
+                        "parameters": tool.get("parameters", {}),
+                    }
+                    for tool in plan["tools"]
+                ]
             return plan if isinstance(plan, list) else [plan]
 
         except Exception as e:
@@ -397,11 +412,9 @@ class DevOpsAgent:
                 provider="ollama",
                 model=self.config.model_name,
                 prompt=reasoning_prompt,
-                call_fn=lambda: self.llm_service.generate(
-                    reasoning_prompt,
-                    temperature=0.5,
-                    max_tokens=256
-                )
+                call_fn=lambda: self.llm_service.chat([
+                    {"role": "user", "content": reasoning_prompt}
+                ])
             )
             return response.strip()
         except Exception as e:
@@ -442,11 +455,9 @@ class DevOpsAgent:
             provider="ollama",
             model=self.config.model_name,
             prompt=full_prompt,
-            call_fn=lambda: self.llm_service.generate(
-                full_prompt,
-                temperature=self.config.temperature,
-                max_tokens=self.config.max_tokens
-            )
+            call_fn=lambda: self.llm_service.chat([
+                {"role": "user", "content": full_prompt}
+            ])
         )
 
         return response
@@ -517,80 +528,6 @@ class DevOpsAgent:
                 )
 
         return results
-
-    async def _execute_task(
-        self,
-        message: str,
-        session_id: Optional[str] = None,
-        use_rag: bool = True
-    ) -> dict:
-        """Execute a task with the DevOps agent.
-
-        Args:
-            message: User message
-            session_id: Optional session ID for multi-turn conversations
-            use_rag: Whether to use RAG for knowledge retrieval
-
-        Returns:
-            dict: Response with message, tool calls, and metadata
-        """
-        try:
-            # Get or create session
-            if session_id:
-                memory = self.session_manager.get_or_create_session(session_id)
-            else:
-                memory = ConversationMemory()
-
-            # Add user message to memory
-            memory.add_message("user", message)
-
-            # Step 1: Determine if RAG retrieval is needed
-            rag_context = ""  # Disabled for now
-
-            # Step 2: Build context for LLM
-            system_context = self._build_system_context(memory, rag_context)
-
-            # Step 3: Call LLM to determine tools and get response
-            if not self.llm_service:
-                return self._error_response("LLM service not available", memory)
-
-            # Prepare conversation history for LLM
-            messages = self._format_messages_for_llm(memory, message)
-
-            # Get LLM response
-            llm_response = await self.llm_service.chat(messages)
-
-            # Parse tool calls from response if any
-            tool_calls, tool_results = await self._execute_tool_calls(llm_response, message)
-
-            # If tools were used, ask LLM to synthesize results
-            final_response = llm_response
-            if tool_results:
-                synthesis_prompt = self._build_synthesis_prompt(message, tool_results)
-                final_messages = messages + [
-                    {"role": "assistant", "content": llm_response},
-                    {"role": "user", "content": synthesis_prompt},
-                ]
-                final_response = await self.llm_service.chat(final_messages)
-
-            # Add assistant message to memory
-            memory.add_message("assistant", final_response, {"tools_used": tool_calls})
-
-            return {
-                "success": True,
-                "message": final_response,
-                "tool_calls": tool_calls,
-                "tool_results": tool_results,
-                "session_id": session_id,
-                "metadata": {
-                    "used_rag": bool(rag_context),
-                    "tools_available": len(self.tool_executor.get_available_tools()),
-                },
-            }
-
-        except Exception as e:
-            logger.error(f"Chat error: {e}", exc_info=True)
-            return self._error_response(str(e), memory if "memory" in locals() else None)
 
     async def _retrieve_rag_context(self, query: str) -> str:
         """Retrieve context from RAG system."""

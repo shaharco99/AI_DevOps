@@ -339,7 +339,7 @@ class ObservabilityManager:
             "trace_id": span.trace_id,
             "span_id": span.span_id,
             "parent_span_id": span.parent_span_id,
-            "name": span.name,
+            "trace_name": span.name,
             "service": span.service,
             "duration_ms": span.duration_ms,
             "error": span.error,
@@ -498,15 +498,15 @@ class trace_context:
         error = str(exc_val) if exc_val else None
         if self.span:
             observability_manager.finish_trace(self.span, error)
-        payload = {            "provider": self.provider,
-            "model": self.model,
-            "latency_ms": elapsed_ms,
-            "prompt_chars": prompt_chars,
-            "response_chars": response_chars,
+
+        payload = {
+            "trace_name": self.name,
+            "service": self.service,
             "error": error,
-            **self.metadata,
+            **self.tags,
         }
+
         if error:
-            logger.error("llm_call_failed", extra=payload)
+            logger.error("trace_context failed", extra=payload)
         else:
-            logger.info("llm_call_completed", extra=payload)
+            logger.info("trace_context completed", extra=payload)

@@ -25,10 +25,17 @@ if [[ -z "${VIRTUAL_ENV}" ]]; then
     fi
 fi
 
+PYTHON="$(command -v python3 || command -v python)"
+PIP="$(command -v pip || command -v pip3)"
+if [[ -n "${VIRTUAL_ENV}" && -x "${VIRTUAL_ENV}/bin/python" ]]; then
+    PYTHON="${VIRTUAL_ENV}/bin/python"
+    PIP="${VIRTUAL_ENV}/bin/pip"
+fi
+
 # Install requests if needed (for API checks)
-python3 -c "import requests" 2>/dev/null || {
+"$PYTHON" -c "import requests" 2>/dev/null || {
     echo "Installing requests package..."
-    pip install requests > /dev/null
+    "$PIP" install requests > /dev/null
 }
 
 # Run the demo checks
