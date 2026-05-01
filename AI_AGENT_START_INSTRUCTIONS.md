@@ -13,6 +13,7 @@ Use it as a generic onboarding guide whenever a new repository is started or whe
 3. Automated checks are mandatory.
 4. Documentation must reflect changes.
 5. Keep changes small, testable, and reversible.
+6. Understand before changing.
 
 ---
 
@@ -26,6 +27,19 @@ Use it as a generic onboarding guide whenever a new repository is started or whe
 
 ---
 
+## Understand Before Changing
+Before making any code change:
+- Trace how the current system works.
+- Identify entrypoints, dependencies, and side effects.
+- Prefer understanding existing patterns before introducing new ones.
+- Avoid destructive refactors unless explicitly requested.
+
+Why:
+- Prevents regression and destructive changes.
+- Ensures the fix or feature fits existing architecture.
+
+---
+
 ## Prerequisite Checks
 Verify the following as applicable to the project:
 - `README.md` exists and describes the project.
@@ -34,6 +48,7 @@ Verify the following as applicable to the project:
 - Tests are present (`tests/`, `spec/`, or project-specific test directories).
 - CI/CD definitions exist (`.github/workflows/`, `azure-pipelines.yml`, `Jenkinsfile`, etc.).
 - Secret management guidance exists (`.env.example`, `SECRETS_MANAGEMENT.md`, or docs).
+- Detect the project primary runtime and supporting languages/services before acting.
 
 ---
 
@@ -43,12 +58,15 @@ Always make security the baseline:
 - Use `.env.example` or config templates, never real keys.
 - Prefer environment variables or secret management systems.
 - Verify that any Docker/Kubernetes config follows least privilege.
-- Use immutable dependency versions where possible.
+- Use a dependency versioning strategy consistent with the project:
+  - pinned versions for applications and infrastructure
+  - constrained ranges for libraries where appropriate
 - Run dependency security scans regularly.
 
 Common security tools:
 - `pre-commit` with security hooks
 - `bandit`, `semgrep`, `safety`, `pip-audit`, `npm audit`
+- `gitleaks`, `trufflehog`
 - `trivy`, `docker scan`
 - static analyzers and vulnerability scanners
 
@@ -57,14 +75,18 @@ Common security tools:
 ## Code Management Best Practices
 For every code change:
 - Create a feature branch with a clear name.
+- Prefer `git switch -c feature/<name>` over `git checkout -b`.
 - Keep commits focused and atomic.
 - Add or update tests for new behavior.
 - Run formatting and linting locally before pushing.
 - Review changes for security and correctness.
 - Update documentation when functionality or behavior changes.
+- Prefer the smallest possible change that solves the problem.
+- Avoid large rewrites unless explicitly requested.
+- Preserve existing style and architecture when reasonable.
 
 Common Git workflow:
-- `git checkout -b feature/<short-description>`
+- `git switch -c feature/<short-description>`
 - `git add .`
 - `git commit -m "<summary of change>"`
 - `git push origin <branch>`
@@ -118,7 +140,9 @@ If the project has no tests, prioritize adding at least one regression test for 
 
 ## Dependency Management
 Keep dependencies explicit and stable.
-- Prefer pinned versions over floating ranges.
+- Use a dependency versioning strategy consistent with the project:
+  - pinned for applications and infrastructure
+  - constrained ranges for libraries where appropriate
 - Review new dependency additions for security and maintenance risk.
 - Use dependency scanners when available.
 - Avoid unnecessary packages.
@@ -146,6 +170,36 @@ If docs are missing, create a minimal `README.md` with:
 
 ---
 
+## Observability
+When adding features or fixing issues:
+- add meaningful logs.
+- preserve structured logging.
+- avoid logging secrets.
+- add metrics or health checks where appropriate.
+- keep observability changes consistent with existing telemetry.
+
+---
+
+## Performance
+Consider performance impact of changes:
+- avoid unnecessary loops.
+- reduce network and database calls.
+- profile before optimizing.
+- do not prematurely optimize.
+- choose efficient algorithms that remain readable.
+
+---
+
+## Data / Schema Changes
+If modifying schemas or storage:
+- create migrations where required.
+- make backward-compatible changes first.
+- preserve existing data.
+- test rollback paths when possible.
+- avoid destructive data migrations without explicit approval.
+
+---
+
 ## Deployment and Infrastructure
 If the project includes deployment or infrastructure files:
 - inspect Dockerfiles, Kubernetes manifests, Helm charts, and compose files.
@@ -168,6 +222,20 @@ When modifying the project:
 - do not commit or expose secrets.
 - follow existing repo conventions.
 - if unsure, ask for clarification or document assumptions.
+- never guess build or test commands.
+- inspect `README`, CI pipeline, and manifest files first.
+- ask if commands remain unclear.
+- detect primary runtime and supporting languages before acting.
+
+---
+
+## AI Output Formatting Rules
+When completing work, summarize:
+- what changed
+- files modified
+- tests run
+- risks remaining
+- suggested next steps
 
 ---
 
