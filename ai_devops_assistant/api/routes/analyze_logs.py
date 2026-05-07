@@ -44,7 +44,7 @@ async def analyze_logs(
 
         if not result.get("success"):
             raise HTTPException(
-                status_code=400,
+                status_code=500,
                 detail=result.get("error", "Log search failed"),
             )
 

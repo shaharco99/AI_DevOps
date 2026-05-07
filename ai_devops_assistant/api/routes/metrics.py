@@ -37,14 +37,28 @@ async def query_metrics(
         )
 
         if not result.get("success"):
+            error_detail = result.get("error", "Metrics query failed")
+            status_code = 400
+            if any(
+                term in error_detail
+                for term in [
+                    "All connection attempts failed",
+                    "Connection refused",
+                    "Timeout",
+                    "503",
+                ]
+            ):
+                status_code = 502
+            elif error_detail.startswith("Prometheus query failed: 5"):
+                status_code = 502
             raise HTTPException(
-                status_code=400,
-                detail=result.get("error", "Metrics query failed"),
+                status_code=status_code,
+                detail=error_detail,
             )
 
         return MetricsQueryResponse(
-            time_series=result["time_series"],
-            query_time_ms=result["query_time_ms"],
+            time_series=result.get("time_series", result.get("metrics", [])),
+            query_time_ms=result.get("query_time_ms", 0.0),
         )
 
     except Exception as e:
@@ -110,7 +124,3 @@ async def get_ai_readiness() -> dict:
     except Exception as e:
         logger.error(f"Error getting AI readiness status: {e}")
         raise HTTPException(status_code=500, detail=str(e))
-        raise HTTPException(
-            status_code=400,
-            detail=f"Metrics query failed: {str(e)}",
-        )

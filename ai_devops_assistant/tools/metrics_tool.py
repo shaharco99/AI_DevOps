@@ -1,6 +1,7 @@
 """Metrics query tool for Prometheus."""
 
 import logging
+import time
 from typing import Any
 
 import httpx
@@ -40,15 +41,15 @@ class MetricsTool(BaseTool):
             dict: Query results
         """
         try:
-            # Validate query
             if not query or not isinstance(query, str):
                 return {
                     "success": False,
                     "error": "Invalid query",
                 }
 
-            # Execute instant query
+            start_time = time.perf_counter()
             results = await self._instant_query(query)
+            results["query_time_ms"] = (time.perf_counter() - start_time) * 1000
             return results
 
         except Exception as e:
@@ -74,18 +75,18 @@ class MetricsTool(BaseTool):
                     }
 
                 data = response.json()
-                if data["status"] != "success":
+                if data.get("status") != "success":
                     return {
                         "success": False,
                         "error": data.get("error", "Unknown error"),
                     }
 
-                # Format results
                 results = data.get("data", {}).get("result", [])
                 formatted_results = self._format_results(results)
 
                 return {
                     "success": True,
+                    "time_series": formatted_results,
                     "metrics": formatted_results,
                     "count": len(formatted_results),
                 }
@@ -98,18 +99,40 @@ class MetricsTool(BaseTool):
             }
 
     def _format_results(self, results: list[dict]) -> list[dict]:
-        """Format Prometheus results."""
+        """Format Prometheus query results into API time series response shape."""
         formatted = []
         for result in results:
-            metric = result.get("metric", {})
-            value = result.get("value", [None, None])
+            metric = result.get("metric", {}) or {}
+            metric_name = metric.get("__name__", "unknown")
+            labels = {k: v for k, v in metric.items() if k != "__name__"}
+            values = []
+
+            if "values" in result and isinstance(result["values"], list):
+                for point in result["values"]:
+                    if len(point) >= 2:
+                        values.append(
+                            {
+                                "timestamp": int(float(point[0])),
+                                "value": float(point[1]) if point[1] is not None else None,
+                            }
+                        )
+            elif "value" in result and isinstance(result["value"], list):
+                timestamp, value = result["value"]
+                values.append(
+                    {
+                        "timestamp": int(float(timestamp)) if timestamp is not None else 0,
+                        "value": float(value) if value is not None else None,
+                    }
+                )
+
             formatted.append(
                 {
-                    "metric": metric,
-                    "value": float(value[1]) if value[1] else None,
-                    "timestamp": value[0],
+                    "metric_name": metric_name,
+                    "labels": labels,
+                    "values": values,
                 }
             )
+
         return formatted
 
     def get_schema(self) -> dict[str, Any]:

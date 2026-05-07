@@ -143,7 +143,7 @@ fi
 # Chroma repo (if available)
 if ! helm repo list | grep -q "chroma"; then
   log_info "Adding Chroma Helm repository..."
-  helm repo add chroma https://charts.chroma.dev || log_warn "Chroma Helm repo not available, will use built-in template"
+  helm repo add chroma https://amikos-tech.github.io/chromadb-chart/ || log_warn "Chroma Helm repo not available, will use built-in template"
 fi
 
 log_info "Updating Helm repositories..."

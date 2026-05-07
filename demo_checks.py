@@ -5,8 +5,13 @@ Validates AI DevOps Assistant deployment and runs demo health/functionality chec
 Supports both Docker and Kubernetes deployments.
 """
 
+import os
+import signal
+import socket
 import subprocess
 import sys
+import time
+from urllib.parse import urlparse
 
 import requests
 
@@ -74,6 +79,114 @@ def run_command(cmd: str, capture: bool = True, timeout: int = 10) -> tuple[bool
         return False, "Command timed out"
     except Exception as e:
         return False, str(e)
+
+
+def is_port_open(port: int, host: str = "127.0.0.1") -> bool:
+    """Return True if a TCP port on host is open."""
+    try:
+        with socket.create_connection((host, port), timeout=1):
+            return True
+    except OSError:
+        return False
+
+
+def find_free_port() -> int:
+    """Find an available local TCP port."""
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        sock.bind(("", 0))
+        return sock.getsockname()[1]
+
+
+class PortForwardManager:
+    """Manage kubectl port-forward processes."""
+
+    def __init__(self):
+        self.processes: list[subprocess.Popen] = []
+
+    def start(
+        self,
+        service_name: str,
+        namespace: str,
+        remote_port: int,
+        local_port: int | None = None,
+    ) -> int | None:
+        """Start port-forward for a Kubernetes service."""
+        if local_port is None:
+            local_port = remote_port
+        if not is_port_open(local_port):
+            chosen_port = local_port
+        else:
+            chosen_port = find_free_port()
+
+        cmd = [
+            "kubectl",
+            "port-forward",
+            f"service/{service_name}",
+            f"{chosen_port}:{remote_port}",
+            "-n",
+            namespace,
+        ]
+
+        try:
+            process = subprocess.Popen(
+                cmd,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                preexec_fn=os.setsid,
+            )
+        except Exception:
+            return None
+
+        for _ in range(20):
+            if process.poll() is not None:
+                break
+            if is_port_open(chosen_port):
+                self.processes.append(process)
+                return chosen_port
+            time.sleep(0.2)
+
+        self.stop_process(process)
+        return None
+
+    def stop_process(self, process: subprocess.Popen) -> None:
+        """Stop a running port-forward process."""
+        try:
+            os.killpg(os.getpgid(process.pid), signal.SIGTERM)
+        except Exception:
+            process.kill()
+
+    def stop_all(self) -> None:
+        """Stop all active port-forward processes."""
+        for process in list(self.processes):
+            self.stop_process(process)
+        self.processes.clear()
+
+
+def get_url_port(url: str) -> int:
+    parsed = urlparse(url)
+    if parsed.port:
+        return parsed.port
+    return 443 if parsed.scheme == "https" else 80
+
+
+def build_k8s_local_url(
+    original_url: str,
+    service_name: str,
+    remote_port: int,
+    port_forward_manager: PortForwardManager,
+) -> str:
+    """Return localhost URL for a Kubernetes service using port-forward."""
+    local_port = get_url_port(original_url)
+    forwarded_port = port_forward_manager.start(
+        service_name=service_name,
+        namespace="ai-devops-assistant",
+        remote_port=remote_port,
+        local_port=local_port,
+    )
+    if forwarded_port is None:
+        return original_url
+    parsed = urlparse(original_url)
+    return f"{parsed.scheme}://localhost:{forwarded_port}"
 
 
 def detect_deployment() -> str:
@@ -183,17 +296,27 @@ def check_kubernetes_deployment() -> bool:
     return all_pass
 
 
-def check_api_health(base_url: str = "http://localhost:8000", timeout: int = 5) -> bool:
+def check_api_health(
+    base_url: str = "http://localhost:8000",
+    timeout: int = 5,
+    deployment: str = "docker",
+    port_forward_manager: PortForwardManager | None = None,
+) -> bool:
     """
     Check API health endpoints
 
     Args:
         base_url: Base URL of the API
         timeout: Request timeout in seconds
+        deployment: Deployment type
+        port_forward_manager: PortForwardManager for Kubernetes
 
     Returns:
         True if all health checks pass
     """
+    if deployment == "kubernetes" and port_forward_manager is not None:
+        base_url = build_k8s_local_url(base_url, "ai-devops-assistant", remote_port=80, port_forward_manager=port_forward_manager)
+
     print_header("API Health Checks")
     all_pass = True
 
@@ -230,16 +353,25 @@ def check_api_health(base_url: str = "http://localhost:8000", timeout: int = 5) 
     return all_pass
 
 
-def check_api_endpoints(base_url: str = "http://localhost:8000") -> bool:
+def check_api_endpoints(
+    base_url: str = "http://localhost:8000",
+    deployment: str = "docker",
+    port_forward_manager: PortForwardManager | None = None,
+) -> bool:
     """
     Test core API endpoints
 
     Args:
         base_url: Base URL of the API
+        deployment: Deployment type
+        port_forward_manager: PortForwardManager for Kubernetes
 
     Returns:
         True if all tests pass
     """
+    if deployment == "kubernetes" and port_forward_manager is not None:
+        base_url = build_k8s_local_url(base_url, "ai-devops-assistant", remote_port=80, port_forward_manager=port_forward_manager)
+
     print_header("API Endpoint Tests")
     all_pass = True
 
@@ -277,7 +409,14 @@ def check_api_endpoints(base_url: str = "http://localhost:8000") -> bool:
         if response.status_code == 200:
             print_success("/analyze_logs endpoint: OK (200)")
         elif response.status_code == 400:
-            print_warning("/analyze_logs endpoint: 400 (Bad request or no logs)")
+            detail = ""
+            try:
+                detail = response.json().get("detail", "")
+            except Exception:
+                detail = response.text
+            print_info(
+                f"/analyze_logs endpoint reachable; returned 400. Detail: {detail or 'no log data or query issue'}"
+            )
         else:
             print_warning(f"/analyze_logs endpoint: {response.status_code}")
     except requests.exceptions.ConnectionError:
@@ -296,6 +435,15 @@ def check_api_endpoints(base_url: str = "http://localhost:8000") -> bool:
         )
         if response.status_code == 200:
             print_success("/metrics endpoint: OK (200)")
+        elif response.status_code == 400:
+            detail = ""
+            try:
+                detail = response.json().get("detail", "")
+            except Exception:
+                detail = response.text
+            print_info(
+                f"/metrics endpoint reachable; returned 400. Detail: {detail or 'query failed or no metrics available yet'}"
+            )
         else:
             print_warning(f"/metrics endpoint: {response.status_code}")
     except requests.exceptions.ConnectionError:
@@ -307,40 +455,70 @@ def check_api_endpoints(base_url: str = "http://localhost:8000") -> bool:
     return all_pass
 
 
-def check_observability(base_url: str = "http://localhost:9090") -> bool:
+def check_observability(
+    prometheus_url: str = "http://localhost:9090",
+    grafana_url: str = "http://localhost:3000",
+    deployment: str = "docker",
+    port_forward_manager: PortForwardManager | None = None,
+) -> bool:
     """
     Check Prometheus and Grafana availability
 
     Args:
-        base_url: Prometheus base URL
+        prometheus_url: Prometheus base URL
+        grafana_url: Grafana base URL
+        deployment: Deployment type
+        port_forward_manager: PortForwardManager for Kubernetes
 
     Returns:
         True if observability stack is healthy
     """
+    if deployment == "kubernetes" and port_forward_manager is not None:
+        prometheus_url = build_k8s_local_url(
+            prometheus_url,
+            "ai-devops-assistant-promet-prometheus",
+            remote_port=9090,
+            port_forward_manager=port_forward_manager,
+        )
+        grafana_url = build_k8s_local_url(
+            grafana_url,
+            "ai-devops-assistant-grafana",
+            remote_port=3000,
+            port_forward_manager=port_forward_manager,
+        )
+
     print_header("Observability Stack Checks")
     all_pass = True
 
     # Check Prometheus
     try:
-        print_info("Checking Prometheus...")
-        response = requests.get(f"{base_url}/-/healthy", timeout=5)
+        print_info(f"Checking Prometheus at {prometheus_url}...")
+        response = requests.get(f"{prometheus_url}/-/healthy", timeout=5)
         if response.status_code == 200:
             print_success("Prometheus: OK")
         else:
             print_warning(f"Prometheus: {response.status_code}")
-    except:
-        print_warning("Prometheus: Not accessible (port 9090)")
+    except requests.exceptions.ConnectionError:
+        print_warning(f"Prometheus: Not accessible ({prometheus_url})")
+    except requests.exceptions.Timeout:
+        print_warning("Prometheus: Timeout")
+    except Exception as e:
+        print_warning(f"Prometheus: {str(e)}")
 
     # Check Grafana
     try:
-        print_info("Checking Grafana...")
-        response = requests.get("http://localhost:3000/api/health", timeout=5)
+        print_info(f"Checking Grafana at {grafana_url}...")
+        response = requests.get(f"{grafana_url}/api/health", timeout=5)
         if response.status_code == 200:
             print_success("Grafana: OK")
         else:
             print_warning(f"Grafana: {response.status_code}")
-    except:
-        print_warning("Grafana: Not accessible (port 3000)")
+    except requests.exceptions.ConnectionError:
+        print_warning(f"Grafana: Not accessible ({grafana_url})")
+    except requests.exceptions.Timeout:
+        print_warning("Grafana: Timeout")
+    except Exception as e:
+        print_warning(f"Grafana: {str(e)}")
 
     return all_pass
 
@@ -398,21 +576,35 @@ def main() -> int:
     elif deployment == "kubernetes":
         all_pass = check_kubernetes_deployment() and all_pass
 
+    port_forward_manager = PortForwardManager() if deployment == "kubernetes" else None
+
     # Run common checks
     try:
-        all_pass = check_api_health() and all_pass
-    except:
+        all_pass = check_api_health(
+            deployment=deployment,
+            port_forward_manager=port_forward_manager,
+        ) and all_pass
+    except Exception:
         print_warning("API health checks skipped (API not available)")
 
     try:
-        all_pass = check_api_endpoints() and all_pass
-    except:
+        all_pass = check_api_endpoints(
+            deployment=deployment,
+            port_forward_manager=port_forward_manager,
+        ) and all_pass
+    except Exception:
         print_warning("API endpoint tests skipped (API not available)")
 
     try:
-        all_pass = check_observability() and all_pass
-    except:
+        all_pass = check_observability(
+            deployment=deployment,
+            port_forward_manager=port_forward_manager,
+        ) and all_pass
+    except Exception:
         print_warning("Observability checks skipped")
+    finally:
+        if port_forward_manager is not None:
+            port_forward_manager.stop_all()
 
     # Run tests if environment is properly set up
     try:
