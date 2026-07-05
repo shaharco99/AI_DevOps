@@ -43,6 +43,9 @@ class Settings(BaseSettings):
     OPENAI_API_KEY: Optional[str] = None
     OPENAI_BASE_URL: str = "https://api.openai.com/v1"
     ANTHROPIC_API_KEY: Optional[str] = None
+    ANTHROPIC_MODEL: str = "claude-opus-4-8"
+    # Claude output cap includes thinking tokens; keep generous headroom
+    ANTHROPIC_MAX_TOKENS: int = 16000
     HUGGINGFACE_API_KEY: Optional[str] = None
 
     # ========================================================================

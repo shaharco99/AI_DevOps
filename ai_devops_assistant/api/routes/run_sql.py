@@ -60,6 +60,8 @@ async def run_sql(
             execution_time_ms=0.0,  # TODO: Add timing
         )
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"SQL query error: {e}", exc_info=True)
         raise HTTPException(

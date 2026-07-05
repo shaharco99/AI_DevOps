@@ -39,18 +39,19 @@ async def query_metrics(
         if not result.get("success"):
             error_detail = result.get("error", "Metrics query failed")
             status_code = 400
+            error_lower = error_detail.lower()
             if any(
-                term in error_detail
+                term in error_lower
                 for term in [
-                    "All connection attempts failed",
-                    "Connection refused",
-                    "Timeout",
+                    "all connection attempts failed",
+                    "connection refused",
+                    "timeout",
                     "503",
+                    "502",
+                    "connect",
                 ]
-            ):
-                status_code = 502
-            elif error_detail.startswith("Prometheus query failed: 5"):
-                status_code = 502
+            ) or error_detail.startswith("Prometheus query failed: 5"):
+                status_code = 503
             raise HTTPException(
                 status_code=status_code,
                 detail=error_detail,

@@ -48,7 +48,8 @@ class SQLQueryTool(BaseTool):
         if not query_upper.startswith("SELECT"):
             return False, "Only SELECT queries are allowed"
 
-        # Block dangerous keywords
+        # Block dangerous keywords as whole words only — substring matching
+        # falsely flags identifiers like created_at (CREATE) or updated_at (UPDATE)
         dangerous_keywords = [
             "DROP",
             "DELETE",
@@ -59,17 +60,20 @@ class SQLQueryTool(BaseTool):
             "TRUNCATE",
             "EXEC",
             "EXECUTE",
-            ";--",
-            "/*",
-            "*/",
-            "--",
-            "xp_",
-            "sp_",
         ]
 
         for keyword in dangerous_keywords:
-            if keyword in query_upper:
+            if re.search(rf"\b{keyword}\b", query_upper):
                 return False, f"Query contains dangerous keyword: {keyword}"
+
+        # Block comment sequences and stored-procedure prefixes
+        dangerous_tokens = ["--", "/*", "*/"]
+        for token in dangerous_tokens:
+            if token in query_upper:
+                return False, f"Query contains dangerous token: {token}"
+
+        if re.search(r"\b(XP|SP)_", query_upper):
+            return False, "Query contains dangerous stored-procedure prefix"
 
         # Check for common injection patterns
         injection_patterns = [
@@ -130,8 +134,8 @@ class SQLQueryTool(BaseTool):
             result = await self.session.execute(text(query))
             rows = result.fetchall()[:actual_limit]
 
-            # Format results
-            formatted_rows = [dict(row) for row in rows]
+            # Format results (SQLAlchemy 2.0 rows convert via ._mapping)
+            formatted_rows = [dict(row._mapping) for row in rows]
 
             return {
                 "success": True,

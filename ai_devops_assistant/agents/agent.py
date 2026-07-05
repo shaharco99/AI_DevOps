@@ -13,10 +13,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ai_devops_assistant.agents.memory import ConversationMemory, get_session_manager
 from ai_devops_assistant.agents.prompts import SYSTEM_PROMPT
+from ai_devops_assistant.config.settings import settings
 from ai_devops_assistant.observability.ai_observability import (
     observability_manager, trace_context
 )
-from ai_devops_assistant.services.llm_service import get_ollama_service
+from ai_devops_assistant.services.llm_service import get_llm_service
 from ai_devops_assistant.tools.tool_executor import get_tool_executor
 
 logger = logging.getLogger(__name__)
@@ -134,7 +135,7 @@ class DevOpsAgent:
     async def initialize(self) -> None:
         """Initialize agent components."""
         try:
-            self.llm_service = await get_ollama_service()
+            self.llm_service = await get_llm_service()
             if not await self.llm_service.health_check():
                 logger.warning("LLM service not available, agent may have limited functionality")
 
@@ -196,9 +197,17 @@ class DevOpsAgent:
                 })
 
                 return {
+                    "success": True,
                     "content": response.content,
                     "message": response.content,
-                    "tool_calls": [call.to_dict() for call in response.tool_calls],
+                    "tool_calls": [
+                        {"name": call.tool_name, "parameters": call.parameters}
+                        for call in response.tool_calls
+                    ],
+                    "tool_results": {
+                        call.tool_name: call.result for call in response.tool_calls
+                    },
+                    "thinking": "\n".join(response.reasoning_steps) or None,
                     "metadata": response.metadata,
                     "confidence_score": response.confidence_score,
                     "reasoning_steps": response.reasoning_steps,
@@ -208,13 +217,16 @@ class DevOpsAgent:
             except Exception as e:
                 logger.error(f"Agent chat failed: {e}", exc_info=True)
                 return {
+                    "success": False,
                     "content": f"I apologize, but I encountered an error: {str(e)}",
                     "message": f"I apologize, but I encountered an error: {str(e)}",
                     "error": str(e),
                     "tool_calls": [],
+                    "tool_results": {},
                     "metadata": {},
                     "confidence_score": 0.0,
                     "reasoning_steps": [],
+                    "session_id": session_id,
                 }
 
     async def _execute_task(self, task: AgentTask, use_rag: bool = True) -> AgentResponse:
@@ -332,8 +344,8 @@ class DevOpsAgent:
 
         try:
             response = await observability_manager.trace_llm_call(
-                provider="ollama",
-                model=self.config.model_name,
+                provider=settings.LLM_PROVIDER,
+                model=getattr(self.llm_service, "model", self.config.model_name),
                 prompt=planning_prompt,
                 call_fn=lambda: self.llm_service.chat([
                     {"role": "user", "content": planning_prompt}
@@ -409,8 +421,8 @@ class DevOpsAgent:
 
         try:
             response = await observability_manager.trace_llm_call(
-                provider="ollama",
-                model=self.config.model_name,
+                provider=settings.LLM_PROVIDER,
+                model=getattr(self.llm_service, "model", self.config.model_name),
                 prompt=reasoning_prompt,
                 call_fn=lambda: self.llm_service.chat([
                     {"role": "user", "content": reasoning_prompt}
@@ -452,8 +464,8 @@ class DevOpsAgent:
         """
 
         response = await observability_manager.trace_llm_call(
-            provider="ollama",
-            model=self.config.model_name,
+            provider=settings.LLM_PROVIDER,
+            model=getattr(self.llm_service, "model", self.config.model_name),
             prompt=full_prompt,
             call_fn=lambda: self.llm_service.chat([
                 {"role": "user", "content": full_prompt}
@@ -664,6 +676,6 @@ async def get_agent(session: Optional[AsyncSession] = None) -> DevOpsAgent:
     """
     global _agent
     if _agent is None:
-        _agent = DevOpsAgent(session)
+        _agent = DevOpsAgent(session=session)
         await _agent.initialize()
     return _agent

@@ -167,3 +167,40 @@ async def test_concurrent_chat_sessions(client, monkeypatch):
         session_ids.append(response.json()["session_id"])
 
     assert len(set(session_ids)) == 3
+
+
+@pytest.mark.asyncio
+async def test_chat_real_agent_contract(client, monkeypatch):
+    """Run the real DevOpsAgent through the /chat route with only the LLM stubbed.
+
+    Guards against contract drift between the route and the agent (e.g. the
+    'success' key and tool_calls shape) that agent-level mocks would hide.
+    """
+    from unittest.mock import AsyncMock
+
+    import ai_devops_assistant.agents.agent as agent_module
+
+    llm = AsyncMock()
+    llm.health_check.return_value = True
+    llm.chat.return_value = "All systems are healthy."
+
+    async def fake_get_llm_service():
+        return llm
+
+    async def fake_add_chat_message(*args, **kwargs):
+        return None
+
+    # Real agent, real route — only the LLM call and DB write are stubbed
+    monkeypatch.setattr(agent_module, "get_llm_service", fake_get_llm_service)
+    monkeypatch.setattr(agent_module, "_agent", None)
+    monkeypatch.setattr(
+        "ai_devops_assistant.api.routes.chat.add_chat_message", fake_add_chat_message
+    )
+
+    response = client.post("/chat", json={"message": "Is the system healthy?"})
+    assert response.status_code == 200
+    data = response.json()
+    assert "All systems are healthy." in data["message"]
+    assert "session_id" in data
+
+    monkeypatch.setattr(agent_module, "_agent", None)

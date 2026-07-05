@@ -40,10 +40,10 @@ async def lifespan(app: FastAPI):
     # Shutdown
     try:
         from ai_devops_assistant.database.session import close_db
-        from ai_devops_assistant.services.llm_service import close_ollama_service
+        from ai_devops_assistant.services.llm_service import close_llm_service
 
         await close_db()
-        await close_ollama_service()
+        await close_llm_service()
     except Exception as e:
         logger.error(f"Error during shutdown: {e}")
 

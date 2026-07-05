@@ -295,18 +295,22 @@ class OpenAIProvider(LLMProvider):
 
 
 class AnthropicProvider(LLMProvider):
-    """Anthropic Claude LLM provider."""
+    """Anthropic Claude LLM provider (official SDK)."""
 
-    def __init__(self, api_key: str, model: str = "claude-3-sonnet-20240229"):
+    def __init__(self, api_key: Optional[str] = None, model: str = "claude-opus-4-8"):
         """Initialize Anthropic provider.
 
         Args:
-            api_key: Anthropic API key
-            model: Model name
+            api_key: Anthropic API key (falls back to environment credentials)
+            model: Model ID
         """
-        self.api_key = api_key
+        import anthropic
+
         self.model = model
-        self.base_url = "https://api.anthropic.com/v1"
+        if api_key:
+            self.client = anthropic.AsyncAnthropic(api_key=api_key)
+        else:
+            self.client = anthropic.AsyncAnthropic()
 
     async def generate(
         self,
@@ -317,40 +321,27 @@ class AnthropicProvider(LLMProvider):
     ) -> str:
         """Generate using Anthropic Claude.
 
+        Note: temperature/top_p are accepted for interface compatibility but not
+        sent — sampling parameters are rejected by current Claude models.
+
         Args:
             prompt: Input prompt
             max_tokens: Maximum tokens
-            temperature: Sampling temperature
-            top_p: Nucleus sampling
 
         Returns:
             Generated text
         """
         try:
-            headers = {
-                "x-api-key": self.api_key,
-                "anthropic-version": "2023-06-01",
-            }
-            payload = {
-                "model": self.model,
-                "max_tokens": max_tokens,
-                "messages": [{"role": "user", "content": prompt}],
-                "temperature": temperature,
-                "top_p": top_p,
-            }
-
-            async with aiohttp.ClientSession() as session:
-                async with session.post(
-                    f"{self.base_url}/messages", json=payload, headers=headers
-                ) as resp:
-                    if resp.status == 200:
-                        data = await resp.json()
-                        return data["content"][0]["text"]
-
-                    error = await resp.text()
-                    logger.error(f"Anthropic error: {resp.status} - {error}")
-                    return ""
-
+            response = await self.client.messages.create(
+                model=self.model,
+                max_tokens=max_tokens,
+                messages=[{"role": "user", "content": prompt}],
+                thinking={"type": "adaptive"},
+            )
+            if response.stop_reason == "refusal":
+                logger.warning("Anthropic request refused by safety classifiers")
+                return ""
+            return "".join(b.text for b in response.content if b.type == "text")
         except Exception as e:
             logger.error(f"Anthropic generation error: {e}")
             return ""
@@ -366,45 +357,19 @@ class AnthropicProvider(LLMProvider):
         Args:
             prompt: Input prompt
             max_tokens: Maximum tokens
-            temperature: Sampling temperature
 
         Yields:
             Text chunks
         """
         try:
-            headers = {
-                "x-api-key": self.api_key,
-                "anthropic-version": "2023-06-01",
-            }
-            payload = {
-                "model": self.model,
-                "max_tokens": max_tokens,
-                "messages": [{"role": "user", "content": prompt}],
-                "temperature": temperature,
-                "stream": True,
-            }
-
-            async with aiohttp.ClientSession() as session:
-                async with session.post(
-                    f"{self.base_url}/messages", json=payload, headers=headers
-                ) as resp:
-                    if resp.status == 200:
-                        async for line in resp.content:
-                            if line:
-                                line_str = line.decode().strip()
-                                if line_str.startswith("data: "):
-                                    import json
-
-                                    try:
-                                        data = json.loads(line_str[6:])
-                                        if data.get("type") == "content_block_delta":
-                                            delta = data.get("delta", {})
-                                            text = delta.get("text", "")
-                                            if text:
-                                                yield text
-                                    except json.JSONDecodeError:
-                                        pass
-
+            async with self.client.messages.stream(
+                model=self.model,
+                max_tokens=max_tokens,
+                messages=[{"role": "user", "content": prompt}],
+                thinking={"type": "adaptive"},
+            ) as stream:
+                async for text in stream.text_stream:
+                    yield text
         except Exception as e:
             logger.error(f"Anthropic streaming error: {e}")
 

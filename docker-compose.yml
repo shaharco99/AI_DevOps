@@ -55,6 +55,9 @@ services:
     environment:
       DATABASE_URL: postgresql+asyncpg://devops_user:devops_password@postgres:5432/devops
       OLLAMA_BASE_URL: http://ollama:11434
+      LLM_PROVIDER: ${LLM_PROVIDER:-ollama}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-claude-opus-4-8}
       CHROMA_PERSIST_DIR: /data/chroma
       PROMETHEUS_URL: http://prometheus:9090
       API_ENVIRONMENT: development

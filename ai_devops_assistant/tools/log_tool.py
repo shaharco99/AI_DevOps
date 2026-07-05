@@ -66,10 +66,11 @@ class LogAnalysisTool(BaseTool):
                 }
 
         except Exception as e:
+            error_msg = str(e)
             logger.error(f"Log search error: {e}")
             return {
                 "success": False,
-                "error": str(e),
+                "error": error_msg,
             }
 
     async def _search_application_logs(
@@ -119,10 +120,11 @@ class LogAnalysisTool(BaseTool):
             }
 
         except Exception as e:
+            error_msg = str(e)
             logger.error(f"Application log search error: {e}")
             return {
                 "success": False,
-                "error": str(e),
+                "error": error_msg,
             }
 
     def _analyze_logs(self, logs: list[dict]) -> str:

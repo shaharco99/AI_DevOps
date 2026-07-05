@@ -288,3 +288,39 @@ async def close_ollama_service() -> None:
     if _ollama_service:
         await _ollama_service.close()
         _ollama_service = None
+
+
+# Provider-agnostic accessors — selected via settings.LLM_PROVIDER
+_anthropic_service = None
+
+
+async def get_llm_service():
+    """Get the LLM service for the configured provider.
+
+    Returns:
+        OllamaService or AnthropicService (same chat/generate/health_check interface)
+    """
+    global _anthropic_service
+    provider = settings.LLM_PROVIDER.lower()
+
+    if provider == "anthropic":
+        if _anthropic_service is None:
+            from ai_devops_assistant.services.anthropic_service import AnthropicService
+
+            _anthropic_service = AnthropicService()
+            if not await _anthropic_service.health_check():
+                logger.warning("Anthropic service not reachable")
+        return _anthropic_service
+
+    if provider != "ollama":
+        logger.warning(f"Unknown LLM_PROVIDER '{provider}', falling back to ollama")
+    return await get_ollama_service()
+
+
+async def close_llm_service() -> None:
+    """Close whichever LLM services were created."""
+    global _anthropic_service
+    if _anthropic_service:
+        await _anthropic_service.close()
+        _anthropic_service = None
+    await close_ollama_service()

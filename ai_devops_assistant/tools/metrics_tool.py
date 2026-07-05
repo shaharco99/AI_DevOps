@@ -91,6 +91,18 @@ class MetricsTool(BaseTool):
                     "count": len(formatted_results),
                 }
 
+        except httpx.ConnectError as e:
+            logger.error(f"Prometheus connection error: {e}")
+            return {
+                "success": False,
+                "error": f"Prometheus is unavailable: {str(e)}",
+            }
+        except httpx.TimeoutException as e:
+            logger.error(f"Prometheus timeout: {e}")
+            return {
+                "success": False,
+                "error": f"Prometheus connection timeout: {str(e)}",
+            }
         except Exception as e:
             logger.error(f"Instant query error: {e}")
             return {

@@ -45,6 +45,7 @@ dependencies = [
     "langchain-core==0.1.23",
     "chromadb==0.4.22",
     "ollama==0.6.1",
+    "anthropic==0.116.0",
 
     # Kubernetes
     "kubernetes==29.0.0",
