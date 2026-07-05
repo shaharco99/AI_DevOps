@@ -1,0 +1,13 @@
+{
+  // Lint human documentation only. CLAUDE.md is machine-oriented config for
+  // Claude Code, and prompts/**/*.md are runtime prompt templates rendered to
+  // the LLM — reformatting them would change agent behavior, not docs style.
+  "ignores": [
+    "node_modules/**",
+    "venv/**",
+    ".venv/**",
+    ".pytest_cache/**",
+    "CLAUDE.md",
+    "prompts/**"
+  ]
+}

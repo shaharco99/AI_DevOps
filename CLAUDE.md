@@ -90,5 +90,5 @@ Async SQLAlchemy models in `database/models.py` (pipeline logs, metric snapshots
 
 ## Repo conventions
 
-- `AI_AGENT_START_INSTRUCTIONS.md` contains the repo's agent working rules. Key points: understand existing flow before changing it, keep changes small and focused, branch with `git switch -c feature/<name>`, run `pre-commit run --all-files` before pushing, never commit secrets (use `.env` locally; `.env.local` is gitignored — see `SECRETS_MANAGEMENT.md`).
+- The repo's working rules live in `README.md` ("House rules" and "Secrets" sections). Key points: understand existing flow before changing it, keep changes small and focused, branch with `git switch -c feature/<name>`, run `pre-commit run --all-files` before pushing, never commit secrets (use `.env` locally; `.env.local` is gitignored).
 - Deployment targets: `docker-compose.yml` for local, `infra/kubernetes/` raw manifests + Helm chart in `infra/kubernetes/helm/`. CI also exists for Azure Pipelines (`azure-pipelines.yml`) and Jenkins (`Jenkinsfile`).

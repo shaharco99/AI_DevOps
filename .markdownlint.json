@@ -1,5 +1,4 @@
 {
-  "extends": "markdownlint/style/default",
   "line-length": {
     "line_length": 120,
     "code_lines": false,
@@ -9,6 +8,7 @@
     "code_blocks": false
   },
   "proper-names": {
+    "code_blocks": false,
     "names": [
       "AI DevOps Assistant",
       "DevOps",
