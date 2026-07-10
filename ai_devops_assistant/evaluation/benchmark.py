@@ -1,9 +1,8 @@
 """LLM evaluation test suites and benchmarking."""
 
-import asyncio
 import logging
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Optional
 
 from ai_devops_assistant.evaluation.llm_evaluator import EvaluationCase, LLMEvaluator
 
@@ -14,7 +13,7 @@ class EvaluationTestSuite:
     """Collection of evaluation test cases organized by category."""
 
     def __init__(self):
-        self.test_cases: Dict[str, List[EvaluationCase]] = {}
+        self.test_cases: dict[str, list[EvaluationCase]] = {}
         self._load_default_test_cases()
 
     def _load_default_test_cases(self):
@@ -109,7 +108,7 @@ class EvaluationTestSuite:
             self.test_cases[category] = []
         self.test_cases[category].append(case)
 
-    def get_test_cases(self, categories: Optional[List[str]] = None) -> List[EvaluationCase]:
+    def get_test_cases(self, categories: Optional[list[str]] = None) -> list[EvaluationCase]:
         """Get test cases, optionally filtered by categories."""
         if categories is None:
             # Return all test cases
@@ -125,7 +124,7 @@ class EvaluationTestSuite:
                 filtered_cases.extend(self.test_cases[category])
         return filtered_cases
 
-    def get_categories(self) -> List[str]:
+    def get_categories(self) -> list[str]:
         """Get list of available test categories."""
         return list(self.test_cases.keys())
 
@@ -148,20 +147,18 @@ class EvaluationTestSuite:
             ]
 
         Path(file_path).parent.mkdir(parents=True, exist_ok=True)
-        with open(file_path, 'w') as f:
+        with open(file_path, "w") as f:
             json.dump(data, f, indent=2)
 
     def load_from_file(self, file_path: str):
         """Load test suite from JSON file."""
         import json
 
-        with open(file_path, 'r') as f:
+        with open(file_path) as f:
             data = json.load(f)
 
         for category, cases_data in data.items():
-            self.test_cases[category] = [
-                EvaluationCase(**case_data) for case_data in cases_data
-            ]
+            self.test_cases[category] = [EvaluationCase(**case_data) for case_data in cases_data]
 
 
 class ModelBenchmarker:
@@ -173,11 +170,11 @@ class ModelBenchmarker:
 
     async def benchmark_models(
         self,
-        models: Dict[str, callable],
-        categories: Optional[List[str]] = None,
+        models: dict[str, callable],
+        categories: Optional[list[str]] = None,
         save_reports: bool = True,
         output_dir: str = "evaluation_reports",
-    ) -> Dict[str, dict]:
+    ) -> dict[str, dict]:
         """Benchmark multiple models.
 
         Args:
@@ -223,7 +220,7 @@ class ModelBenchmarker:
 
         return results
 
-    def _generate_comparison_report(self, results: Dict[str, dict], output_dir: str):
+    def _generate_comparison_report(self, results: dict[str, dict], output_dir: str):
         """Generate a comparison report across models."""
         import json
 
@@ -254,15 +251,15 @@ class ModelBenchmarker:
 
         # Save comparison
         comparison_path = Path(output_dir) / "model_comparison.json"
-        with open(comparison_path, 'w') as f:
+        with open(comparison_path, "w") as f:
             json.dump(comparison, f, indent=2)
 
         logger.info(f"Comparison report saved to {comparison_path}")
 
     async def run_quick_benchmark(
         self,
-        models: Dict[str, callable],
-        categories: Optional[List[str]] = None,
+        models: dict[str, callable],
+        categories: Optional[list[str]] = None,
     ) -> str:
         """Run a quick benchmark and return formatted results."""
         results = await self.benchmark_models(models, categories, save_reports=False)
@@ -286,7 +283,7 @@ class ModelBenchmarker:
         # Simple ranking
         if len(results) > 1:
             output.append("🏆 Overall Ranking (by correctness)")
-            ranking = sorted(results.items(), key=lambda x: x[1]['correctness'], reverse=True)
+            ranking = sorted(results.items(), key=lambda x: x[1]["correctness"], reverse=True)
             for i, (model, _) in enumerate(ranking, 1):
                 output.append(f"  {i}. {model}")
 
@@ -297,7 +294,7 @@ class ModelBenchmarker:
 async def quick_evaluate_model(
     model_fn: callable,
     model_name: str,
-    categories: Optional[List[str]] = None,
+    categories: Optional[list[str]] = None,
 ) -> dict:
     """Quick evaluation of a single model."""
     benchmarker = ModelBenchmarker()

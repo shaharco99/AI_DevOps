@@ -315,7 +315,12 @@ def check_api_health(
         True if all health checks pass
     """
     if deployment == "kubernetes" and port_forward_manager is not None:
-        base_url = build_k8s_local_url(base_url, "ai-devops-assistant", remote_port=80, port_forward_manager=port_forward_manager)
+        base_url = build_k8s_local_url(
+            base_url,
+            "ai-devops-assistant",
+            remote_port=80,
+            port_forward_manager=port_forward_manager,
+        )
 
     print_header("API Health Checks")
     all_pass = True
@@ -370,7 +375,12 @@ def check_api_endpoints(
         True if all tests pass
     """
     if deployment == "kubernetes" and port_forward_manager is not None:
-        base_url = build_k8s_local_url(base_url, "ai-devops-assistant", remote_port=80, port_forward_manager=port_forward_manager)
+        base_url = build_k8s_local_url(
+            base_url,
+            "ai-devops-assistant",
+            remote_port=80,
+            port_forward_manager=port_forward_manager,
+        )
 
     print_header("API Endpoint Tests")
     all_pass = True
@@ -580,26 +590,35 @@ def main() -> int:
 
     # Run common checks
     try:
-        all_pass = check_api_health(
-            deployment=deployment,
-            port_forward_manager=port_forward_manager,
-        ) and all_pass
+        all_pass = (
+            check_api_health(
+                deployment=deployment,
+                port_forward_manager=port_forward_manager,
+            )
+            and all_pass
+        )
     except Exception:
         print_warning("API health checks skipped (API not available)")
 
     try:
-        all_pass = check_api_endpoints(
-            deployment=deployment,
-            port_forward_manager=port_forward_manager,
-        ) and all_pass
+        all_pass = (
+            check_api_endpoints(
+                deployment=deployment,
+                port_forward_manager=port_forward_manager,
+            )
+            and all_pass
+        )
     except Exception:
         print_warning("API endpoint tests skipped (API not available)")
 
     try:
-        all_pass = check_observability(
-            deployment=deployment,
-            port_forward_manager=port_forward_manager,
-        ) and all_pass
+        all_pass = (
+            check_observability(
+                deployment=deployment,
+                port_forward_manager=port_forward_manager,
+            )
+            and all_pass
+        )
     except Exception:
         print_warning("Observability checks skipped")
     finally:

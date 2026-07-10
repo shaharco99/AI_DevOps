@@ -167,11 +167,13 @@ class VectorStoreService:
 
             if results and results["documents"]:
                 for i, doc in enumerate(results["documents"]):
-                    documents.append({
-                        "content": doc,
-                        "metadata": results["metadatas"][i] if results["metadatas"] else {},
-                        "id": results["ids"][i] if results["ids"] else f"doc_{i}",
-                    })
+                    documents.append(
+                        {
+                            "content": doc,
+                            "metadata": results["metadatas"][i] if results["metadatas"] else {},
+                            "id": results["ids"][i] if results["ids"] else f"doc_{i}",
+                        }
+                    )
 
             return documents
 

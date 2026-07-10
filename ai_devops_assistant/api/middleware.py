@@ -3,7 +3,7 @@
 import logging
 import time
 from collections.abc import Callable
-from datetime import datetime
+from datetime import UTC, datetime
 
 from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -24,7 +24,7 @@ class LoggingMiddleware(BaseHTTPMiddleware):
         set_request_id(request_id)
 
         # Log request
-        logger.debug(
+        logger.info(
             "request_started",
             extra={
                 "request_id": request_id,
@@ -42,7 +42,7 @@ class LoggingMiddleware(BaseHTTPMiddleware):
                 status_code=500,
                 content={
                     "error": "Internal server error",
-                    "timestamp": datetime.utcnow().isoformat(),
+                    "timestamp": datetime.now(UTC).isoformat(),
                 },
             )
 
@@ -50,7 +50,7 @@ class LoggingMiddleware(BaseHTTPMiddleware):
         duration_ms = (time.time() - start_time) * 1000
 
         # Log response
-        logger.debug(
+        logger.info(
             "request_finished",
             extra={
                 "request_id": request_id,
@@ -83,7 +83,7 @@ class ErrorHandlingMiddleware(BaseHTTPMiddleware):
                 content={
                     "error": str(e),
                     "code": "VALIDATION_ERROR",
-                    "timestamp": datetime.utcnow().isoformat(),
+                    "timestamp": datetime.now(UTC).isoformat(),
                 },
             )
         except Exception as e:
@@ -92,6 +92,6 @@ class ErrorHandlingMiddleware(BaseHTTPMiddleware):
                 status_code=500,
                 content={
                     "error": "Internal server error",
-                    "timestamp": datetime.utcnow().isoformat(),
+                    "timestamp": datetime.now(UTC).isoformat(),
                 },
             )

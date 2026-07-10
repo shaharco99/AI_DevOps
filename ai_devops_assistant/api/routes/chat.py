@@ -3,12 +3,14 @@
 import logging
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ai_devops_assistant.agents.agent import get_agent
+from ai_devops_assistant.api.auth import limiter
 from ai_devops_assistant.api.dependencies import get_db_session
 from ai_devops_assistant.api.schemas import ChatRequest, ChatResponse, ToolCall
+from ai_devops_assistant.config.settings import settings
 from ai_devops_assistant.database.queries import add_chat_message
 
 logger = logging.getLogger(__name__)
@@ -17,14 +19,17 @@ router = APIRouter(prefix="/chat", tags=["chat"])
 
 
 @router.post("", response_model=ChatResponse)
+@limiter.limit(settings.RATE_LIMIT_CHAT)
 async def chat(
-    request: ChatRequest,
+    request: Request,
+    chat_request: ChatRequest,
     db_session: AsyncSession = Depends(get_db_session),
 ) -> ChatResponse:
     """Process chat request and return response.
 
     Args:
-        request: Chat request with message and optional session ID
+        request: Raw HTTP request (required by the rate limiter)
+        chat_request: Chat request with message and optional session ID
         db_session: Database session
 
     Returns:
@@ -32,7 +37,7 @@ async def chat(
     """
     try:
         # Get or create session
-        session_id = request.session_id or str(uuid.uuid4())
+        session_id = chat_request.session_id or str(uuid.uuid4())
 
         # Get agent
         agent = await get_agent(db_session)
@@ -40,7 +45,7 @@ async def chat(
         # Process message
         logger.info(f"Processing chat request for session: {session_id}")
         result = await agent.chat(
-            message=request.message,
+            message=chat_request.message,
             session_id=session_id,
             use_rag=True,
         )
@@ -70,7 +75,7 @@ async def chat(
                 db_session,
                 session_id,
                 "user",
-                request.message,
+                chat_request.message,
             )
 
             # Store assistant response

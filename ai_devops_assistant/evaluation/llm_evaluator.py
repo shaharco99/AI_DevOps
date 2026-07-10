@@ -4,11 +4,11 @@ import asyncio
 import json
 import logging
 import time
-from collections.abc import Callable, Awaitable
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 from statistics import mean, median, stdev
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Optional, Union
 
 logger = logging.getLogger(__name__)
 
@@ -18,11 +18,11 @@ class EvaluationCase:
     """Single prompt evaluation case."""
 
     prompt: str
-    expected_keywords: List[str] = field(default_factory=list)
-    expected_patterns: List[str] = field(default_factory=list)
+    expected_keywords: list[str] = field(default_factory=list)
+    expected_patterns: list[str] = field(default_factory=list)
     category: str = "general"
     difficulty: str = "medium"
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -37,7 +37,7 @@ class EvaluationResult:
     relevance_score: float
     coherence_score: float
     groundedness_score: float
-    metrics: Dict[str, Any] = field(default_factory=dict)
+    metrics: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -54,8 +54,8 @@ class ModelEvaluationReport:
     latency_ms_avg: float
     latency_ms_median: float
     latency_ms_stdev: float
-    results: List[EvaluationResult]
-    category_breakdown: Dict[str, Dict[str, float]]
+    results: list[EvaluationResult]
+    category_breakdown: dict[str, dict[str, float]]
     timestamp: str
 
 
@@ -64,9 +64,9 @@ class LLMEvaluator:
 
     def __init__(
         self,
-        metrics: Optional[List[str]] = None,
+        metrics: Optional[list[str]] = None,
         use_rag_context: bool = False,
-        custom_evaluators: Optional[Dict[str, Callable]] = None,
+        custom_evaluators: Optional[dict[str, Callable]] = None,
     ):
         """Initialize evaluator.
 
@@ -76,8 +76,12 @@ class LLMEvaluator:
             custom_evaluators: Custom evaluation functions
         """
         self.metrics = metrics or [
-            "correctness", "hallucination", "relevance",
-            "coherence", "groundedness", "latency"
+            "correctness",
+            "hallucination",
+            "relevance",
+            "coherence",
+            "groundedness",
+            "latency",
         ]
         self.use_rag_context = use_rag_context
         self.custom_evaluators = custom_evaluators or {}
@@ -87,6 +91,7 @@ class LLMEvaluator:
         if self.use_rag_context:
             try:
                 from ai_devops_assistant.rag.pipeline import RAGPipeline
+
                 self.rag_pipeline = RAGPipeline()
             except ImportError:
                 logger.warning("RAG pipeline not available for context evaluation")
@@ -95,7 +100,7 @@ class LLMEvaluator:
         self,
         model_fn: Callable[[str], Awaitable[str]],
         model_name: str,
-        cases: List[EvaluationCase],
+        cases: list[EvaluationCase],
         batch_size: int = 5,
     ) -> ModelEvaluationReport:
         """Evaluate a model on a set of test cases.
@@ -114,11 +119,10 @@ class LLMEvaluator:
         # Evaluate in batches to control concurrency
         results = []
         for i in range(0, len(cases), batch_size):
-            batch_cases = cases[i:i + batch_size]
-            batch_results = await asyncio.gather(*[
-                self._evaluate_single_case(model_fn, case)
-                for case in batch_cases
-            ])
+            batch_cases = cases[i : i + batch_size]
+            batch_results = await asyncio.gather(
+                *[self._evaluate_single_case(model_fn, case) for case in batch_cases]
+            )
             results.extend(batch_results)
 
         # Generate report
@@ -127,9 +131,7 @@ class LLMEvaluator:
         return report
 
     async def _evaluate_single_case(
-        self,
-        model_fn: Callable[[str], Awaitable[str]],
-        case: EvaluationCase
+        self, model_fn: Callable[[str], Awaitable[str]], case: EvaluationCase
     ) -> EvaluationResult:
         """Evaluate a single test case."""
         start_time = time.perf_counter()
@@ -158,7 +160,7 @@ class LLMEvaluator:
             metrics=metrics,
         )
 
-    async def _compute_metrics(self, case: EvaluationCase, output: str) -> Dict[str, float]:
+    async def _compute_metrics(self, case: EvaluationCase, output: str) -> dict[str, float]:
         """Compute all evaluation metrics."""
         metrics = {}
 
@@ -217,13 +219,18 @@ class LLMEvaluator:
 
         # Additional checks for hallucination indicators
         hallucination_indicators = [
-            "i'm not sure", "i don't know", "let me think",
-            "as far as i know", "i believe", "i think"
+            "i'm not sure",
+            "i don't know",
+            "let me think",
+            "as far as i know",
+            "i believe",
+            "i think",
         ]
 
         lowered_output = output.lower()
-        uncertainty_score = sum(1 for indicator in hallucination_indicators
-                              if indicator in lowered_output) / len(hallucination_indicators)
+        uncertainty_score = sum(
+            1 for indicator in hallucination_indicators if indicator in lowered_output
+        ) / len(hallucination_indicators)
 
         # Combine correctness and uncertainty
         return min(1.0, (1.0 - correctness) + uncertainty_score * 0.3)
@@ -249,7 +256,7 @@ class LLMEvaluator:
         score = 0.0
 
         # Check for complete sentences
-        sentences = [s.strip() for s in output.split('.') if s.strip()]
+        sentences = [s.strip() for s in output.split(".") if s.strip()]
         if sentences:
             complete_sentences = sum(1 for s in sentences if len(s) > 5)
             score += (complete_sentences / len(sentences)) * 0.4
@@ -262,7 +269,7 @@ class LLMEvaluator:
             score += 0.2  # Penalize overly long responses
 
         # Check for punctuation variety
-        punctuation = sum(1 for char in output if char in '.,!?;:')
+        punctuation = sum(1 for char in output if char in ".,!?;:")
         if punctuation > 0:
             score += 0.3
 
@@ -298,7 +305,9 @@ class LLMEvaluator:
             logger.error(f"Groundedness computation failed: {e}")
             return 0.5
 
-    def _generate_report(self, model_name: str, results: List[EvaluationResult]) -> ModelEvaluationReport:
+    def _generate_report(
+        self, model_name: str, results: list[EvaluationResult]
+    ) -> ModelEvaluationReport:
         """Generate comprehensive evaluation report."""
         if not results:
             return ModelEvaluationReport(
@@ -359,9 +368,9 @@ class LLMEvaluator:
 
     async def compare_models(
         self,
-        models: Dict[str, Callable[[str], Awaitable[str]]],
-        cases: List[EvaluationCase],
-    ) -> Dict[str, ModelEvaluationReport]:
+        models: dict[str, Callable[[str], Awaitable[str]]],
+        cases: list[EvaluationCase],
+    ) -> dict[str, ModelEvaluationReport]:
         """Compare multiple models on the same test cases."""
         logger.info(f"Comparing {len(models)} models on {len(cases)} cases")
 
@@ -410,10 +419,10 @@ class LLMEvaluator:
                     "metrics": r.metrics,
                 }
                 for r in report.results
-            ]
+            ],
         }
 
-        with open(path, 'w') as f:
+        with open(path, "w") as f:
             json.dump(report_dict, f, indent=2)
 
         logger.info(f"Report saved to {path}")
@@ -422,7 +431,7 @@ class LLMEvaluator:
         """Load evaluation report from JSON file."""
         path = Path(file_path)
 
-        with open(path, 'r') as f:
+        with open(path) as f:
             data = json.load(f)
 
         # Reconstruct dataclasses
@@ -460,7 +469,7 @@ class LLMEvaluator:
 
 
 # Backward compatibility
-async def evaluate(model_fn: Callable[[str], str], cases: List[EvaluationCase]) -> Dict[str, Any]:
+async def evaluate(model_fn: Callable[[str], str], cases: list[EvaluationCase]) -> dict[str, Any]:
     """Backward compatibility function."""
     evaluator = LLMEvaluator()
     report = await evaluator.evaluate_model(model_fn, "model", cases)

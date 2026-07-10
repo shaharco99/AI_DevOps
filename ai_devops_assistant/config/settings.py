@@ -1,7 +1,6 @@
 """Application settings and configuration management."""
 
 import logging
-from typing import Optional
 
 from pydantic_settings import BaseSettings
 
@@ -19,7 +18,14 @@ class Settings(BaseSettings):
     API_LOG_LEVEL: str = "INFO"
     API_ENVIRONMENT: str = "development"
     SECRET_KEY: str = "your-secret-key-change-this-in-production"
-    ALLOWED_HOSTS: list[str] = ["localhost", "127.0.0.1"]
+    # "*" keeps K8s probes (which use the pod IP as Host) working; restrict in production
+    ALLOWED_HOSTS: list[str] = ["*"]
+    # Empty API_KEY disables auth (local demo); set it to require X-API-Key on API routes
+    API_KEY: str | None = None
+    CORS_ORIGINS: list[str] = []
+    RATE_LIMIT_ENABLED: bool = True
+    RATE_LIMIT_CHAT: str = "30/minute"
+    RATE_LIMIT_SQL: str = "60/minute"
 
     # ========================================================================
     # Database Settings
@@ -27,6 +33,8 @@ class Settings(BaseSettings):
     DATABASE_URL: str = "postgresql+asyncpg://devops_user:devops_password@localhost:5432/devops"
     DATABASE_POOL_SIZE: int = 20
     DATABASE_MAX_OVERFLOW: int = 40
+    DATABASE_POOL_TIMEOUT: int = 30
+    DATABASE_POOL_RECYCLE: int = 1800
     DATABASE_ECHO: bool = False
     DATABASE_SSL_MODE: str = "disable"
 
@@ -40,13 +48,13 @@ class Settings(BaseSettings):
     LLM_TIMEOUT: int = 60
     LLM_PROVIDER: str = "ollama"
     LLM_FALLBACK_MODELS: str = "mistral,llama3"
-    OPENAI_API_KEY: Optional[str] = None
+    OPENAI_API_KEY: str | None = None
     OPENAI_BASE_URL: str = "https://api.openai.com/v1"
-    ANTHROPIC_API_KEY: Optional[str] = None
+    ANTHROPIC_API_KEY: str | None = None
     ANTHROPIC_MODEL: str = "claude-opus-4-8"
     # Claude output cap includes thinking tokens; keep generous headroom
     ANTHROPIC_MAX_TOKENS: int = 16000
-    HUGGINGFACE_API_KEY: Optional[str] = None
+    HUGGINGFACE_API_KEY: str | None = None
 
     # ========================================================================
     # Vector Database Settings
@@ -65,7 +73,7 @@ class Settings(BaseSettings):
     # ========================================================================
     # Kubernetes Settings
     # ========================================================================
-    KUBECONFIG: Optional[str] = None
+    KUBECONFIG: str | None = None
     K8S_NAMESPACE: str = "default"
     K8S_VERIFY_SSL: bool = True
     K8S_TIMEOUT: int = 30
@@ -81,14 +89,14 @@ class Settings(BaseSettings):
     # ========================================================================
     # Azure DevOps
     AZURE_DEVOPS_URL: str = "https://dev.azure.com"
-    AZURE_DEVOPS_ORG: Optional[str] = None
-    AZURE_DEVOPS_PROJECT: Optional[str] = None
+    AZURE_DEVOPS_ORG: str | None = None
+    AZURE_DEVOPS_PROJECT: str | None = None
     # Jenkins
     JENKINS_URL: str = "http://localhost:8080"
-    JENKINS_USER: Optional[str] = None
+    JENKINS_USER: str | None = None
     # GitHub Actions
-    GITHUB_OWNER: Optional[str] = None
-    GITHUB_REPO: Optional[str] = None
+    GITHUB_OWNER: str | None = None
+    GITHUB_REPO: str | None = None
 
     # ========================================================================
     # Feature Flags
@@ -112,8 +120,8 @@ class Settings(BaseSettings):
     # AI Observability
     # ========================================================================
     ENABLE_AI_OBSERVABILITY: bool = True
-    LANGFUSE_PUBLIC_KEY: Optional[str] = None
-    LANGFUSE_SECRET_KEY: Optional[str] = None
+    LANGFUSE_PUBLIC_KEY: str | None = None
+    LANGFUSE_SECRET_KEY: str | None = None
     LANGFUSE_HOST: str = "https://cloud.langfuse.com"
 
     class Config:

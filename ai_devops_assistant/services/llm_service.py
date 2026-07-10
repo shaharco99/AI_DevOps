@@ -2,13 +2,36 @@
 
 import json
 import logging
-from typing import Optional
 
 import httpx
+from tenacity import retry, retry_if_exception, stop_after_attempt, wait_exponential
 
 from ai_devops_assistant.config.settings import settings
 
 logger = logging.getLogger(__name__)
+
+
+class LLMServiceError(Exception):
+    """Raised when an LLM backend call fails after retries.
+
+    Lets callers distinguish "backend down/errored" from "model returned
+    an empty answer".
+    """
+
+
+def _is_retryable(exc: BaseException) -> bool:
+    """Retry on transport failures and 5xx responses, not on 4xx."""
+    if isinstance(exc, httpx.TransportError):
+        return True
+    return isinstance(exc, httpx.HTTPStatusError) and exc.response.status_code >= 500
+
+
+llm_retry = retry(
+    reraise=True,
+    stop=stop_after_attempt(3),
+    wait=wait_exponential(multiplier=0.5, max=8),
+    retry=retry_if_exception(_is_retryable),
+)
 
 
 class OllamaService:
@@ -37,6 +60,13 @@ class OllamaService:
         self.max_tokens = max_tokens
         self.timeout = timeout
         self.client = httpx.AsyncClient(timeout=timeout)
+
+    @llm_retry
+    async def _post(self, path: str, payload: dict) -> httpx.Response:
+        """POST with retry on transient failures (transport errors, 5xx)."""
+        response = await self.client.post(f"{self.base_url}{path}", json=payload)
+        response.raise_for_status()
+        return response
 
     async def health_check(self) -> bool:
         """Check if Ollama is healthy.
@@ -96,7 +126,7 @@ class OllamaService:
     async def generate(
         self,
         prompt: str,
-        system: Optional[str] = None,
+        system: str | None = None,
     ) -> str:
         """Generate text from prompt.
 
@@ -106,35 +136,29 @@ class OllamaService:
 
         Returns:
             str: Generated text
+
+        Raises:
+            LLMServiceError: If the backend fails after retries
         """
+        payload = {
+            "model": self.model,
+            "prompt": prompt,
+            "temperature": self.temperature,
+            "stream": False,
+        }
+
+        if system:
+            payload["system"] = system
+
         try:
-            payload = {
-                "model": self.model,
-                "prompt": prompt,
-                "temperature": self.temperature,
-                "stream": False,
-            }
-
-            if system:
-                payload["system"] = system
-
-            response = await self.client.post(
-                f"{self.base_url}/api/generate",
-                json=payload,
-            )
-
-            if response.status_code == 200:
-                data = response.json()
-                generated_text = data.get("response", "")
-                logger.debug(f"Generated {len(generated_text)} characters")
-                return generated_text
-            else:
-                logger.error(f"Generation failed: {response.status_code}")
-                return ""
-
+            response = await self._post("/api/generate", payload)
         except Exception as e:
             logger.error(f"Generation error: {e}")
-            return ""
+            raise LLMServiceError(f"Ollama generate failed: {e}") from e
+
+        generated_text = response.json().get("response", "")
+        logger.debug(f"Generated {len(generated_text)} characters")
+        return generated_text
 
     async def chat(
         self,
@@ -147,36 +171,29 @@ class OllamaService:
 
         Returns:
             str: Assistant response
+
+        Raises:
+            LLMServiceError: If the backend fails after retries
         """
+        payload = {
+            "model": self.model,
+            "messages": messages,
+            "temperature": self.temperature,
+            "stream": False,
+        }
+
         try:
-            payload = {
-                "model": self.model,
-                "messages": messages,
-                "temperature": self.temperature,
-                "stream": False,
-            }
-
-            response = await self.client.post(
-                f"{self.base_url}/api/chat",
-                json=payload,
-            )
-
-            if response.status_code == 200:
-                data = response.json()
-                assistant_message = data.get("message", {}).get("content", "")
-                return assistant_message
-            else:
-                logger.error(f"Chat failed: {response.status_code}")
-                return ""
-
+            response = await self._post("/api/chat", payload)
         except Exception as e:
             logger.error(f"Chat error: {e}")
-            return ""
+            raise LLMServiceError(f"Ollama chat failed: {e}") from e
+
+        return response.json().get("message", {}).get("content", "")
 
     async def stream_generate(
         self,
         prompt: str,
-        system: Optional[str] = None,
+        system: str | None = None,
     ):
         """Generate text with streaming.
 
@@ -219,8 +236,8 @@ class OllamaService:
     async def embeddings(
         self,
         text: str,
-        model: Optional[str] = None,
-    ) -> Optional[list[float]]:
+        model: str | None = None,
+    ) -> list[float] | None:
         """Generate embeddings for text.
 
         Args:
@@ -264,7 +281,7 @@ class OllamaService:
 
 
 # Global service instance
-_ollama_service: Optional[OllamaService] = None
+_ollama_service: OllamaService | None = None
 
 
 async def get_ollama_service() -> OllamaService:

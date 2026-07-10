@@ -1,0 +1,8 @@
+# Development overrides: copy to docker-compose.override.yml (gitignored) to
+# get hot-reload of local source inside the backend container.
+services:
+  backend:
+    volumes:
+      - ./ai_devops_assistant:/app/ai_devops_assistant
+      - chroma_data:/data/chroma
+    command: uvicorn ai_devops_assistant.main:app --host 0.0.0.0 --port 8000 --reload

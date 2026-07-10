@@ -38,6 +38,7 @@ jobs:
           type=raw,value=latest
 
     - name: Build and push Docker image
+      id: push
       uses: docker/build-push-action@v5
       with:
         context: .
@@ -72,13 +73,14 @@ jobs:
 
     - name: Package Helm chart
       run: |
-        cd infra/kubernetes
+        cd infra/kubernetes/helm
+        helm dependency build
         helm package .
         echo "Chart packaged successfully"
 
     - name: Create GitHub release assets
       uses: softprops/action-gh-release@v1
       with:
-        files: infra/kubernetes/*.tgz
+        files: infra/kubernetes/helm/*.tgz
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

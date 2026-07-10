@@ -24,6 +24,10 @@ if url.drivername.startswith("sqlite"):
 else:
     engine_kwargs["pool_size"] = settings.DATABASE_POOL_SIZE
     engine_kwargs["max_overflow"] = settings.DATABASE_MAX_OVERFLOW
+    engine_kwargs["pool_timeout"] = settings.DATABASE_POOL_TIMEOUT
+    # Detect stale/killed connections and recycle before typical idle-timeout cutoffs
+    engine_kwargs["pool_pre_ping"] = True
+    engine_kwargs["pool_recycle"] = settings.DATABASE_POOL_RECYCLE
 
 # Create async engine
 engine = create_async_engine(database_url, **engine_kwargs)

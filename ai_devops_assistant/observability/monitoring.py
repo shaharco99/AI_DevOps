@@ -6,7 +6,7 @@ import logging
 import threading
 import time
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 from ai_devops_assistant.observability.ai_observability import observability_manager
 
@@ -49,7 +49,7 @@ class PrometheusExporter:
                 url,
                 data=metrics_text,
                 headers={"Content-Type": "text/plain; charset=utf-8"},
-                timeout=10
+                timeout=10,
             )
 
             if response.status_code == 200:
@@ -65,6 +65,7 @@ class PrometheusExporter:
 
     def start_push_loop(self, job_name: str = "ai-devops-assistant") -> None:
         """Start background thread to periodically push metrics."""
+
         def push_loop():
             while True:
                 asyncio.run(self.push_metrics(job_name))
@@ -81,7 +82,7 @@ class GrafanaDashboardGenerator:
     def __init__(self):
         self.template_dir = Path(__file__).parent / "grafana_templates"
 
-    def generate_ai_observability_dashboard(self) -> Dict[str, Any]:
+    def generate_ai_observability_dashboard(self) -> dict[str, Any]:
         """Generate a comprehensive AI observability dashboard."""
         return {
             "dashboard": {
@@ -89,10 +90,7 @@ class GrafanaDashboardGenerator:
                 "tags": ["ai", "devops", "observability"],
                 "timezone": "browser",
                 "panels": self._generate_panels(),
-                "time": {
-                    "from": "now-1h",
-                    "to": "now"
-                },
+                "time": {"from": "now-1h", "to": "now"},
                 "timepicker": {},
                 "templating": {
                     "list": [
@@ -102,21 +100,19 @@ class GrafanaDashboardGenerator:
                             "query": "label_values(ai_llm_latency_ms_avg, model)",
                             "label": "Model",
                             "multi": True,
-                            "includeAll": True
+                            "includeAll": True,
                         }
                     ]
                 },
-                "annotations": {
-                    "list": []
-                },
+                "annotations": {"list": []},
                 "refresh": "30s",
                 "schemaVersion": 27,
                 "version": 0,
-                "links": []
+                "links": [],
             }
         }
 
-    def _generate_panels(self) -> List[Dict[str, Any]]:
+    def _generate_panels(self) -> list[dict[str, Any]]:
         """Generate dashboard panels."""
         panels = []
 
@@ -134,17 +130,14 @@ class GrafanaDashboardGenerator:
 
         return panels
 
-    def _create_overview_panels(self) -> List[Dict[str, Any]]:
+    def _create_overview_panels(self) -> list[dict[str, Any]]:
         """Create overview panels."""
         return [
             {
                 "id": 1,
                 "title": "Total LLM Requests",
                 "type": "stat",
-                "targets": [{
-                    "expr": "ai_llm_requests_total",
-                    "refId": "A"
-                }],
+                "targets": [{"expr": "ai_llm_requests_total", "refId": "A"}],
                 "fieldConfig": {
                     "defaults": {
                         "mappings": [],
@@ -152,21 +145,18 @@ class GrafanaDashboardGenerator:
                             "mode": "absolute",
                             "steps": [
                                 {"color": "green", "value": None},
-                                {"color": "red", "value": 80}
-                            ]
-                        }
+                                {"color": "red", "value": 80},
+                            ],
+                        },
                     }
                 },
-                "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0}
+                "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
             },
             {
                 "id": 2,
                 "title": "Current Error Rate",
                 "type": "stat",
-                "targets": [{
-                    "expr": "ai_llm_error_rate",
-                    "refId": "A"
-                }],
+                "targets": [{"expr": "ai_llm_error_rate", "refId": "A"}],
                 "fieldConfig": {
                     "defaults": {
                         "mappings": [],
@@ -175,28 +165,26 @@ class GrafanaDashboardGenerator:
                             "steps": [
                                 {"color": "green", "value": None},
                                 {"color": "orange", "value": 0.05},
-                                {"color": "red", "value": 0.1}
-                            ]
+                                {"color": "red", "value": 0.1},
+                            ],
                         },
-                        "unit": "percentunit"
+                        "unit": "percentunit",
                     }
                 },
-                "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0}
-            }
+                "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+            },
         ]
 
-    def _create_performance_panels(self) -> List[Dict[str, Any]]:
+    def _create_performance_panels(self) -> list[dict[str, Any]]:
         """Create performance panels."""
         return [
             {
                 "id": 3,
                 "title": "Average Latency by Model",
                 "type": "bargauge",
-                "targets": [{
-                    "expr": "ai_llm_latency_ms_avg",
-                    "refId": "A",
-                    "legendFormat": "{{model}}"
-                }],
+                "targets": [
+                    {"expr": "ai_llm_latency_ms_avg", "refId": "A", "legendFormat": "{{model}}"}
+                ],
                 "fieldConfig": {
                     "defaults": {
                         "mappings": [],
@@ -205,85 +193,77 @@ class GrafanaDashboardGenerator:
                             "steps": [
                                 {"color": "green", "value": None},
                                 {"color": "orange", "value": 1000},
-                                {"color": "red", "value": 5000}
-                            ]
+                                {"color": "red", "value": 5000},
+                            ],
                         },
-                        "unit": "ms"
+                        "unit": "ms",
                     }
                 },
-                "gridPos": {"h": 8, "w": 24, "x": 0, "y": 8}
+                "gridPos": {"h": 8, "w": 24, "x": 0, "y": 8},
             },
             {
                 "id": 4,
                 "title": "Latency Over Time",
                 "type": "graph",
-                "targets": [{
-                    "expr": "rate(ai_llm_latency_ms_avg[5m])",
-                    "refId": "A",
-                    "legendFormat": "{{model}}"
-                }],
-                "gridPos": {"h": 8, "w": 24, "x": 0, "y": 16}
-            }
+                "targets": [
+                    {
+                        "expr": "rate(ai_llm_latency_ms_avg[5m])",
+                        "refId": "A",
+                        "legendFormat": "{{model}}",
+                    }
+                ],
+                "gridPos": {"h": 8, "w": 24, "x": 0, "y": 16},
+            },
         ]
 
-    def _create_error_panels(self) -> List[Dict[str, Any]]:
+    def _create_error_panels(self) -> list[dict[str, Any]]:
         """Create error monitoring panels."""
         return [
             {
                 "id": 5,
                 "title": "Error Rate Over Time",
                 "type": "graph",
-                "targets": [{
-                    "expr": "ai_llm_error_rate",
-                    "refId": "A"
-                }],
-                "fieldConfig": {
-                    "defaults": {
-                        "unit": "percentunit"
-                    }
-                },
-                "gridPos": {"h": 8, "w": 12, "x": 0, "y": 24}
+                "targets": [{"expr": "ai_llm_error_rate", "refId": "A"}],
+                "fieldConfig": {"defaults": {"unit": "percentunit"}},
+                "gridPos": {"h": 8, "w": 12, "x": 0, "y": 24},
             },
             {
                 "id": 6,
                 "title": "Errors by Model",
                 "type": "table",
-                "targets": [{
-                    "expr": "sum by (model) (increase(ai_llm_errors_total[1h]))",
-                    "refId": "A",
-                    "format": "table"
-                }],
-                "gridPos": {"h": 8, "w": 12, "x": 12, "y": 24}
-            }
+                "targets": [
+                    {
+                        "expr": "sum by (model) (increase(ai_llm_errors_total[1h]))",
+                        "refId": "A",
+                        "format": "table",
+                    }
+                ],
+                "gridPos": {"h": 8, "w": 12, "x": 12, "y": 24},
+            },
         ]
 
-    def _create_token_panels(self) -> List[Dict[str, Any]]:
+    def _create_token_panels(self) -> list[dict[str, Any]]:
         """Create token usage panels."""
         return [
             {
                 "id": 7,
                 "title": "Total Tokens Used",
                 "type": "stat",
-                "targets": [{
-                    "expr": "ai_llm_tokens_total",
-                    "refId": "A"
-                }],
-                "gridPos": {"h": 8, "w": 12, "x": 0, "y": 32}
+                "targets": [{"expr": "ai_llm_tokens_total", "refId": "A"}],
+                "gridPos": {"h": 8, "w": 12, "x": 0, "y": 32},
             },
             {
                 "id": 8,
                 "title": "Average Tokens per Request",
                 "type": "bargauge",
-                "targets": [{
-                    "expr": "ai_llm_tokens_avg",
-                    "refId": "A",
-                    "legendFormat": "{{model}}"
-                }],
-                "gridPos": {"h": 8, "w": 12, "x": 12, "y": 32}
-            }
+                "targets": [
+                    {"expr": "ai_llm_tokens_avg", "refId": "A", "legendFormat": "{{model}}"}
+                ],
+                "gridPos": {"h": 8, "w": 12, "x": 12, "y": 32},
+            },
         ]
 
-    def save_dashboard(self, filename: str, dashboard: Optional[Dict[str, Any]] = None) -> None:
+    def save_dashboard(self, filename: str, dashboard: Optional[dict[str, Any]] = None) -> None:
         """Save dashboard to JSON file."""
         if dashboard is None:
             dashboard = self.generate_ai_observability_dashboard()
@@ -291,7 +271,7 @@ class GrafanaDashboardGenerator:
         output_path = Path(filename)
         output_path.parent.mkdir(parents=True, exist_ok=True)
 
-        with open(output_path, 'w') as f:
+        with open(output_path, "w") as f:
             json.dump(dashboard, f, indent=2)
 
         logger.info(f"Grafana dashboard saved to {output_path}")
@@ -303,7 +283,7 @@ class HealthCheckEndpoint:
     def __init__(self):
         self.start_time = time.time()
 
-    def get_health(self) -> Dict[str, Any]:
+    def get_health(self) -> dict[str, Any]:
         """Get comprehensive health status."""
         health_status = observability_manager.get_health_status()
 
@@ -315,7 +295,7 @@ class HealthCheckEndpoint:
             "observability": health_status,
         }
 
-    def get_liveness(self) -> Dict[str, Any]:
+    def get_liveness(self) -> dict[str, Any]:
         """Kubernetes liveness probe endpoint."""
         # Simple liveness check - if we can respond, we're alive
         return {
@@ -323,7 +303,7 @@ class HealthCheckEndpoint:
             "timestamp": time.time(),
         }
 
-    def get_readiness(self) -> Dict[str, Any]:
+    def get_readiness(self) -> dict[str, Any]:
         """Kubernetes readiness probe endpoint."""
         health = self.get_health()
 
@@ -366,15 +346,15 @@ class MonitoringIntegration:
         """Get current Prometheus metrics."""
         return self.prometheus_exporter.get_metrics_text()
 
-    def get_health_status(self) -> Dict[str, Any]:
+    def get_health_status(self) -> dict[str, Any]:
         """Get health check status."""
         return self.health_check.get_health()
 
-    def get_liveness_status(self) -> Dict[str, Any]:
+    def get_liveness_status(self) -> dict[str, Any]:
         """Get liveness probe status."""
         return self.health_check.get_liveness()
 
-    def get_readiness_status(self) -> Dict[str, Any]:
+    def get_readiness_status(self) -> dict[str, Any]:
         """Get readiness probe status."""
         return self.health_check.get_readiness()
 
@@ -393,8 +373,7 @@ def setup_monitoring_from_env() -> None:
 
     global monitoring_integration
     monitoring_integration = MonitoringIntegration(
-        prometheus_pushgateway_url=pushgateway_url,
-        enable_push_loop=enable_push
+        prometheus_pushgateway_url=pushgateway_url, enable_push_loop=enable_push
     )
 
     if pushgateway_url:

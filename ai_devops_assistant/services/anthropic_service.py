@@ -5,13 +5,29 @@ agent can switch providers via settings.LLM_PROVIDER without code changes.
 """
 
 import logging
-from typing import Optional
 
 import anthropic
+from tenacity import retry, retry_if_exception, stop_after_attempt, wait_exponential
 
 from ai_devops_assistant.config.settings import settings
+from ai_devops_assistant.services.llm_service import LLMServiceError
 
 logger = logging.getLogger(__name__)
+
+
+def _is_retryable(exc: BaseException) -> bool:
+    """Retry on rate limits, connection errors, and 5xx — not on auth/4xx."""
+    if isinstance(exc, (anthropic.RateLimitError, anthropic.APIConnectionError)):
+        return True
+    return isinstance(exc, anthropic.APIStatusError) and exc.status_code >= 500
+
+
+anthropic_retry = retry(
+    reraise=True,
+    stop=stop_after_attempt(3),
+    wait=wait_exponential(multiplier=1, max=15),
+    retry=retry_if_exception(_is_retryable),
+)
 
 
 class AnthropicService:
@@ -19,7 +35,7 @@ class AnthropicService:
 
     def __init__(
         self,
-        api_key: Optional[str] = None,
+        api_key: str | None = None,
         model: str = settings.ANTHROPIC_MODEL,
         max_tokens: int = settings.ANTHROPIC_MAX_TOKENS,
         timeout: int = settings.LLM_TIMEOUT,
@@ -61,7 +77,10 @@ class AnthropicService:
                 'system' role messages are lifted into the top-level system prompt.
 
         Returns:
-            str: Assistant response text ("" on failure, matching OllamaService)
+            str: Assistant response text
+
+        Raises:
+            LLMServiceError: If the API fails after retries
         """
         system_parts = [m["content"] for m in messages if m.get("role") == "system"]
         chat_messages = [m for m in messages if m.get("role") != "system"]
@@ -69,31 +88,27 @@ class AnthropicService:
             chat_messages = [{"role": "user", "content": " "}]
 
         try:
-            response = await self.client.messages.create(
-                model=self.model,
-                max_tokens=self.max_tokens,
-                system="\n\n".join(system_parts) or anthropic.NOT_GIVEN,
-                messages=chat_messages,
-                thinking={"type": "adaptive"},
-            )
-            if response.stop_reason == "refusal":
-                logger.warning("Anthropic request was refused by safety classifiers")
-                return ""
-            return "".join(block.text for block in response.content if block.type == "text")
-        except anthropic.RateLimitError as e:
-            logger.error(f"Anthropic rate limited: {e}")
-            return ""
-        except anthropic.APIStatusError as e:
-            logger.error(f"Anthropic API error {e.status_code}: {e.message}")
-            return ""
-        except anthropic.APIConnectionError as e:
-            logger.error(f"Anthropic connection error: {e}")
-            return ""
+            response = await self._create_message(system_parts, chat_messages)
         except Exception as e:
             logger.error(f"Anthropic chat error: {e}")
-            return ""
+            raise LLMServiceError(f"Anthropic chat failed: {e}") from e
 
-    async def generate(self, prompt: str, system: Optional[str] = None) -> str:
+        if response.stop_reason == "refusal":
+            logger.warning("Anthropic request was refused by safety classifiers")
+            return ""
+        return "".join(block.text for block in response.content if block.type == "text")
+
+    @anthropic_retry
+    async def _create_message(self, system_parts: list[str], chat_messages: list[dict[str, str]]):
+        return await self.client.messages.create(
+            model=self.model,
+            max_tokens=self.max_tokens,
+            system="\n\n".join(system_parts) or anthropic.NOT_GIVEN,
+            messages=chat_messages,
+            thinking={"type": "adaptive"},
+        )
+
+    async def generate(self, prompt: str, system: str | None = None) -> str:
         """Generate text from a plain prompt (OllamaService-compatible)."""
         messages: list[dict[str, str]] = []
         if system:

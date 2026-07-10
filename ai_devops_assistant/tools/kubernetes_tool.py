@@ -106,9 +106,9 @@ class KubernetesTool(BaseTool):
                     {
                         "name": pod.metadata.name,
                         "status": pod.status.phase,
-                        "ready": pod.status.conditions[-1].status
-                        if pod.status.conditions
-                        else "Unknown",
+                        "ready": (
+                            pod.status.conditions[-1].status if pod.status.conditions else "Unknown"
+                        ),
                         "restarts": sum(
                             c.restart_count for c in pod.status.container_statuses or []
                         ),
@@ -146,9 +146,11 @@ class KubernetesTool(BaseTool):
                         {
                             "name": c.name,
                             "image": c.image,
-                            "ready": pod.status.container_statuses[i].ready
-                            if pod.status.container_statuses
-                            else False,
+                            "ready": (
+                                pod.status.container_statuses[i].ready
+                                if pod.status.container_statuses
+                                else False
+                            ),
                         }
                         for i, c in enumerate(pod.spec.containers)
                     ],

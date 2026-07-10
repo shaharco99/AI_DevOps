@@ -50,7 +50,7 @@ mypy ai_devops_assistant --ignore-missing-imports --no-strict-optional
 pre-commit run --all-files                         # runs the whole gate, auto-fixes most issues
 ```
 
-Line length is 100 (black + ruff). CI (`.github/workflows/ci-cd.yml`) also runs pylint (errors only, `--fail-under=9.0`), bandit, semgrep, Trivy, pip-audit, markdownlint, and codespell.
+Line length is 100 (Black + Ruff). CI (`.github/workflows/ci-cd.yml`) also runs Pylint (errors only, `--fail-under=9.0`), bandit, semgrep, Trivy, pip-audit, markdownlint, and codespell.
 
 ## Architecture
 
@@ -73,7 +73,7 @@ The SQL tool is deliberately restricted: SELECT-only plus injection-pattern bloc
 ### LLM layer
 
 - `services/llm_service.py` — Ollama client (default model `llama3`), used by the agent.
-- `services/multi_llm.py` — provider abstraction (ollama/openai/anthropic) with fallback chains; `services/model_registry.py` — HuggingFace/Ollama model discovery. These are used by the CLI and benchmarking, not the chat path.
+- `services/multi_llm.py` — provider abstraction (Ollama/OpenAI/Anthropic) with fallback chains; `services/model_registry.py` — HuggingFace/Ollama model discovery. These are used by the CLI and benchmarking, not the chat path.
 - Prompts live under `prompts/` and are versioned/rendered via `agents/prompt_manager.py` (Jinja2); the agent's system prompt is in `agents/prompts.py`.
 
 ### Configuration

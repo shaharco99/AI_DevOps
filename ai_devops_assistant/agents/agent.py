@@ -7,16 +7,14 @@ import re
 import uuid
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Optional
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ai_devops_assistant.agents.memory import ConversationMemory, get_session_manager
 from ai_devops_assistant.agents.prompts import SYSTEM_PROMPT
 from ai_devops_assistant.config.settings import settings
-from ai_devops_assistant.observability.ai_observability import (
-    observability_manager, trace_context
-)
+from ai_devops_assistant.observability.ai_observability import observability_manager, trace_context
 from ai_devops_assistant.services.llm_service import get_llm_service
 from ai_devops_assistant.tools.tool_executor import get_tool_executor
 
@@ -25,6 +23,7 @@ logger = logging.getLogger(__name__)
 
 class AgentRole(Enum):
     """Agent specialization roles."""
+
     GENERAL = "general"
     DEVOPS = "devops"
     SECURITY = "security"
@@ -35,6 +34,7 @@ class AgentRole(Enum):
 
 class AgentCapability(Enum):
     """Agent capabilities."""
+
     TOOL_USE = "tool_use"
     RAG_RETRIEVAL = "rag_retrieval"
     CODE_GENERATION = "code_generation"
@@ -46,17 +46,20 @@ class AgentCapability(Enum):
 @dataclass
 class AgentConfig:
     """Configuration for an AI agent."""
+
     role: AgentRole = AgentRole.GENERAL
-    capabilities: List[AgentCapability] = field(default_factory=lambda: [
-        AgentCapability.TOOL_USE,
-        AgentCapability.RAG_RETRIEVAL,
-        AgentCapability.PLANNING,
-    ])
+    capabilities: list[AgentCapability] = field(
+        default_factory=lambda: [
+            AgentCapability.TOOL_USE,
+            AgentCapability.RAG_RETRIEVAL,
+            AgentCapability.PLANNING,
+        ]
+    )
     model_name: str = "llama3"
     temperature: float = 0.7
     max_tokens: int = 2048
     system_prompt: Optional[str] = None
-    tool_allowlist: Optional[List[str]] = None
+    tool_allowlist: Optional[list[str]] = None
     max_tool_iterations: int = 5
     enable_planning: bool = True
     enable_reflection: bool = True
@@ -65,12 +68,13 @@ class AgentConfig:
 @dataclass
 class AgentTask:
     """Represents a task for an agent to execute."""
+
     description: str
     id: str = field(default_factory=lambda: str(uuid.uuid4()))
     priority: int = 1
-    requires_tools: List[str] = field(default_factory=list)
-    context: Dict[str, Any] = field(default_factory=dict)
-    dependencies: List[str] = field(default_factory=list)
+    requires_tools: list[str] = field(default_factory=list)
+    context: dict[str, Any] = field(default_factory=dict)
+    dependencies: list[str] = field(default_factory=list)
     status: str = "pending"
     result: Optional[Any] = None
     error: Optional[str] = None
@@ -79,24 +83,25 @@ class AgentTask:
 @dataclass
 class AgentResponse:
     """Response from an agent execution."""
+
     content: str
-    tool_calls: List[Dict[str, Any]] = field(default_factory=list)
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    tool_calls: list[dict[str, Any]] = field(default_factory=list)
+    metadata: dict[str, Any] = field(default_factory=dict)
     confidence_score: float = 0.0
-    reasoning_steps: List[str] = field(default_factory=list)
+    reasoning_steps: list[str] = field(default_factory=list)
 
 
 class ToolCall:
     """Represents a tool call made by an agent."""
 
-    def __init__(self, tool_name: str, parameters: Dict[str, Any]):
+    def __init__(self, tool_name: str, parameters: dict[str, Any]):
         self.tool_name = tool_name
         self.parameters = parameters
         self.result: Optional[Any] = None
         self.error: Optional[str] = None
         self.execution_time: Optional[float] = None
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "tool_name": self.tool_name,
             "parameters": self.parameters,
@@ -110,9 +115,7 @@ class DevOpsAgent:
     """Advanced AI DevOps Agent with tool use and multi-agent capabilities."""
 
     def __init__(
-        self,
-        config: Optional[AgentConfig] = None,
-        session: Optional[AsyncSession] = None
+        self, config: Optional[AgentConfig] = None, session: Optional[AsyncSession] = None
     ):
         """Initialize agent.
 
@@ -130,7 +133,7 @@ class DevOpsAgent:
 
         # Agent state
         self.current_task: Optional[AgentTask] = None
-        self.execution_history: List[Dict[str, Any]] = []
+        self.execution_history: list[dict[str, Any]] = []
 
     async def initialize(self) -> None:
         """Initialize agent components."""
@@ -143,6 +146,7 @@ class DevOpsAgent:
             if AgentCapability.RAG_RETRIEVAL in self.config.capabilities:
                 try:
                     from ai_devops_assistant.rag.pipeline import RAGPipeline
+
                     self.rag_pipeline = RAGPipeline()
                     await self.rag_pipeline.initialize()
                 except Exception as e:
@@ -153,12 +157,8 @@ class DevOpsAgent:
             raise
 
     async def chat(
-        self,
-        message: str,
-        session_id: Optional[str] = None,
-        use_rag: bool = True,
-        **kwargs
-    ) -> Dict[str, Any]:
+        self, message: str, session_id: Optional[str] = None, use_rag: bool = True, **kwargs
+    ) -> dict[str, Any]:
         """Process user message and generate response with advanced agent capabilities.
 
         Args:
@@ -174,7 +174,9 @@ class DevOpsAgent:
             try:
                 # Initialize conversation memory if needed
                 if session_id and not self.conversation_memory:
-                    self.conversation_memory = self.session_manager.get_or_create_session(session_id)
+                    self.conversation_memory = self.session_manager.get_or_create_session(
+                        session_id
+                    )
 
                 # Create task for this interaction
                 task = AgentTask(description=message, context={"session_id": session_id})
@@ -188,13 +190,15 @@ class DevOpsAgent:
                     self.conversation_memory.add_message("assistant", response.content)
 
                 # Record execution
-                self.execution_history.append({
-                    "timestamp": asyncio.get_event_loop().time(),
-                    "task": task.description,
-                    "response": response.content,
-                    "tool_calls": len(response.tool_calls),
-                    "confidence": response.confidence_score,
-                })
+                self.execution_history.append(
+                    {
+                        "timestamp": asyncio.get_event_loop().time(),
+                        "task": task.description,
+                        "response": response.content,
+                        "tool_calls": len(response.tool_calls),
+                        "confidence": response.confidence_score,
+                    }
+                )
 
                 return {
                     "success": True,
@@ -204,9 +208,7 @@ class DevOpsAgent:
                         {"name": call.tool_name, "parameters": call.parameters}
                         for call in response.tool_calls
                     ],
-                    "tool_results": {
-                        call.tool_name: call.result for call in response.tool_calls
-                    },
+                    "tool_results": {call.tool_name: call.result for call in response.tool_calls},
                     "thinking": "\n".join(response.reasoning_steps) or None,
                     "metadata": response.metadata,
                     "confidence_score": response.confidence_score,
@@ -244,7 +246,9 @@ class DevOpsAgent:
                 plan = await self._create_execution_plan(task, context)
                 reasoning_steps.append(f"Created execution plan with {len(plan)} steps")
             else:
-                plan = [{"action": "direct_response", "reasoning": "Simple query - direct response"}]
+                plan = [
+                    {"action": "direct_response", "reasoning": "Simple query - direct response"}
+                ]
 
             # Step 3: Execute plan
             response_content = ""
@@ -306,7 +310,11 @@ class DevOpsAgent:
                     context_parts.append(f"{msg['role']}: {msg['content']}")
 
         # Add RAG context if enabled
-        if use_rag and self.rag_pipeline and AgentCapability.RAG_RETRIEVAL in self.config.capabilities:
+        if (
+            use_rag
+            and self.rag_pipeline
+            and AgentCapability.RAG_RETRIEVAL in self.config.capabilities
+        ):
             try:
                 rag_result = await self.rag_pipeline.query(task.description, top_k=3)
                 if rag_result.documents:
@@ -323,7 +331,7 @@ class DevOpsAgent:
 
         return "\n".join(context_parts)
 
-    async def _create_execution_plan(self, task: AgentTask, context: str) -> List[Dict[str, Any]]:
+    async def _create_execution_plan(self, task: AgentTask, context: str) -> list[dict[str, Any]]:
         """Create an execution plan for the task."""
         planning_prompt = f"""
         Analyze this task and create a step-by-step execution plan.
@@ -347,9 +355,9 @@ class DevOpsAgent:
                 provider=settings.LLM_PROVIDER,
                 model=getattr(self.llm_service, "model", self.config.model_name),
                 prompt=planning_prompt,
-                call_fn=lambda: self.llm_service.chat([
-                    {"role": "user", "content": planning_prompt}
-                ])
+                call_fn=lambda: self.llm_service.chat(
+                    [{"role": "user", "content": planning_prompt}]
+                ),
             )
 
             # Parse JSON response
@@ -378,7 +386,7 @@ class DevOpsAgent:
             logger.warning(f"Planning failed, using simple approach: {e}")
             return [{"action": "direct_response", "reasoning": "Planning failed - direct response"}]
 
-    async def _execute_tool_call(self, step: Dict[str, Any]) -> ToolCall:
+    async def _execute_tool_call(self, step: dict[str, Any]) -> ToolCall:
         """Execute a tool call."""
         tool_name = step.get("tool_name")
         parameters = step.get("parameters", {})
@@ -395,6 +403,7 @@ class DevOpsAgent:
         try:
             # Execute tool
             import time
+
             start_time = time.time()
 
             result = await self.tool_executor.execute_tool(tool_name, **parameters)
@@ -408,7 +417,7 @@ class DevOpsAgent:
 
         return tool_call
 
-    async def _generate_reasoning_step(self, context: str, step: Dict[str, Any]) -> str:
+    async def _generate_reasoning_step(self, context: str, step: dict[str, Any]) -> str:
         """Generate a reasoning step."""
         reasoning_prompt = f"""
         Based on the current context, provide reasoning for the next step.
@@ -424,19 +433,16 @@ class DevOpsAgent:
                 provider=settings.LLM_PROVIDER,
                 model=getattr(self.llm_service, "model", self.config.model_name),
                 prompt=reasoning_prompt,
-                call_fn=lambda: self.llm_service.chat([
-                    {"role": "user", "content": reasoning_prompt}
-                ])
+                call_fn=lambda: self.llm_service.chat(
+                    [{"role": "user", "content": reasoning_prompt}]
+                ),
             )
             return response.strip()
-        except Exception as e:
+        except Exception:
             return f"Reasoning step: {step.get('reasoning', 'Unknown purpose')}"
 
     async def _generate_final_response(
-        self,
-        task: AgentTask,
-        context: str,
-        tool_calls: List[ToolCall]
+        self, task: AgentTask, context: str, tool_calls: list[ToolCall]
     ) -> str:
         """Generate the final response incorporating all context and tool results."""
         # Build comprehensive prompt
@@ -444,10 +450,12 @@ class DevOpsAgent:
 
         tool_results = ""
         if tool_calls:
-            tool_results = "\n".join([
-                f"Tool {call.tool_name}: {call.result if call.result else f'Error: {call.error}'}"
-                for call in tool_calls
-            ])
+            tool_results = "\n".join(
+                [
+                    f"Tool {call.tool_name}: {call.result if call.result else f'Error: {call.error}'}"
+                    for call in tool_calls
+                ]
+            )
 
         full_prompt = f"""
         {system_prompt}
@@ -467,14 +475,14 @@ class DevOpsAgent:
             provider=settings.LLM_PROVIDER,
             model=getattr(self.llm_service, "model", self.config.model_name),
             prompt=full_prompt,
-            call_fn=lambda: self.llm_service.chat([
-                {"role": "user", "content": full_prompt}
-            ])
+            call_fn=lambda: self.llm_service.chat([{"role": "user", "content": full_prompt}]),
         )
 
         return response
 
-    def _calculate_confidence(self, tool_calls: List[ToolCall], reasoning_steps: List[str]) -> float:
+    def _calculate_confidence(
+        self, tool_calls: list[ToolCall], reasoning_steps: list[str]
+    ) -> float:
         """Calculate confidence score based on execution quality."""
         confidence = 0.5  # Base confidence
 
@@ -502,15 +510,17 @@ class DevOpsAgent:
 
     # Multi-agent coordination methods
     async def delegate_to_specialist(
-        self,
-        task: AgentTask,
-        specialist_role: AgentRole
+        self, task: AgentTask, specialist_role: AgentRole
     ) -> AgentResponse:
         """Delegate a task to a specialist agent."""
         # Create specialist agent
         specialist_config = AgentConfig(
             role=specialist_role,
-            capabilities=[AgentCapability.TOOL_USE, AgentCapability.RAG_RETRIEVAL, AgentCapability.ANALYSIS]
+            capabilities=[
+                AgentCapability.TOOL_USE,
+                AgentCapability.RAG_RETRIEVAL,
+                AgentCapability.ANALYSIS,
+            ],
         )
 
         specialist = DevOpsAgent(specialist_config, self.session)
@@ -520,10 +530,8 @@ class DevOpsAgent:
         return await specialist._execute_task(task)
 
     async def collaborate_on_task(
-        self,
-        task: AgentTask,
-        collaborators: List[AgentRole]
-    ) -> Dict[str, AgentResponse]:
+        self, task: AgentTask, collaborators: list[AgentRole]
+    ) -> dict[str, AgentResponse]:
         """Collaborate with other specialist agents on a complex task."""
         results = {}
 
@@ -535,8 +543,7 @@ class DevOpsAgent:
             except Exception as e:
                 logger.error(f"Collaboration with {role.value} failed: {e}")
                 results[role.value] = AgentResponse(
-                    content=f"Collaboration failed: {str(e)}",
-                    confidence_score=0.0
+                    content=f"Collaboration failed: {str(e)}", confidence_score=0.0
                 )
 
         return results

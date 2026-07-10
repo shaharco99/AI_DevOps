@@ -3,9 +3,15 @@
 import asyncio
 import logging
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
-from ai_devops_assistant.agents.agent import AgentConfig, AgentResponse, AgentRole, AgentTask, DevOpsAgent
+from ai_devops_assistant.agents.agent import (
+    AgentConfig,
+    AgentResponse,
+    AgentRole,
+    AgentTask,
+    DevOpsAgent,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -13,9 +19,10 @@ logger = logging.getLogger(__name__)
 @dataclass
 class AgentOrchestrationResult:
     """Result of multi-agent orchestration."""
+
     primary_response: AgentResponse
-    specialist_contributions: Dict[str, AgentResponse] = field(default_factory=dict)
-    coordination_steps: List[str] = field(default_factory=list)
+    specialist_contributions: dict[str, AgentResponse] = field(default_factory=dict)
+    coordination_steps: list[str] = field(default_factory=list)
     final_consensus: Optional[str] = None
     execution_time: float = 0.0
 
@@ -25,8 +32,8 @@ class AgentOrchestrator:
 
     def __init__(self):
         """Initialize orchestrator."""
-        self.agents: Dict[AgentRole, DevOpsAgent] = {}
-        self.task_history: List[Dict[str, Any]] = []
+        self.agents: dict[AgentRole, DevOpsAgent] = {}
+        self.task_history: list[dict[str, Any]] = []
 
     async def initialize_agents(self, session=None) -> None:
         """Initialize all specialist agents."""
@@ -42,10 +49,7 @@ class AgentOrchestrator:
         for role in roles_to_initialize:
             config = AgentConfig(
                 role=role,
-                capabilities=[
-                    "tool_use", "rag_retrieval", "analysis",
-                    "planning", "execution"
-                ]
+                capabilities=["tool_use", "rag_retrieval", "analysis", "planning", "execution"],
             )
             agent = DevOpsAgent(config, session)
             await agent.initialize()
@@ -58,7 +62,7 @@ class AgentOrchestrator:
         task_description: str,
         primary_role: AgentRole = AgentRole.GENERAL,
         require_collaboration: bool = False,
-        collaboration_roles: Optional[List[AgentRole]] = None,
+        collaboration_roles: Optional[list[AgentRole]] = None,
     ) -> AgentOrchestrationResult:
         """Orchestrate task execution across multiple agents.
 
@@ -110,34 +114,37 @@ class AgentOrchestrator:
                         # Create specialized task for this agent
                         specialized_task = AgentTask(
                             description=f"Provide {role.value} perspective on: {task_description}",
-                            context={"primary_response": primary_response.content}
+                            context={"primary_response": primary_response.content},
                         )
-                        collaboration_tasks.append(self._get_agent_contribution(agent, specialized_task, role))
+                        collaboration_tasks.append(
+                            self._get_agent_contribution(agent, specialized_task, role)
+                        )
 
                 # Execute collaborations concurrently
                 if collaboration_tasks:
-                    collaboration_results = await asyncio.gather(*collaboration_tasks, return_exceptions=True)
+                    collaboration_results = await asyncio.gather(
+                        *collaboration_tasks, return_exceptions=True
+                    )
 
                     for i, result in enumerate(collaboration_results):
                         role = involved_roles[i + 1]  # +1 to skip primary
                         if isinstance(result, Exception):
                             logger.error(f"Collaboration with {role.value} failed: {result}")
                             specialist_contributions[role.value] = AgentResponse(
-                                content=f"Collaboration failed: {str(result)}",
-                                confidence_score=0.0
+                                content=f"Collaboration failed: {str(result)}", confidence_score=0.0
                             )
                         else:
                             specialist_contributions[role.value] = result
 
-                    coordination_steps.append(f"Collected contributions from {len(specialist_contributions)} specialists")
+                    coordination_steps.append(
+                        f"Collected contributions from {len(specialist_contributions)} specialists"
+                    )
 
             # Generate consensus if multiple agents involved
             final_consensus = None
             if len(involved_roles) > 1:
                 final_consensus = await self._generate_consensus(
-                    primary_response,
-                    specialist_contributions,
-                    task_description
+                    primary_response, specialist_contributions, task_description
                 )
                 coordination_steps.append("Generated consensus from multiple perspectives")
 
@@ -152,12 +159,14 @@ class AgentOrchestrator:
             )
 
             # Record in history
-            self.task_history.append({
-                "task": task_description,
-                "involved_roles": [r.value for r in involved_roles],
-                "execution_time": execution_time,
-                "success": True,
-            })
+            self.task_history.append(
+                {
+                    "task": task_description,
+                    "involved_roles": [r.value for r in involved_roles],
+                    "execution_time": execution_time,
+                    "success": True,
+                }
+            )
 
             return result
 
@@ -166,16 +175,18 @@ class AgentOrchestrator:
             logger.error(f"Task orchestration failed: {e}")
 
             # Record failure
-            self.task_history.append({
-                "task": task_description,
-                "error": str(e),
-                "execution_time": execution_time,
-                "success": False,
-            })
+            self.task_history.append(
+                {
+                    "task": task_description,
+                    "error": str(e),
+                    "execution_time": execution_time,
+                    "success": False,
+                }
+            )
 
             raise
 
-    async def _analyze_task_requirements(self, task: AgentTask) -> List[AgentRole]:
+    async def _analyze_task_requirements(self, task: AgentTask) -> list[AgentRole]:
         """Analyze task requirements to determine which specialists to involve."""
         # Simple keyword-based analysis (could be enhanced with LLM)
         description_lower = task.description.lower()
@@ -183,11 +194,17 @@ class AgentOrchestrator:
         specialists = []
 
         # Security-related keywords
-        if any(word in description_lower for word in ["security", "vulnerability", "auth", "access", "encrypt"]):
+        if any(
+            word in description_lower
+            for word in ["security", "vulnerability", "auth", "access", "encrypt"]
+        ):
             specialists.append(AgentRole.SECURITY)
 
         # Monitoring-related keywords
-        if any(word in description_lower for word in ["monitor", "metrics", "alert", "log", "performance"]):
+        if any(
+            word in description_lower
+            for word in ["monitor", "metrics", "alert", "log", "performance"]
+        ):
             specialists.append(AgentRole.MONITORING)
 
         # Database-related keywords
@@ -195,20 +212,23 @@ class AgentOrchestrator:
             specialists.append(AgentRole.DATABASE)
 
         # Infrastructure-related keywords
-        if any(word in description_lower for word in ["infra", "kubernetes", "docker", "cloud", "network"]):
+        if any(
+            word in description_lower
+            for word in ["infra", "kubernetes", "docker", "cloud", "network"]
+        ):
             specialists.append(AgentRole.INFRASTRUCTURE)
 
         # DevOps-related keywords (catch-all for DevOps agent)
-        if any(word in description_lower for word in ["deploy", "pipeline", "ci/cd", "build", "release"]):
+        if any(
+            word in description_lower
+            for word in ["deploy", "pipeline", "ci/cd", "build", "release"]
+        ):
             specialists.append(AgentRole.DEVOPS)
 
         return specialists
 
     async def _get_agent_contribution(
-        self,
-        agent: DevOpsAgent,
-        task: AgentTask,
-        role: AgentRole
+        self, agent: DevOpsAgent, task: AgentTask, role: AgentRole
     ) -> AgentResponse:
         """Get contribution from a specialist agent."""
         return await agent._execute_task(task)
@@ -216,8 +236,8 @@ class AgentOrchestrator:
     async def _generate_consensus(
         self,
         primary_response: AgentResponse,
-        specialist_contributions: Dict[str, AgentResponse],
-        original_task: str
+        specialist_contributions: dict[str, AgentResponse],
+        original_task: str,
     ) -> str:
         """Generate a consensus response from multiple agent perspectives."""
         # Use the general agent to synthesize responses
@@ -226,10 +246,9 @@ class AgentOrchestrator:
             return primary_response.content
 
         # Build consensus prompt
-        contributions_text = "\n".join([
-            f"{role}: {response.content}"
-            for role, response in specialist_contributions.items()
-        ])
+        contributions_text = "\n".join(
+            [f"{role}: {response.content}" for role, response in specialist_contributions.items()]
+        )
 
         consensus_prompt = f"""
         Synthesize a comprehensive response by combining insights from multiple specialists.
@@ -249,14 +268,14 @@ class AgentOrchestrator:
             consensus_response = await general_agent.llm_service.generate(
                 consensus_prompt,
                 temperature=0.3,  # Lower temperature for consensus
-                max_tokens=2048
+                max_tokens=2048,
             )
             return consensus_response
         except Exception as e:
             logger.error(f"Consensus generation failed: {e}")
             return primary_response.content
 
-    def get_orchestration_stats(self) -> Dict[str, Any]:
+    def get_orchestration_stats(self) -> dict[str, Any]:
         """Get statistics about orchestration performance."""
         if not self.task_history:
             return {"total_tasks": 0}
@@ -264,7 +283,11 @@ class AgentOrchestrator:
         successful_tasks = [t for t in self.task_history if t.get("success", False)]
         failed_tasks = [t for t in self.task_history if not t.get("success", False)]
 
-        avg_execution_time = sum(t["execution_time"] for t in successful_tasks) / len(successful_tasks) if successful_tasks else 0
+        avg_execution_time = (
+            sum(t["execution_time"] for t in successful_tasks) / len(successful_tasks)
+            if successful_tasks
+            else 0
+        )
 
         # Count role usage
         role_usage = {}
@@ -276,7 +299,9 @@ class AgentOrchestrator:
             "total_tasks": len(self.task_history),
             "successful_tasks": len(successful_tasks),
             "failed_tasks": len(failed_tasks),
-            "success_rate": len(successful_tasks) / len(self.task_history) if self.task_history else 0,
+            "success_rate": (
+                len(successful_tasks) / len(self.task_history) if self.task_history else 0
+            ),
             "average_execution_time": avg_execution_time,
             "role_usage": role_usage,
         }

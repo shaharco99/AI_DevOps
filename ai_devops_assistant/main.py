@@ -59,20 +59,50 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
 
-    # Include routes
+    # Rate limiting (decorator-based limits on chat/run_sql endpoints)
+    from slowapi import _rate_limit_exceeded_handler
+    from slowapi.errors import RateLimitExceeded
+
+    from ai_devops_assistant.api.auth import limiter, require_api_key
+
+    app.state.limiter = limiter
+    app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+    # Include routes; expensive/mutating routes require X-API-Key when API_KEY is set
+    from fastapi import Depends
+
     from ai_devops_assistant.api.routes import analyze_logs, chat, health, metrics, run_sql
 
+    auth_deps = [Depends(require_api_key)]
     app.include_router(health.router)
-    app.include_router(chat.router)
-    app.include_router(run_sql.router)
-    app.include_router(analyze_logs.router)
+    app.include_router(chat.router, dependencies=auth_deps)
+    app.include_router(run_sql.router, dependencies=auth_deps)
+    app.include_router(analyze_logs.router, dependencies=auth_deps)
     app.include_router(metrics.router)
 
     # Add middleware
+    from fastapi.middleware.cors import CORSMiddleware
+    from starlette.middleware.trustedhost import TrustedHostMiddleware
+
     from ai_devops_assistant.api.middleware import ErrorHandlingMiddleware, LoggingMiddleware
 
     app.add_middleware(LoggingMiddleware)
     app.add_middleware(ErrorHandlingMiddleware)
+    # "*" means no Host restriction — skip the middleware entirely. Outside
+    # production, allow the test client's default host so local pytest runs pass.
+    allowed_hosts = settings.ALLOWED_HOSTS
+    if "*" not in allowed_hosts:
+        if not settings.is_production:
+            allowed_hosts = [*allowed_hosts, "testserver"]
+        app.add_middleware(TrustedHostMiddleware, allowed_hosts=allowed_hosts)
+    if settings.CORS_ORIGINS:
+        app.add_middleware(
+            CORSMiddleware,
+            allow_origins=settings.CORS_ORIGINS,
+            allow_credentials=True,
+            allow_methods=["*"],
+            allow_headers=["*"],
+        )
 
     logger.debug("FastAPI application created successfully")
     return app

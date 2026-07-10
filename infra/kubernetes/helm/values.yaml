@@ -588,10 +588,12 @@ serviceMonitor:
   scrapeTimeout: 10s
   labels: {}
 
-# Health checks
+# Health checks — liveness stays shallow; readiness checks DB + LLM dependencies
 healthCheck:
   enabled: true
   path: /health
+  livenessPath: /health/live
+  readinessPath: /health/ready
   port: 8000
   initialDelaySeconds: 30
   periodSeconds: 10

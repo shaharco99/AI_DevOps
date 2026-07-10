@@ -291,9 +291,9 @@ class JenkinsProvider(PipelineProvider):
                                     {
                                         "id": f"{job['name']}-{build['number']}",
                                         "buildNumber": str(build["number"]),
-                                        "status": "completed"
-                                        if build.get("result")
-                                        else "inProgress",
+                                        "status": (
+                                            "completed" if build.get("result") else "inProgress"
+                                        ),
                                         "result": build.get("result"),
                                         "startTime": build.get("timestamp"),
                                         "duration": build.get("duration"),

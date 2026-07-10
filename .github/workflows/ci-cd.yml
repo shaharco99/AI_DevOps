@@ -298,7 +298,7 @@ jobs:
           tags: ai-devops-assistant:scan
 
       - name: Scan image with Trivy
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@0.24.0
         with:
           image-ref: ai-devops-assistant:scan
           format: sarif

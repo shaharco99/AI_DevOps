@@ -50,10 +50,16 @@ spec:
             - name: {{ $key }}
               value: {{ $value | quote }}
             {{- end }}
-            # Database configuration
+            # Database configuration — password comes from the postgresql secret so it
+            # never appears in plaintext in the pod spec
             {{- if .Values.postgresql.enabled }}
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.postgresql.auth.existingSecret | default (printf "%s-postgresql" (include "ai-devops-assistant.fullname" .)) }}
+                  key: password
             - name: DATABASE_URL
-              value: "postgresql+asyncpg://{{ .Values.postgresql.auth.username }}:{{ .Values.postgresql.auth.password }}@{{ include "ai-devops-assistant.fullname" . }}-postgresql:5432/{{ .Values.postgresql.auth.database }}"
+              value: "postgresql+asyncpg://{{ .Values.postgresql.auth.username }}:$(POSTGRES_PASSWORD)@{{ include "ai-devops-assistant.fullname" . }}-postgresql:5432/{{ .Values.postgresql.auth.database }}"
             {{- end }}
             # Ollama configuration
             {{- if .Values.ollama.enabled }}
@@ -92,7 +98,7 @@ spec:
           {{- if .Values.healthCheck.enabled }}
           livenessProbe:
             httpGet:
-              path: {{ .Values.healthCheck.path }}
+              path: {{ .Values.healthCheck.livenessPath | default "/health/live" }}
               port: {{ .Values.healthCheck.port }}
             initialDelaySeconds: {{ .Values.healthCheck.initialDelaySeconds }}
             periodSeconds: {{ .Values.healthCheck.periodSeconds }}
@@ -101,7 +107,7 @@ spec:
             successThreshold: {{ .Values.healthCheck.successThreshold }}
           readinessProbe:
             httpGet:
-              path: {{ .Values.healthCheck.path }}
+              path: {{ .Values.healthCheck.readinessPath | default "/health/ready" }}
               port: {{ .Values.healthCheck.port }}
             initialDelaySeconds: {{ .Values.healthCheck.initialDelaySeconds }}
             periodSeconds: {{ .Values.healthCheck.periodSeconds }}
