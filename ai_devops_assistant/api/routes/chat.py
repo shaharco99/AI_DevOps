@@ -214,7 +214,17 @@ async def chat_stream(
                     break
 
                 payload = event.data
-                if event.type is EventType.DONE:
+                if event.type is EventType.ERROR:
+                    # Agent errors carry raw provider detail — upstream API
+                    # messages, request ids, billing state. Log it, but send the
+                    # browser something that says what happened and nothing about
+                    # our infrastructure.
+                    logger.error(f"Agent error for session {session_id}: {payload.get('message')}")
+                    payload = {
+                        "message": "The assistant could not complete this request.",
+                        "recoverable": bool(payload.get("recoverable", False)),
+                    }
+                elif event.type is EventType.DONE:
                     assistant_reply = payload.get("message", "")
                     tools_used = [c["name"] for c in payload.get("tool_calls", [])]
                     payload = {k: v for k, v in payload.items() if k not in _HEAVY_DONE_FIELDS}

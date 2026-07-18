@@ -1,0 +1,10 @@
+{
+  "name": "ai-devops-assistant-ui",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Declares that the .js files in ai_devops_assistant/static/ are ES modules, so `node --test tests/js/` can import them. There are deliberately no dependencies: the web UI has no build step and vendors nothing, so there is no node_modules tree and no lockfile to audit.",
+  "scripts": {
+    "test": "node --test tests/js/*.test.js"
+  }
+}

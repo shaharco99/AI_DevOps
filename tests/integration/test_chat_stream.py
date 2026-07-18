@@ -168,14 +168,34 @@ class TestPayloadTrimming:
 
 
 class TestErrorHandling:
-    def test_agent_error_event_is_forwarded(self, client, agent_with):
-        with agent_with(
-            AgentEvent(type=EventType.ERROR, data={"message": "LLM down", "recoverable": False})
-        ):
+    def test_agent_error_is_reported_without_leaking_provider_detail(self, client, agent_with):
+        """Caught in a live run: agent errors carry raw upstream API detail.
+
+        The real message included the provider name, an HTTP status, an internal
+        request id and the account's billing state. None of that belongs in a
+        browser; it is logged server side instead.
+        """
+        leaky = (
+            "Anthropic chat failed: Error code: 400 - {'type': 'error', 'error': "
+            "{'message': 'Your credit balance is too low to access the Anthropic API.'}, "
+            "'request_id': 'req_011Cd9GDKiRhhhCxkGndnPqe'}"
+        )
+        with agent_with(AgentEvent(type=EventType.ERROR, data={"message": leaky})):
             resp = client.post("/chat/stream", json={"message": "hi", "session_id": "s1"})
 
         assert resp.status_code == 200, "errors stream as events, not HTTP failures"
-        assert dict(parse_sse(resp.text))["error"]["message"] == "LLM down"
+        error = dict(parse_sse(resp.text))["error"]
+        assert error["message"] == "The assistant could not complete this request."
+        for secret in ("Anthropic", "credit balance", "req_011", "400"):
+            assert secret not in resp.text, f"{secret!r} leaked to the client"
+
+    def test_error_event_preserves_the_recoverable_flag(self, client, agent_with):
+        with agent_with(
+            AgentEvent(type=EventType.ERROR, data={"message": "x", "recoverable": True})
+        ):
+            resp = client.post("/chat/stream", json={"message": "hi", "session_id": "s1"})
+
+        assert dict(parse_sse(resp.text))["error"]["recoverable"] is True
 
     def test_unexpected_exception_becomes_an_error_event(self, client):
         agent = MagicMock()

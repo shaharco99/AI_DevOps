@@ -71,16 +71,38 @@ def create_app() -> FastAPI:
     # Include routes; expensive/mutating routes require X-API-Key when API_KEY is set
     from fastapi import Depends
 
-    from ai_devops_assistant.api.routes import analyze_logs, auth, chat, health, metrics, run_sql
+    from ai_devops_assistant.api.routes import (
+        analyze_logs,
+        auth,
+        chat,
+        health,
+        metrics,
+        models,
+        run_sql,
+    )
 
     auth_deps = [Depends(require_api_key)]
     app.include_router(health.router)
     # No auth dependency: this is where a caller trades an API key for a session.
     app.include_router(auth.router)
+    app.include_router(models.router, dependencies=auth_deps)
     app.include_router(chat.router, dependencies=auth_deps)
     app.include_router(run_sql.router, dependencies=auth_deps)
     app.include_router(analyze_logs.router, dependencies=auth_deps)
     app.include_router(metrics.router)
+
+    # Web UI. Mounted at /ui rather than / so it cannot shadow an API route, and
+    # served same-origin, which is why no CORS entry is needed for it.
+    if settings.ENABLE_WEB_UI:
+        from pathlib import Path
+
+        from fastapi.staticfiles import StaticFiles
+
+        static_dir = Path(__file__).parent / "static"
+        if static_dir.is_dir():
+            app.mount("/ui", StaticFiles(directory=str(static_dir), html=True), name="ui")
+        else:  # pragma: no cover - only if the package was built without assets
+            logger.warning("ENABLE_WEB_UI is set but %s does not exist", static_dir)
 
     # Add middleware
     from fastapi.middleware.cors import CORSMiddleware
