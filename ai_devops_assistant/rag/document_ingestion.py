@@ -324,6 +324,11 @@ class DocumentIngestionService:
 
         logger.info(f"Ingested {len(documents)} documents")
         return len(documents)
+
+    def ingest_document(
+        self,
+        title: str,
+        content: str,
         source: str,
         category: str = "general",
     ) -> None:

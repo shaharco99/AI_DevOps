@@ -3,13 +3,14 @@
 import asyncio
 import logging
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
 from ai_devops_assistant.config.settings import settings
 from ai_devops_assistant.rag.document_ingestion import DocumentIngestionService, DocumentLoader
 from ai_devops_assistant.rag.embeddings import get_embedding_service
 from ai_devops_assistant.rag.retriever import RAGRetriever
-from ai_devops_assistant.rag.scraper import WebScraper
+from ai_devops_assistant.rag.scraper import ScrapedContent, WebScraper
 from ai_devops_assistant.rag.vector_store import get_vector_store_service
 
 logger = logging.getLogger(__name__)
@@ -376,7 +377,6 @@ class SimpleRAGPipeline(RAGPipeline):
         """Async query method."""
         rag_query = RAGQuery(query=query, top_k=k)
         return await super().query(rag_query)
-            await scraper.close()
 
     def ingest_scraped(self, scraped: ScrapedContent) -> int:
         """Ingest a `ScrapedContent` object."""

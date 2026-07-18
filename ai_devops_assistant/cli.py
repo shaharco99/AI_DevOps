@@ -99,8 +99,8 @@ async def _benchmark_models(
 
     # Show ranking
     if len(results) > 1:
-        print("
-🏆 Ranking by Correctness:"        ranking = sorted(results.items(), key=lambda x: x[1]['correctness'], reverse=True)
+        print("\n🏆 Ranking by Correctness:")
+        ranking = sorted(results.items(), key=lambda x: x[1]['correctness'], reverse=True)
         for i, (model, _) in enumerate(ranking, 1):
             print(f"  {i}. {model}")
 

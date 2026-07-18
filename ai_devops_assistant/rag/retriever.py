@@ -276,56 +276,6 @@ class RAGRetriever:
         # Re-sort after reranking
         results.sort(key=lambda x: x.get("score", 0), reverse=True)
         return results
-    ) -> list[dict]:
-        """Retrieve relevant documents.
-
-        Args:
-            query: Search query
-            category: Optional category filter
-
-        Returns:
-            list: List of retrieved documents
-        """
-        try:
-            vector_store = get_vector_store_service()
-
-            # Build metadata filter if category specified
-            where_filter = None
-            if category:
-                where_filter = {"category": category}
-
-            # Search
-            results = vector_store.search(
-                query=query,
-                k=self.top_k,
-                where=where_filter,
-            )
-
-            # Format results
-            documents = []
-            if results and results["ids"] and results["ids"][0]:
-                for i, doc_id in enumerate(results["ids"][0]):
-                    if results["distances"] and i < len(results["distances"][0]):
-                        # Chroma returns distances, convert to similarity score
-                        distance = results["distances"][0][i]
-                        similarity = 1 / (1 + distance)  # Convert distance to similarity
-
-                        if similarity >= self.score_threshold:
-                            documents.append(
-                                {
-                                    "id": doc_id,
-                                    "content": results["documents"][0][i],
-                                    "metadata": results["metadatas"][0][i],
-                                    "similarity": similarity,
-                                }
-                            )
-
-            logger.info(f"Retrieved {len(documents)} documents for query: {query}")
-            return documents
-
-        except Exception as e:
-            logger.error(f"Retrieval failed: {e}")
-            return []
 
     def retrieve_by_category(
         self,
