@@ -55,6 +55,30 @@ jobs:
         subject-digest: ${{ steps.push.outputs.digest }}
         push-to-registry: true
 
+    # SBOM alongside the provenance attestation: provenance says who built the
+    # image, the SBOM says what is inside it. Both are needed to answer "are we
+    # affected?" when a CVE lands.
+    - name: Generate SBOM
+      uses: anchore/sbom-action@v0
+      with:
+        image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ steps.push.outputs.digest }}
+        format: cyclonedx-json
+        output-file: sbom.cyclonedx.json
+        upload-artifact: true
+
+    - name: Attest SBOM
+      uses: actions/attest-sbom@v1
+      with:
+        subject-name: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME}}
+        subject-digest: ${{ steps.push.outputs.digest }}
+        sbom-path: sbom.cyclonedx.json
+        push-to-registry: true
+
+    - name: Attach SBOM to the release
+      uses: softprops/action-gh-release@v1
+      with:
+        files: sbom.cyclonedx.json
+
   helm-release:
     runs-on: ubuntu-latest
     needs: release

@@ -10,9 +10,17 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq-dev \
     && rm -rf /var/lib/apt/lists/*
 
-COPY requirements.txt .
+# requirements.lock rather than requirements.txt: it pins every transitive
+# dependency with a sha256, so --require-hashes makes the build reject any
+# package whose content does not match what was locked. requirements.txt pins
+# only direct dependencies by version, which a compromised or re-uploaded
+# transitive package can still slip past.
+# Regenerate with:
+#   pip-compile --generate-hashes --output-file=requirements.lock requirements.txt
+COPY requirements.lock .
 RUN pip install --no-cache-dir --upgrade pip setuptools wheel && \
-    pip wheel --no-cache-dir --wheel-dir /build/wheels --requirement requirements.txt
+    pip wheel --no-cache-dir --require-hashes --wheel-dir /build/wheels \
+        --requirement requirements.lock
 
 # ============================================================================
 # Runtime stage
@@ -36,9 +44,10 @@ RUN useradd -m -u 1000 devops && \
     chown -R devops:devops /app /data
 
 # Install dependencies before copying source so code changes don't bust this layer
-COPY requirements.txt /app/requirements.txt
+COPY requirements.lock /app/requirements.lock
 RUN --mount=type=bind,from=builder,source=/build/wheels,target=/wheels \
-    pip install --no-cache-dir --no-index --find-links /wheels --requirement /app/requirements.txt
+    pip install --no-cache-dir --no-index --find-links /wheels \
+        --requirement /app/requirements.lock
 
 # Copy application
 COPY --chown=devops:devops . /app

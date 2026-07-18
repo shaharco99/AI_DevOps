@@ -16,6 +16,7 @@ if TYPE_CHECKING:
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ai_devops_assistant.agents.events import AgentEvent, EventType, error_event, status_event
+from ai_devops_assistant.agents.fencing import build_untrusted_message, find_suspicious_patterns
 from ai_devops_assistant.agents.memory import ConversationMemory, get_session_manager
 from ai_devops_assistant.agents.prompts import SYSTEM_PROMPT
 from ai_devops_assistant.config.settings import settings
@@ -168,6 +169,10 @@ class DevOpsAgent:
         # Agent state
         self.current_task: AgentTask | None = None
         self.execution_history: list[dict[str, Any]] = []
+        # Content the operator did not write — retrieved documents and tool
+        # output. Kept apart from the instruction stream and fenced before it
+        # reaches the model (OWASP LLM01); see agents/fencing.py.
+        self._untrusted_sections: list[tuple[str, str]] = []
 
     async def initialize(self) -> None:
         """Initialize agent components."""
@@ -359,10 +364,28 @@ class DevOpsAgent:
             yield AgentEvent(type=EventType.PLAN, data={"steps": plan})
 
             # Step 3: Execute plan
-            tool_calls = []
+            tool_calls: list[ToolCall] = []
+
+            tool_call_budget = self.config.max_tool_iterations
 
             for index, step in enumerate(plan):
                 if step["action"] == "tool_call":
+                    # OWASP LLM08 (excessive agency). max_tool_iterations was
+                    # declared and never read, so a plan could contain any number
+                    # of tool calls and the loop would run all of them — an
+                    # injected instruction that produces a 200-step plan would be
+                    # executed in full.
+                    if len(tool_calls) >= tool_call_budget:
+                        logger.warning(
+                            f"Tool call budget of {tool_call_budget} reached; "
+                            f"skipping remaining {len(plan) - index} plan steps"
+                        )
+                        reasoning_steps.append(
+                            f"Stopped after {tool_call_budget} tool calls (budget reached)"
+                        )
+                        yield status_event("tool_budget_reached")
+                        break
+
                     call_id = f"tc_{index}"
                     yield AgentEvent(
                         type=EventType.TOOL_START,
@@ -395,8 +418,12 @@ class DevOpsAgent:
                         },
                     )
 
-                    # Incorporate tool result into context
-                    context += f"\nTool result ({tool_call.tool_name}): {tool_call.result}"
+                    # Tool output is untrusted: SQL rows and log lines contain
+                    # end-user-controlled text. It is fenced with the retrieved
+                    # documents rather than appended to the instruction context.
+                    self._untrusted_sections.append(
+                        (f"output of {tool_call.tool_name}", str(tool_call.result))
+                    )
 
                 elif step["action"] == "reasoning":
                     # Generate reasoning step
@@ -445,7 +472,14 @@ class DevOpsAgent:
             raise
 
     async def _gather_context(self, task: AgentTask, use_rag: bool) -> str:
-        """Gather relevant context for task execution."""
+        """Gather relevant context for task execution.
+
+        Retrieved documents are *not* returned here. They are untrusted (anyone
+        who can ingest a page controls them) and are collected separately into
+        self._untrusted_sections so they can be fenced rather than concatenated
+        into the instruction stream. See agents/fencing.py.
+        """
+        self._untrusted_sections = []
         context_parts = []
 
         # Add conversation history if available
@@ -471,9 +505,19 @@ class DevOpsAgent:
                     RAGQuery(query=task.description, top_k=3)
                 )
                 if rag_result.documents:
-                    context_parts.append("Relevant knowledge:")
                     for doc in rag_result.documents:
-                        context_parts.append(f"Context: {doc.content[:500]}...")
+                        content = doc.content[:500]
+                        suspicious = find_suspicious_patterns(content)
+                        if suspicious:
+                            # Logged, not filtered: a security runbook may quote
+                            # these phrases legitimately, and rewriting ingested
+                            # documents would corrupt them. The signal is that a
+                            # source in the index contains injection-shaped text.
+                            logger.warning(
+                                "Retrieved document contains injection-shaped text "
+                                f"(source={doc.metadata.get('source', 'unknown')}): {suspicious}"
+                            )
+                        self._untrusted_sections.append(("retrieved document", content))
             except Exception as e:
                 logger.warning(f"RAG context gathering failed: {e}")
 
@@ -601,16 +645,7 @@ class DevOpsAgent:
         # Build comprehensive prompt
         system_prompt = self.config.system_prompt or SYSTEM_PROMPT
 
-        tool_results = ""
-        if tool_calls:
-            tool_results = "\n".join(
-                [
-                    f"Tool {call.tool_name}: {call.result if call.result else f'Error: {call.error}'}"
-                    for call in tool_calls
-                ]
-            )
-
-        messages = self._build_response_messages(task, context, tool_results, system_prompt)
+        messages = self._build_response_messages(task, context, system_prompt)
 
         response = await observability_manager.trace_llm_call(
             provider=settings.LLM_PROVIDER,
@@ -625,7 +660,6 @@ class DevOpsAgent:
         self,
         task: AgentTask,
         context: str,
-        tool_results: str,
         system_prompt: str,
     ) -> list[dict[str, str]]:
         """Build the final-response conversation.
@@ -639,16 +673,21 @@ class DevOpsAgent:
         user_parts = [f"Task: {task.description}"]
         if context:
             user_parts.append(f"Context Information:\n{context}")
-        if tool_results:
-            user_parts.append(f"Tool Execution Results:\n{tool_results}")
         user_parts.append(
             "Based on the above information, provide a comprehensive and helpful response."
         )
 
-        return [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": "\n\n".join(user_parts)},
-        ]
+        messages = [{"role": "system", "content": system_prompt}]
+
+        # Untrusted content goes in its own message, fenced and labelled, before
+        # the user's actual request. Keeping it out of the system message is what
+        # makes the instruction/data boundary expressible at all.
+        untrusted = build_untrusted_message(self._untrusted_sections)
+        if untrusted:
+            messages.append(untrusted)
+
+        messages.append({"role": "user", "content": "\n\n".join(user_parts)})
+        return messages
 
     async def _stream_final_response(
         self, task: AgentTask, context: str, tool_calls: list[ToolCall]
@@ -662,16 +701,7 @@ class DevOpsAgent:
         """
         system_prompt = self.config.system_prompt or SYSTEM_PROMPT
 
-        tool_results = ""
-        if tool_calls:
-            tool_results = "\n".join(
-                [
-                    f"Tool {call.tool_name}: {call.result if call.result else f'Error: {call.error}'}"
-                    for call in tool_calls
-                ]
-            )
-
-        messages = self._build_response_messages(task, context, tool_results, system_prompt)
+        messages = self._build_response_messages(task, context, system_prompt)
 
         started = False
         try:

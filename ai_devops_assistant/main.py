@@ -51,7 +51,16 @@ async def lifespan(app: FastAPI):
 
 
 def create_app() -> FastAPI:
-    """Create and configure FastAPI application."""
+    """Create and configure FastAPI application.
+
+    Raises:
+        RuntimeError: If production security settings are unsafe. Failing here
+            is deliberate — an unauthenticated production deployment should not
+            be reachable, and the previous behaviour (log a warning, keep going)
+            meant it was.
+    """
+    settings.validate_production_security()
+
     app = FastAPI(
         title=settings.APP_NAME,
         description="An AI-powered DevOps assistant for analyzing logs, infrastructure, and providing intelligent recommendations.",
@@ -89,7 +98,10 @@ def create_app() -> FastAPI:
     app.include_router(chat.router, dependencies=auth_deps)
     app.include_router(run_sql.router, dependencies=auth_deps)
     app.include_router(analyze_logs.router, dependencies=auth_deps)
-    app.include_router(metrics.router)
+    # Behind auth: /metrics/ai/* exposes token counts, model names, latency and
+    # error detail — an operational profile of the deployment. Liveness probes
+    # use /health, which stays open.
+    app.include_router(metrics.router, dependencies=auth_deps)
 
     # Web UI. Mounted at /ui rather than / so it cannot shadow an API route, and
     # served same-origin, which is why no CORS entry is needed for it.

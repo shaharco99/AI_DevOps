@@ -75,11 +75,12 @@ class TestSummariseToolResult:
 
 
 class TestMessageBoundary:
-    """The final-response prompt must keep system and user separate.
+    """The final-response prompt must keep instructions and data separate.
 
     It used to concatenate the system prompt, retrieved context and tool output
-    into a single user message, which erases the distinction phase 6's
-    injection fencing depends on.
+    into a single user message. Tool output now travels fenced in
+    _untrusted_sections (see agents/fencing.py), so it is no longer a parameter
+    here at all.
     """
 
     def test_system_prompt_is_its_own_message(self):
@@ -88,39 +89,36 @@ class TestMessageBoundary:
         agent = DevOpsAgent()
         messages = agent._build_response_messages(
             AgentTask(description="which pods are failing?"),
-            context="retrieved doc text",
-            tool_results="Tool kubernetes_tool: 3 pods",
+            context="conversation history",
             system_prompt="You are a DevOps assistant.",
         )
 
-        assert [m["role"] for m in messages] == ["system", "user"]
+        assert messages[0]["role"] == "system"
         assert messages[0]["content"] == "You are a DevOps assistant."
+        assert messages[-1]["role"] == "user"
 
-    def test_context_and_tool_output_go_in_the_user_turn_not_the_system_one(self):
+    def test_untrusted_content_is_a_separate_message_from_the_request(self):
         from ai_devops_assistant.agents.agent import AgentTask
 
         agent = DevOpsAgent()
+        agent._untrusted_sections = [("retrieved document", "UNTRUSTED DOC")]
         messages = agent._build_response_messages(
-            AgentTask(description="q"),
-            context="UNTRUSTED DOC",
-            tool_results="TOOL OUTPUT",
-            system_prompt="SYSTEM RULES",
+            AgentTask(description="q"), context="", system_prompt="SYSTEM RULES"
         )
 
-        assert "UNTRUSTED DOC" not in messages[0]["content"]
-        assert "TOOL OUTPUT" not in messages[0]["content"]
-        assert "UNTRUSTED DOC" in messages[1]["content"]
-        assert "TOOL OUTPUT" in messages[1]["content"]
+        assert "UNTRUSTED DOC" not in messages[0]["content"], "never in the system turn"
+        assert any("UNTRUSTED DOC" in m["content"] for m in messages[1:])
 
-    def test_empty_context_and_tools_are_omitted_cleanly(self):
+    def test_empty_context_is_omitted_cleanly(self):
         from ai_devops_assistant.agents.agent import AgentTask
 
         agent = DevOpsAgent()
+        agent._untrusted_sections = []
         messages = agent._build_response_messages(
-            AgentTask(description="just a question"), "", "", "SYSTEM"
+            AgentTask(description="just a question"), "", "SYSTEM"
         )
-        assert "Context Information" not in messages[1]["content"]
-        assert "Tool Execution Results" not in messages[1]["content"]
+        assert "Context Information" not in messages[-1]["content"]
+        assert [m["role"] for m in messages] == ["system", "user"]
 
 
 def _mock_agent_deps(chat_side_effect=None, chat_return="Final answer"):

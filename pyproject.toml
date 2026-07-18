@@ -102,19 +102,30 @@ dev = [
     "codespell==2.2.6",
     # Structured Logging
     "loguru==0.7.2",
-    # Fine-tuning & ML
+    # Web Scraping (used by rag/scraper.py)
+    "beautifulsoup4==4.12.2",
+    "html5lib==1.1",
+    # Prompt Management
+    "jinja2==3.1.2",
+]
+
+# Fine-tuning and model-registry extras. Split out of [dev] because torch alone
+# is ~2GB and pulls a large CVE surface, and neither the API nor the MCP server
+# imports any of it — ml/finetuning.py and services/model_registry.py are
+# opt-in tooling. Keeping them in [dev] meant every contributor and every CI lint
+# job downloaded the whole ML stack to run ruff.
+ml = [
     "peft==0.8.2",
     "transformers==4.36.2",
     "torch==2.1.2",
     "datasets==2.15.0",
-    # Web Scraping
-    "beautifulsoup4==4.12.2",
-    "playwright==1.40.0",
-    "html5lib==1.1",
-    # Model Registry
     "huggingface-hub==1.11.0",
-    # Prompt Management
-    "jinja2==3.1.2",
+]
+
+# Browser automation for scraper integration tests. Also opt-in: playwright
+# downloads browser binaries on install.
+browser = [
+    "playwright==1.40.0",
 ]
 
 test = [

@@ -4,6 +4,10 @@ import logging
 
 from pydantic_settings import BaseSettings
 
+# The shipped default. Named so validate_production_security can recognise it
+# rather than matching on the literal in two places.
+PLACEHOLDER_SECRET_KEY = "your-secret-key-change-this-in-production"
+
 
 class Settings(BaseSettings):
     """Application settings from environment variables."""
@@ -17,8 +21,10 @@ class Settings(BaseSettings):
     API_PORT: int = 8000
     API_LOG_LEVEL: str = "INFO"
     API_ENVIRONMENT: str = "development"
-    SECRET_KEY: str = "your-secret-key-change-this-in-production"
-    # "*" keeps K8s probes (which use the pod IP as Host) working; restrict in production
+    SECRET_KEY: str = PLACEHOLDER_SECRET_KEY
+    # "*" keeps K8s probes (which use the pod IP as Host) working in development.
+    # Refused in production by validate_production_security(); set it to the real
+    # hostnames there and let probes reach the pod by its Service DNS name.
     ALLOWED_HOSTS: list[str] = ["*"]
     # Empty API_KEY disables auth (local demo); set it to require X-API-Key on API routes
     API_KEY: str | None = None
@@ -164,6 +170,70 @@ class Settings(BaseSettings):
     def is_production(self) -> bool:
         """Check if running in production mode."""
         return self.API_ENVIRONMENT == "production"
+
+    def production_security_problems(self) -> list[str]:
+        """Settings that are unsafe for production, as human-readable problems.
+
+        Returns an empty list outside production. Separated from the raising
+        check so tests and a future `--check-config` command can inspect the
+        findings without catching an exception.
+        """
+        if not self.is_production:
+            return []
+
+        problems: list[str] = []
+
+        if not self.API_KEY:
+            problems.append(
+                "API_KEY is not set. Authentication silently becomes a no-op, "
+                "leaving every route open."
+            )
+
+        if self.SECRET_KEY == PLACEHOLDER_SECRET_KEY:
+            problems.append(
+                "SECRET_KEY is still the placeholder. It signs session cookies, "
+                "so a known value lets anyone mint a valid session."
+            )
+
+        if len(self.SECRET_KEY) < 32:
+            problems.append("SECRET_KEY is shorter than 32 characters.")
+
+        if "*" in self.ALLOWED_HOSTS:
+            problems.append(
+                'ALLOWED_HOSTS contains "*", which disables Host header validation '
+                "and permits DNS-rebinding and cache-poisoning attacks."
+            )
+
+        if not self.SESSION_COOKIE_SECURE:
+            problems.append(
+                "SESSION_COOKIE_SECURE is false, so session cookies would be sent "
+                "over plaintext HTTP."
+            )
+
+        if not self.K8S_VERIFY_SSL:
+            problems.append(
+                "K8S_VERIFY_SSL is false, which disables TLS verification against "
+                "the cluster API."
+            )
+
+        return problems
+
+    def validate_production_security(self) -> None:
+        """Refuse to run with unsafe production settings.
+
+        Fails closed. These used to be warnings that the process logged and then
+        carried on past, which meant a missing API_KEY produced one line at
+        startup and an unauthenticated deployment thereafter.
+
+        Raises:
+            RuntimeError: If any production security setting is unsafe.
+        """
+        problems = self.production_security_problems()
+        if problems:
+            raise RuntimeError(
+                "Refusing to start: unsafe production configuration.\n"
+                + "\n".join(f"  - {problem}" for problem in problems)
+            )
 
 
 def get_settings() -> Settings:
