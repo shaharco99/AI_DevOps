@@ -71,10 +71,12 @@ def create_app() -> FastAPI:
     # Include routes; expensive/mutating routes require X-API-Key when API_KEY is set
     from fastapi import Depends
 
-    from ai_devops_assistant.api.routes import analyze_logs, chat, health, metrics, run_sql
+    from ai_devops_assistant.api.routes import analyze_logs, auth, chat, health, metrics, run_sql
 
     auth_deps = [Depends(require_api_key)]
     app.include_router(health.router)
+    # No auth dependency: this is where a caller trades an API key for a session.
+    app.include_router(auth.router)
     app.include_router(chat.router, dependencies=auth_deps)
     app.include_router(run_sql.router, dependencies=auth_deps)
     app.include_router(analyze_logs.router, dependencies=auth_deps)

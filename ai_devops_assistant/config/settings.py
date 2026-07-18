@@ -27,6 +27,14 @@ class Settings(BaseSettings):
     RATE_LIMIT_CHAT: str = "30/minute"
     RATE_LIMIT_SQL: str = "60/minute"
 
+    # Web UI. Served same-origin from this app, so it needs no CORS entry.
+    ENABLE_WEB_UI: bool = True
+    # Session cookies are signed and self-contained, so they cannot be revoked
+    # before they expire. Keep the lifetime short.
+    SESSION_TTL_SECONDS: int = 900  # 15 minutes
+    # Set False only for local HTTP development; the cookie is Secure otherwise.
+    SESSION_COOKIE_SECURE: bool = True
+
     # ========================================================================
     # Database Settings
     # ========================================================================

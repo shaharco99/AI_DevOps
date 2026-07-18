@@ -179,3 +179,25 @@ class ErrorDetail(BaseModel):
     code: str | None = Field(None, description="Error code")
     details: dict[str, Any] | None = Field(None, description="Additional details")
     timestamp: datetime = Field(..., description="Error timestamp")
+
+
+# ============================================================================
+# Auth Schemas
+# ============================================================================
+
+
+class SessionRequest(BaseModel):
+    """Request to exchange an API key for a browser session."""
+
+    api_key: str | None = Field(None, description="API key to exchange")
+
+
+class SessionResponse(BaseModel):
+    """Issued browser session.
+
+    The session token itself is not in the body on purpose — it is set as an
+    HttpOnly cookie so JavaScript cannot read or leak it.
+    """
+
+    csrf_token: str = Field(..., description="Token to echo back in X-CSRF-Token")
+    expires_in: int = Field(..., description="Session lifetime in seconds")
