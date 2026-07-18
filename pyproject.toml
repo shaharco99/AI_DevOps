@@ -151,10 +151,7 @@ extend-exclude = '''
       # merged from MCP, not yet ported; mirrors the ruff/isort/mypy excludes
     | _legacy          # TODO(phase-5)
     | mcp_server       # TODO(phase-4)
-    | tests/mcp        # TODO(phase-3)
-    | tests/fixtures   # TODO(phase-3)
   )/
-  | /sql_correction\.py$   # TODO(phase-3)
   | /loaders\.py$          # TODO(phase-7.5)
 )
 '''
@@ -176,11 +173,8 @@ exclude = [
     # rewrite, and would bury the real diff. Each entry is removed by the phase
     # that ports it; see MERGE_PROGRESS.md "Debt".
     "_legacy",                                      # TODO(phase-5): directory deleted
-    "ai_devops_assistant/tools/sql_correction.py",  # TODO(phase-3)
     "ai_devops_assistant/rag/loaders.py",           # TODO(phase-7.5)
     "ai_devops_assistant/mcp_server",               # TODO(phase-4)
-    "tests/mcp",                                    # TODO(phase-3)
-    "tests/fixtures",                               # TODO(phase-3)
 ]
 
 [tool.ruff.per-file-ignores]
@@ -202,7 +196,6 @@ exclude = [
     # Merged from MCP, not yet ported onto this codebase's contracts and not on
     # any runtime path. Each entry is removed by the phase that ports it.
     "_legacy/",                                  # TODO(phase-5): directory deleted
-    "ai_devops_assistant/tools/sql_correction.py",  # TODO(phase-3)
     "ai_devops_assistant/rag/loaders.py",           # TODO(phase-7.5)
     "ai_devops_assistant/mcp_server/",              # TODO(phase-4)
 ]
@@ -233,10 +226,6 @@ minversion = "7.0"
 addopts = "-ra -q --strict-markers --disable-warnings"
 testpaths = ["tests"]
 python_files = ["test_*.py", "*_test.py"]
-# TODO(phase-3): remove. tests/mcp/ arrived in the MCP merge and still imports
-# the pre-merge layout (LLM_CI, unified_agent, quick_start_database) and chdirs
-# in its conftest. Rewritten onto test_db_session in phase 3, then re-enabled.
-norecursedirs = ["tests/mcp", "tests/fixtures"]
 asyncio_mode = "auto"
 markers = [
     "unit: Unit tests",
@@ -273,7 +262,6 @@ exclude_lines = [
 # module. Each entry is removed by the phase that ports it.
 ignore-paths = [
     "^_legacy/.*$",                                    # TODO(phase-5)
-    "^ai_devops_assistant/tools/sql_correction\\.py$",  # TODO(phase-3)
     "^ai_devops_assistant/rag/loaders\\.py$",           # TODO(phase-7.5)
     "^ai_devops_assistant/mcp_server/.*$",              # TODO(phase-4)
 ]
@@ -292,11 +280,8 @@ skip_glob = [
     # Merged from MCP, not yet ported. Mirrors the ruff and mypy excludes;
     # each is removed by the phase that ports it.
     "_legacy/*",                                    # TODO(phase-5)
-    "*/tools/sql_correction.py",                    # TODO(phase-3)
     "*/rag/loaders.py",                             # TODO(phase-7.5)
     "*/mcp_server/*",                               # TODO(phase-4)
-    "tests/mcp/*",                                  # TODO(phase-3)
-    "tests/fixtures/*",                             # TODO(phase-3)
 ]
 known_first_party = ["ai_devops_assistant"]
 
