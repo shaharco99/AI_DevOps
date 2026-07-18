@@ -1,0 +1,23 @@
+[files]
+extend-exclude = [
+
+]
+
+[default]
+extend-ignore-re = [
+    # Example: ignore string which contains $0, which is used widely in tests
+    #".*\\$0.*",
+    # Example:  ignore generated content like `boxed....nner()`, `Defaul...efault`
+    #"\\w*\\.{3,4}\\w*",
+]
+
+[default.extend-words]
+mak = "mak"
+Ot = "Ot"
+fo = "fo"
+Fo = "Fo"
+ba = "ba"
+
+[default.extend-identifiers]
+#datas = "datas"
+excute = "excute"

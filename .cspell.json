@@ -1,0 +1,19 @@
+{
+  "dictionaries": [],
+  "dictionaryDefinitions": [],
+  "ignorePaths": [],
+  "ignoreWords": [],
+  "import": [],
+  "version": "0.2",
+  "words": [
+    "cloudbees",
+    "customtools",
+    "Golangci",
+    "Helmfile",
+    "jcasc",
+    "jenkinsci",
+    "kalichart",
+    "nindent",
+    "webterminal"
+  ]
+}
