@@ -10,11 +10,12 @@ Phase 2.1 — add `DevOpsAgent.chat_stream()` as an async generator and make the
 
 ## Blocked
 
-- **mypy gate red: 124 errors / 28 files.** Pre-existing, not caused by this work — CI has
-  been red since f00ee1d. Not a hard blocker for Phase 1 (merge mechanics don't touch it),
-  but "keep CI green" is unachievable until it's resolved. Needs a call: fix, scope down,
-  or accept. Worst files: agent.py 14, database/models.py 12, tool_agent.py 11 (tool_agent
-  is dead code — deleting it in 7.3 removes 11 for free).
+- none
+
+## Gate status: 5/5 green (first time in this repo's history)
+
+`ruff` · `black` · `isort` · `pylint 9.78` · `mypy 0 errors` · `pytest 37/37`
+Always verify with the CI-pinned linter versions (see Key facts).
 
 ## Phases
 
@@ -95,16 +96,21 @@ Measured on the merged tree, compared against the pre-merge baseline:
 - [ ] `_legacy/` empty + CI check                        → phase 5
 - [ ] simulated stream → real `stream_chat`              → phase 5.4
 - [ ] upload button enabled                              → phase 7.5
-- [ ] mypy: 124 errors                                   → unscheduled, see Blocked
-- [ ] `agent.py` dead `rag_retriever` (pylint E1101 x2)  → phase 7.3
+- [x] ~~mypy: 124 errors~~ — cleared, gate green
+- [x] ~~`agent.py` dead `rag_retriever`~~ — method deleted
+- [x] ~~`SimpleRAGPipeline.ingest_website`~~ — fixed to `ingest_url`
 - [ ] `cli.py` broken f-strings: bare `print(".4f")` at 6+ sites, prints the literal
       instead of the metric. Not a lint error, so no gate catches it → phase 7.3
-- [ ] `SimpleRAGPipeline.ingest_website` called by `cli.py:30` but never defined → phase 7.3
+- [ ] `OllamaRegistry` implements the async `ModelRegistry` base synchronously, so
+      `CompositeRegistry.registries` must be typed `Any`. Unify the two → phase 5
+- [ ] local `datasets/` dir (no `__init__.py`) shadows the HuggingFace `datasets`
+      package as a namespace package → phase 6 (rename when ML extra is split out)
 
 ## Log
 
 <!-- newest first: YYYY-MM-DD | phase | what landed | commit -->
 
+- 2026-07-18 | – | **mypy 124 -> 0; all 5 gates green** | 081a1cc,78ef815,5f624ef
 - 2026-07-18 | 1 | time-boxed lint exclusions, 5 tools | da2c12f
 - 2026-07-18 | 1 | union config + regenerated secrets baseline | b51a7e8
 - 2026-07-18 | 1 | **MCP merged, 0 conflicts, history preserved** | e7cbec1
