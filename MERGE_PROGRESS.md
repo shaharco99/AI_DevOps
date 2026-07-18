@@ -5,8 +5,8 @@ Updated: 2026-07-18 | Phase: 2 | Branch: `feature/merge-mcp`
 
 ## Now
 
-Phase 3 — port MCP's SQL auto-correction engine into `tools/sql_tool.py`.
-Watch the dialect landmine (3.3) and re-validate after correction (3.2).
+Phase 4 — MCP protocol server sharing the SAME `ToolRegistry` as the REST API.
+Delete `run_python_script` (RCE), rewrite `run_shell` allowlisting, drop `verify_ssl=False`.
 
 ## Blocked
 
@@ -14,9 +14,9 @@ Watch the dialect landmine (3.3) and re-validate after correction (3.2).
 
 ## Gate status: 5/5 green
 
-`ruff` · `black` · `isort` · `pylint 9.78` · `mypy 0 errors` · `pytest 120/120` + `node --test` 38 JS
+`ruff` · `black` · `isort` · `pylint 9.78` · `mypy 0 errors` · `pytest 230` (238 w/ Postgres) + 38 JS
 Always verify with the CI-pinned linter versions (see Key facts).
-Suite grew 37 -> 120 Python + 38 JS during phase 2.
+Suite grew 37 -> 230 Python + 38 JS (phases 2-3).
 JS tests: `node --test tests/js/*.test.js` (node's built-in runner, zero npm deps).
 
 ## Phases
@@ -37,7 +37,12 @@ JS tests: `node --test tests/js/*.test.js` (node's built-in runner, zero npm dep
   - [x] 2.2 `POST /chat/stream` SSE; persistence in `finally` survives Stop
   - [x] 2.4 cookie session auth; browser never holds the API key
   - [x] 2.3/2.5 frontend + UX — vanilla ESM at /ui, no build step, no vendored libs
-- [ ] 3 SQL engine port    (3.1 purify · 3.2 guard 2x · 3.3 dialect gate · 3.4 params · 3.5 tests)
+- [x] 3 SQL engine port — 1352 -> 620 pure lines; 118 new tests; verified on real Postgres
+  - [x] 3.1 purified: `validate_and_fix_sql(sql, schema)`, no module globals
+  - [x] 3.2 guard runs before AND after correction
+  - [x] 3.3 dialect gate — landmine confirmed real, then defused
+  - [x] 3.4 NL->SQL returns (sql, params); no interpolation
+  - [x] 3.5 tests ported; all phase-3 lint exclusions removed
 - [ ] 4 MCP server         (4.1 adapter · 4.2 tools · 4.3 kube · 4.4 deploy · 4.5 auth)
 - [ ] 5 LLM consolidation  (5.1 ABC · 5.2 factory · 5.3 prompt · 5.4 real stream)
 - [ ] 6 Security           (#1-15)
@@ -81,6 +86,15 @@ Measured on the merged tree, compared against the pre-merge baseline:
 
 <!-- deviations from the plan only; format: date — decision — why -->
 
+- 2026-07-18 — the plan's example of the engine repairing `customers` -> `clients` is not
+  achievable: that is a semantic mapping, and difflib fails identically. It repairs typos,
+  plurals and case. Refusing an unmatched name is safer than silently querying another
+  table, so the error path was improved instead (names + suggestion + schema preview).
+- 2026-07-18 — deleted `tests/mcp` and `tests/fixtures` rather than porting. They test the
+  connection-bound API (`call_tool`/`_original_func`, module globals,
+  `execute_database_query`) that no longer exists. 118 new tests cover more ground than
+  their 69.
+
 - 2026-07-18 — frontend renders markdown to DOM nodes instead of the planned
   marked -> DOMPurify -> innerHTML. No innerHTML anywhere, so XSS is structurally
   impossible rather than filtered, and three vendored libraries disappear. Cost: a
@@ -98,14 +112,14 @@ Measured on the merged tree, compared against the pre-merge baseline:
 
 ## Debt (must clear before done)
 
-- [ ] lint exclusions in `pyproject.toml`, 5 tools each with own syntax, all TODO(phase-N)
-      tagged: ruff/black/isort/mypy/pylint + pytest `norecursedirs` → phases 3/4/5/7.5
+- [ ] lint exclusions remaining in `pyproject.toml`: `_legacy/` (phase 5),
+      `mcp_server/` (phase 4), `rag/loaders.py` (phase 7.5). Phase-3 entries cleared.
 - [ ] `docs/legacy/` (8 MCP markdowns) consolidate              → phase 7.6
 - [ ] `_legacy/mcp/` (Dockerfile, compose, config variant)      → phase 4
-- [ ] re-add MCP-origin deps pinned as each feature lands: psycopg2/pymysql/pyodbc
-      (phase 3), pypdf + doc parsers (phase 7.5)
+- [ ] re-add MCP-origin deps pinned as each feature lands: pypdf + doc parsers (phase 7.5).
+      psycopg2/pymysql/pyodbc no longer needed — the SQL port uses SQLAlchemy.
 - [ ] `GF_SECURITY_ADMIN_PASSWORD: admin` in docker-compose.secrets.yml:141 → phase 6
-- [ ] stale `python LLM_CI/ChatGUI.py` hint in tests/fixtures/sample_database.py → phase 3
+
 - [ ] `_legacy/` empty + CI check                        → phase 5
 - [ ] simulated stream → real `stream_chat`              → phase 5.4
 - [ ] upload button enabled                              → phase 7.5
@@ -123,6 +137,7 @@ Measured on the merged tree, compared against the pre-merge baseline:
 
 <!-- newest first: YYYY-MM-DD | phase | what landed | commit -->
 
+- 2026-07-18 | 3 | SQL engine ported (+118 tests, real-PG verified) | 965f0ba
 - 2026-07-18 | 2 | web UI at /ui (+16 py, +38 js tests) | f0601e0
 - 2026-07-18 | 2 | SSE endpoint POST /chat/stream (+17 tests) | 6dc5dc6
 - 2026-07-18 | 2 | cookie session auth (+25 tests) | 5a254f2
