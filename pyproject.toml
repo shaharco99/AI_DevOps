@@ -165,7 +165,6 @@ extend-exclude = '''
     | migrations
       # merged from MCP, not yet ported; mirrors the ruff/isort/mypy excludes
   )/
-  | /loaders\.py$          # TODO(phase-7.5)
 )
 '''
 
@@ -185,7 +184,6 @@ exclude = [
     # now would mean reformatting ~2900 lines that phases 3-5 are about to
     # rewrite, and would bury the real diff. Each entry is removed by the phase
     # that ports it; see MERGE_PROGRESS.md "Debt".
-    "ai_devops_assistant/rag/loaders.py",           # TODO(phase-7.5)
 ]
 
 [tool.ruff.per-file-ignores]
@@ -206,7 +204,6 @@ exclude = [
     "tests/",
     # Merged from MCP, not yet ported onto this codebase's contracts and not on
     # any runtime path. Each entry is removed by the phase that ports it.
-    "ai_devops_assistant/rag/loaders.py",           # TODO(phase-7.5)
 ]
 
 [[tool.mypy.overrides]]
@@ -272,7 +269,6 @@ exclude_lines = [
 # Those deps get added back to this file, pinned, by the phase that ports each
 # module. Each entry is removed by the phase that ports it.
 ignore-paths = [
-    "^ai_devops_assistant/rag/loaders\\.py$",           # TODO(phase-7.5)
 ]
 
 [tool.isort]
@@ -288,7 +284,6 @@ skip_glob = [
     "*/.venv/*",
     # Merged from MCP, not yet ported. Mirrors the ruff and mypy excludes;
     # each is removed by the phase that ports it.
-    "*/rag/loaders.py",                             # TODO(phase-7.5)
 ]
 known_first_party = ["ai_devops_assistant"]
 

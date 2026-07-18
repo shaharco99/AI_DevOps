@@ -6,7 +6,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 AI DevOps Assistant: a FastAPI backend where an agent answers DevOps questions by calling tools — SQL queries, Kubernetes state, log analysis, Prometheus metrics, CI pipeline status — plus RAG retrieval over a Chroma vector store. Python 3.11+, fully async (SQLAlchemy async + asyncpg).
 
-**A merge is in progress.** The `MCP` project (`../MCP`) is being merged into this repo, adding a SQL auto-correction engine, an MCP protocol server, and a streaming web chat UI. **Read `MERGE_PROGRESS.md` first** — it is the single resume point (current phase, next action, open decisions, tracked debt). The full plan lives at `~/.claude/plans/compiled-enchanting-parasol.md`.
+The `MCP` project was merged in (see `MERGE_PROGRESS.md` for the record and
+`docs/adr/` for the decisions). It contributed the SQL auto-correction engine
+(`tools/sql_correction.py`), the MCP protocol server (`mcp_server/`), and the
+document loaders (`rag/loaders.py`). The web chat UI at `/ui` and the streaming
+`/chat/stream` endpoint were built during that work.
 
 ## Commands
 
@@ -61,7 +65,11 @@ pre-commit run --all-files                         # runs the whole gate, auto-f
 
 Line length is 100 (Black + Ruff). CI (`.github/workflows/ci-cd.yml`) also runs bandit, semgrep, Trivy, CodeQL, pip-audit, markdownlint, and codespell.
 
-**mypy is currently red** — 124 errors across 28 files, pre-existing. ruff/black/isort/pylint (9.77/10) all pass. Don't assume a mypy failure is something you caused; check `MERGE_PROGRESS.md`.
+All five gates pass with **no exclusions**. JS tests run separately:
+`node --test tests/js/*.test.js` (node's built-in runner, zero npm dependencies).
+Some tests need a service and skip without one: `TEST_POSTGRES_URL` for the SQL
+dialect tests, `TEST_REDIS_URL` for the session-store tests. CI should set both;
+locally they skip cleanly.
 
 ## Architecture
 

@@ -87,6 +87,7 @@ def create_app() -> FastAPI:
         health,
         metrics,
         models,
+        rag,
         run_sql,
     )
 
@@ -98,6 +99,7 @@ def create_app() -> FastAPI:
     app.include_router(chat.router, dependencies=auth_deps)
     app.include_router(run_sql.router, dependencies=auth_deps)
     app.include_router(analyze_logs.router, dependencies=auth_deps)
+    app.include_router(rag.router, dependencies=auth_deps)
     # Behind auth: /metrics/ai/* exposes token counts, model names, latency and
     # error detail — an operational profile of the deployment. Liveness probes
     # use /health, which stays open.

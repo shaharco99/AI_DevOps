@@ -266,6 +266,23 @@ async function loadModels() {
   }
 }
 
+async function uploadDocument(file) {
+  const body = new FormData();
+  body.append("file", file);
+  const headers = state.csrfToken ? { "X-CSRF-Token": state.csrfToken } : {};
+  const resp = await fetch("/rag/ingest", {
+    method: "POST",
+    body,
+    headers,
+    credentials: "same-origin",
+  });
+  if (!resp.ok) {
+    const detail = await resp.json().catch(() => ({}));
+    throw new Error(detail.detail || `upload failed: ${resp.status}`);
+  }
+  return resp.json();
+}
+
 function init() {
   dom.messages = document.getElementById("messages");
   dom.input = document.getElementById("input");
@@ -275,6 +292,8 @@ function init() {
   dom.newChat = document.getElementById("new-chat");
   dom.themeToggle = document.getElementById("theme-toggle");
   dom.model = document.getElementById("model");
+  dom.upload = document.getElementById("upload");
+  dom.file = document.getElementById("file");
 
   state.csrfToken = readCookie("ai_devops_csrf");
 
@@ -286,6 +305,24 @@ function init() {
   dom.newChat.addEventListener("click", newSession);
   dom.themeToggle.addEventListener("click", () => {
     applyTheme(document.documentElement.dataset.theme === "dark" ? "light" : "dark");
+  });
+
+  dom.upload.addEventListener("click", () => dom.file.click());
+  dom.file.addEventListener("change", async () => {
+    const file = dom.file.files[0];
+    if (!file) return;
+    const { row, body } = addMessage("assistant", "");
+    body.textContent = `Ingesting ${file.name}…`;
+    try {
+      const result = await uploadDocument(file);
+      body.textContent = `Added ${file.name} to the knowledge base (${result.chunks} chunks).`;
+    } catch (err) {
+      body.replaceChildren(el("div", "error-box", err.message));
+    }
+    // Reset so selecting the same file again re-triggers change.
+    dom.file.value = "";
+    scrollToBottom();
+    void row;
   });
 
   dom.input.addEventListener("input", autosize);
