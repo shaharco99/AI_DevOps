@@ -23,7 +23,7 @@ from __future__ import annotations
 
 import inspect
 import logging
-from typing import TYPE_CHECKING, Any, Optional, Protocol
+from typing import TYPE_CHECKING, Any, Protocol
 
 if TYPE_CHECKING:
     from ai_devops_assistant.tools.base import BaseTool
@@ -68,7 +68,9 @@ def _signature_from_schema(schema: dict[str, Any]) -> inspect.Signature:
 
         if name in required:
             parameters.append(
-                inspect.Parameter(name, inspect.Parameter.POSITIONAL_OR_KEYWORD, annotation=annotation)
+                inspect.Parameter(
+                    name, inspect.Parameter.POSITIONAL_OR_KEYWORD, annotation=annotation
+                )
             )
         else:
             parameters.append(
@@ -76,7 +78,7 @@ def _signature_from_schema(schema: dict[str, Any]) -> inspect.Signature:
                     name,
                     inspect.Parameter.POSITIONAL_OR_KEYWORD,
                     default=None,
-                    annotation=Optional[annotation],
+                    annotation=annotation | None,
                 )
             )
 

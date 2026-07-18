@@ -84,9 +84,7 @@ def run() -> None:
     sse; streamable-http is the one that serves network clients.
     """
     server = create_server()
-    logger.info(
-        f"Starting MCP server on {settings.MCP_HOST}:{settings.MCP_PORT} (streamable-http)"
-    )
+    logger.info(f"Starting MCP server on {settings.MCP_HOST}:{settings.MCP_PORT} (streamable-http)")
     server.run(
         transport="streamable-http",
         host=settings.MCP_HOST,

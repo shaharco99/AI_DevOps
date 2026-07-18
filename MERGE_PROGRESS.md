@@ -5,8 +5,9 @@ Updated: 2026-07-18 | Phase: 2 | Branch: `feature/merge-mcp`
 
 ## Now
 
-Phase 4 — MCP protocol server sharing the SAME `ToolRegistry` as the REST API.
-Delete `run_python_script` (RCE), rewrite `run_shell` allowlisting, drop `verify_ssl=False`.
+Phase 5 — LLM provider consolidation. Extend `LLMProvider` ABC to messages-first
+(5.1) BEFORE the factory work; the system/user boundary is what phase 6's prompt-injection
+fencing depends on.
 
 ## Blocked
 
@@ -14,9 +15,9 @@ Delete `run_python_script` (RCE), rewrite `run_shell` allowlisting, drop `verify
 
 ## Gate status: 5/5 green
 
-`ruff` · `black` · `isort` · `pylint 9.78` · `mypy 0 errors` · `pytest 230` (238 w/ Postgres) + 38 JS
+`ruff` · `black` · `isort` · `pylint 9.78` · `mypy 0 errors` · `pytest 312` (320 w/ Postgres) + 38 JS
 Always verify with the CI-pinned linter versions (see Key facts).
-Suite grew 37 -> 230 Python + 38 JS (phases 2-3).
+Suite grew 37 -> 312 Python + 38 JS (phases 2-4).
 JS tests: `node --test tests/js/*.test.js` (node's built-in runner, zero npm deps).
 
 ## Phases
@@ -43,7 +44,12 @@ JS tests: `node --test tests/js/*.test.js` (node's built-in runner, zero npm dep
   - [x] 3.3 dialect gate — landmine confirmed real, then defused
   - [x] 3.4 NL->SQL returns (sql, params); no interpolation
   - [x] 3.5 tests ported; all phase-3 lint exclusions removed
-- [ ] 4 MCP server         (4.1 adapter · 4.2 tools · 4.3 kube · 4.4 deploy · 4.5 auth)
+- [x] 4 MCP server — verified with a real MCP client: handshake, tools/list, tools/call
+  - [x] 4.1 adapter; MCP + REST share one registry, asserted by test
+  - [x] 4.2 RCE deleted; ShellTool argv-allowlisted, off by default; cluster_overview ported
+  - [x] 4.3 K8S_VERIFY_SSL was declared-but-unused; now applied, refused in production
+  - [x] 4.4 second compose service, same image, port 8001, loopback-bound
+  - [x] 4.5 refuses to start in production without MCP_AUTH_TOKEN
 - [ ] 5 LLM consolidation  (5.1 ABC · 5.2 factory · 5.3 prompt · 5.4 real stream)
 - [ ] 6 Security           (#1-15)
 - [ ] 7 State/cleanup/docs (7.1-7.7)
@@ -86,6 +92,11 @@ Measured on the merged tree, compared against the pre-merge baseline:
 
 <!-- deviations from the plan only; format: date — decision — why -->
 
+- 2026-07-18 — bumped the web stack (fastapi 0.115.6, starlette 0.41.3, httpx 0.28.1,
+  uvicorn 0.34.0, python-dotenv 1.2.2). fastmcp's transitive mcp SDK needs httpx>=0.28,
+  which breaks starlette 0.36's TestClient. Shipping unsatisfied pins was the alternative.
+  Full suite verified on the new stack before the pins changed.
+
 - 2026-07-18 — the plan's example of the engine repairing `customers` -> `clients` is not
   achievable: that is a semantic mapping, and difflib fails identically. It repairs typos,
   plurals and case. Refusing an unmatched name is safer than silently querying another
@@ -113,9 +124,9 @@ Measured on the merged tree, compared against the pre-merge baseline:
 ## Debt (must clear before done)
 
 - [ ] lint exclusions remaining in `pyproject.toml`: `_legacy/` (phase 5),
-      `mcp_server/` (phase 4), `rag/loaders.py` (phase 7.5). Phase-3 entries cleared.
+      `rag/loaders.py` (phase 7.5). Phase-3 and phase-4 entries cleared.
 - [ ] `docs/legacy/` (8 MCP markdowns) consolidate              → phase 7.6
-- [ ] `_legacy/mcp/` (Dockerfile, compose, config variant)      → phase 4
+- [ ] `_legacy/mcp/` (Dockerfile, compose, config variant) — superseded, delete → phase 5
 - [ ] re-add MCP-origin deps pinned as each feature lands: pypdf + doc parsers (phase 7.5).
       psycopg2/pymysql/pyodbc no longer needed — the SQL port uses SQLAlchemy.
 - [ ] `GF_SECURITY_ADMIN_PASSWORD: admin` in docker-compose.secrets.yml:141 → phase 6
@@ -137,6 +148,7 @@ Measured on the merged tree, compared against the pre-merge baseline:
 
 <!-- newest first: YYYY-MM-DD | phase | what landed | commit -->
 
+- 2026-07-18 | 4 | MCP server + ShellTool; RCE deleted (+82 tests) | edea77a
 - 2026-07-18 | 3 | SQL engine ported (+118 tests, real-PG verified) | 965f0ba
 - 2026-07-18 | 2 | web UI at /ui (+16 py, +38 js tests) | f0601e0
 - 2026-07-18 | 2 | SSE endpoint POST /chat/stream (+17 tests) | 6dc5dc6
