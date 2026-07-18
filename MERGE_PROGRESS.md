@@ -5,17 +5,18 @@ Updated: 2026-07-18 | Phase: 2 | Branch: `feature/merge-mcp`
 
 ## Now
 
-Phase 2.1 — add `DevOpsAgent.chat_stream()` as an async generator and make the existing
-`chat()` consume it (must not fork the logic).
+Phase 2.3/2.5 — the web frontend: vanilla ES modules at `/ui`, sidebar, tool-call chips,
+streaming cursor, DOMPurify on all LLM output. Backend for it is done and tested.
 
 ## Blocked
 
 - none
 
-## Gate status: 5/5 green (first time in this repo's history)
+## Gate status: 5/5 green
 
-`ruff` · `black` · `isort` · `pylint 9.78` · `mypy 0 errors` · `pytest 37/37`
+`ruff` · `black` · `isort` · `pylint 9.78` · `mypy 0 errors` · `pytest 103/103`
 Always verify with the CI-pinned linter versions (see Key facts).
+Suite grew 37 -> 103 during phase 2 (agent events 24, auth 25, SSE 17).
 
 ## Phases
 
@@ -30,7 +31,11 @@ Always verify with the CI-pinned linter versions (see Key facts).
   - [x] 1.3 merge `--allow-unrelated-histories`, **0 conflicts, 0 path collisions**
   - [x] 1.4 union config: .gitignore, gitleaks + detect-secrets hooks, baseline regenerated
   - [x] 1.5 verified — see Phase 1 evidence
-- [ ] 2 Web chat + SSE     (2.1 chat_stream · 2.2 endpoint · 2.3 frontend · 2.4 auth · 2.5 UX)
+- [ ] 2 Web chat + SSE
+  - [x] 2.1 `chat_stream()` + `agents/events.py`; `chat()` drains it (no forked logic)
+  - [x] 2.2 `POST /chat/stream` SSE; persistence in `finally` survives Stop
+  - [x] 2.4 cookie session auth; browser never holds the API key
+  - [ ] 2.3/2.5 frontend + UX
 - [ ] 3 SQL engine port    (3.1 purify · 3.2 guard 2x · 3.3 dialect gate · 3.4 params · 3.5 tests)
 - [ ] 4 MCP server         (4.1 adapter · 4.2 tools · 4.3 kube · 4.4 deploy · 4.5 auth)
 - [ ] 5 LLM consolidation  (5.1 ABC · 5.2 factory · 5.3 prompt · 5.4 real stream)
@@ -110,6 +115,9 @@ Measured on the merged tree, compared against the pre-merge baseline:
 
 <!-- newest first: YYYY-MM-DD | phase | what landed | commit -->
 
+- 2026-07-18 | 2 | SSE endpoint POST /chat/stream (+17 tests) | 6dc5dc6
+- 2026-07-18 | 2 | cookie session auth (+25 tests) | 5a254f2
+- 2026-07-18 | 2 | chat_stream() + events (+24 tests) | e2eb8f1
 - 2026-07-18 | – | **mypy 124 -> 0; all 5 gates green** | 081a1cc,78ef815,5f624ef
 - 2026-07-18 | 1 | time-boxed lint exclusions, 5 tools | da2c12f
 - 2026-07-18 | 1 | union config + regenerated secrets baseline | b51a7e8
