@@ -3,7 +3,7 @@
 import logging
 import os
 from abc import ABC, abstractmethod
-from typing import Any
+from typing import Any, cast
 
 import aiohttp
 
@@ -217,7 +217,7 @@ class AzureDevOpsProvider(PipelineProvider):
                     data = await response.json()
                     definitions = data.get("value", [])
                     if definitions:
-                        return definitions[0]["id"]
+                        return cast("int | None", definitions[0]["id"])
                 return None
 
     def _get_auth_token(self) -> str:
@@ -419,7 +419,7 @@ class GitHubActionsProvider(PipelineProvider):
             }
 
         url = f"{self.base_url}/repos/{self.owner}/{self.repo}/actions/runs"
-        params = {"per_page": 10}
+        params: dict[str, Any] = {"per_page": 10}
 
         if pipeline_name:
             # Get workflow ID by name
@@ -585,7 +585,7 @@ class PipelineTool(BaseTool):
             name="pipeline_status_tool",
             description="Query CI/CD pipeline status, builds, and logs from Azure DevOps, Jenkins, or GitHub Actions",
         )
-        self.providers = {
+        self.providers: dict[str, PipelineProvider] = {
             "azure_devops": AzureDevOpsProvider(),
             "jenkins": JenkinsProvider(),
             "github_actions": GitHubActionsProvider(),

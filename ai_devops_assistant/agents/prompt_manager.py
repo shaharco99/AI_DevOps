@@ -143,7 +143,7 @@ class PromptManager:
                 template = template_or_name
 
             # Render with context
-            return template.render(**context)
+            return str(template.render(**context))
 
         except Exception as e:
             logger.error(f"Error rendering prompt: {e}")

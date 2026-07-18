@@ -239,7 +239,7 @@ class RAGRetriever:
             return results
 
         # Simple diversity based on source
-        seen_sources = set()
+        seen_sources: set[str] = set()
         diverse_results = []
 
         for result in results:
@@ -258,7 +258,7 @@ class RAGRetriever:
         # Simple reranking based on exact term matches and position
         for result in results:
             content = result.get("content", "").lower()
-            score_boost = 0
+            score_boost = 0.0
 
             # Boost for exact phrase matches
             if query.lower() in content:

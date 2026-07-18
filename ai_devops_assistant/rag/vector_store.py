@@ -275,7 +275,7 @@ class VectorStoreService:
             raise ValueError("Vector store not initialized")
 
         try:
-            return self.collection.count()
+            return int(self.collection.count())
         except Exception as e:
             logger.error(f"Failed to get count: {e}")
             raise

@@ -2,6 +2,7 @@
 
 import json
 import logging
+from typing import cast
 
 import httpx
 from tenacity import retry, retry_if_exception, stop_after_attempt, wait_exponential
@@ -76,7 +77,7 @@ class OllamaService:
         """
         try:
             response = await self.client.get(f"{self.base_url}/api/tags")
-            return response.status_code == 200
+            return bool(response.status_code == 200)
         except Exception as e:
             logger.error(f"Ollama health check failed: {e}")
             return False
@@ -156,7 +157,7 @@ class OllamaService:
             logger.error(f"Generation error: {e}")
             raise LLMServiceError(f"Ollama generate failed: {e}") from e
 
-        generated_text = response.json().get("response", "")
+        generated_text = str(response.json().get("response", ""))
         logger.debug(f"Generated {len(generated_text)} characters")
         return generated_text
 
@@ -188,7 +189,7 @@ class OllamaService:
             logger.error(f"Chat error: {e}")
             raise LLMServiceError(f"Ollama chat failed: {e}") from e
 
-        return response.json().get("message", {}).get("content", "")
+        return str(response.json().get("message", {}).get("content", ""))
 
     async def stream_generate(
         self,
@@ -258,7 +259,7 @@ class OllamaService:
 
             if response.status_code == 200:
                 data = response.json()
-                return data.get("embedding")
+                return cast("list[float] | None", data.get("embedding"))
             else:
                 logger.error(f"Embeddings failed: {response.status_code}")
                 return None

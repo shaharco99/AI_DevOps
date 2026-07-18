@@ -65,11 +65,17 @@ class ToolRegistry:
         return [tool.get_schema() for tool in self.tools.values()]
 
     def set_session(self, session: AsyncSession) -> None:
-        """Set database session for tools that need it."""
-        if "sql_query_tool" in self.tools:
-            self.tools["sql_query_tool"].set_session(session)
-        if "log_analysis_tool" in self.tools:
-            self.tools["log_analysis_tool"].set_session(session)
+        """Inject the request-scoped DB session into every tool that accepts one.
+
+        Previously this named sql_query_tool and log_analysis_tool explicitly, so a
+        new DB-backed tool silently got no session until someone remembered to edit
+        this method. Discovering the setter keeps that automatic. set_session is not
+        on BaseTool because most tools do not need a session.
+        """
+        for tool in self.tools.values():
+            setter = getattr(tool, "set_session", None)
+            if callable(setter):
+                setter(session)
 
 
 class ToolExecutor:

@@ -1,7 +1,9 @@
 """LLM evaluation test suites and benchmarking."""
 
 import logging
+from collections.abc import Callable
 from pathlib import Path
+from typing import Any
 
 from ai_devops_assistant.evaluation.llm_evaluator import EvaluationCase, LLMEvaluator
 
@@ -169,7 +171,7 @@ class ModelBenchmarker:
 
     async def benchmark_models(
         self,
-        models: dict[str, callable],
+        models: dict[str, Callable[..., Any]],
         categories: list[str] | None = None,
         save_reports: bool = True,
         output_dir: str = "evaluation_reports",
@@ -223,7 +225,9 @@ class ModelBenchmarker:
         """Generate a comparison report across models."""
         import json
 
-        comparison = {
+        # Annotated because the values are heterogeneous (str, list, nested dicts);
+        # inference joins them to Collection[str], which is not indexable.
+        comparison: dict[str, Any] = {
             "benchmark_timestamp": self.evaluator._generate_report("", []).timestamp,
             "models_compared": list(results.keys()),
             "metrics": {},
@@ -257,7 +261,7 @@ class ModelBenchmarker:
 
     async def run_quick_benchmark(
         self,
-        models: dict[str, callable],
+        models: dict[str, Callable[..., Any]],
         categories: list[str] | None = None,
     ) -> str:
         """Run a quick benchmark and return formatted results."""

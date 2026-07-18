@@ -3,6 +3,7 @@
 import logging
 import uuid
 from datetime import datetime, timedelta
+from typing import cast
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -61,7 +62,7 @@ async def get_chat_session(
         ChatSession or None
     """
     result = await session.scalars(select(ChatSession).where(ChatSession.id == session_id))
-    return result.first()
+    return cast("ChatSession | None", result.first())
 
 
 async def add_chat_message(

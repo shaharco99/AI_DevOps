@@ -4,10 +4,11 @@ import asyncio
 import json
 import logging
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 from statistics import mean, median, stdev
-from typing import Any, Callable
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -142,14 +143,15 @@ class AdvancedModelBenchmark:
             all_runs.append(result)
 
         # Calculate aggregate metrics
-        result = self._calculate_aggregate_metrics(
+        aggregate = self._calculate_aggregate_metrics(
             model_name, successful_runs, failed_runs, total_time
         )
 
         logger.info(
-            f"Benchmark completed for {model_name}: {result.successful_runs}/{result.total_runs} successful"
+            f"Benchmark completed for {model_name}: "
+            f"{aggregate.successful_runs}/{aggregate.total_runs} successful"
         )
-        return result
+        return aggregate
 
     async def _single_run(
         self, model_name: str, model_fn: Callable[..., Any], prompt: str, run_num: int
@@ -282,7 +284,7 @@ class AdvancedModelBenchmark:
 
     async def compare_models(
         self,
-        models: dict[str, callable],
+        models: dict[str, Callable[..., Any]],
         prompts: list[str],
         runs_per_prompt: int = 3,
         output_dir: str = "benchmark_results",
@@ -330,7 +332,7 @@ class AdvancedModelBenchmark:
             )
 
         # Rank models by multiple criteria
-        ranking = []
+        ranking: list[dict[str, Any]] = []
         for result in results:
             score = (
                 result.success_rate * 0.4
@@ -357,7 +359,7 @@ class AdvancedModelBenchmark:
 
         # Sort by composite score
         ranking.sort(key=lambda x: x["composite_score"], reverse=True)
-        best_performer = ranking[0]["model"] if ranking else ""
+        best_performer = str(ranking[0]["model"]) if ranking else ""
 
         # Generate recommendations
         recommendations = self._generate_recommendations(ranking)

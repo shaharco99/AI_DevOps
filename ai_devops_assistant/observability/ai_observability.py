@@ -8,8 +8,9 @@ import threading
 import time
 import uuid
 from collections import defaultdict, deque
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any, Callable
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -430,7 +431,7 @@ class ObservabilityManager:
 
     def get_metrics_endpoint(self) -> str:
         """Get Prometheus metrics for HTTP endpoint."""
-        return self.metrics_collector.get_prometheus_metrics()
+        return str(self.metrics_collector.get_prometheus_metrics())
 
     def get_health_status(self) -> dict[str, Any]:
         """Get system health status."""

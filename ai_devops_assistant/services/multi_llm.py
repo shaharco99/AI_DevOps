@@ -122,7 +122,7 @@ class OllamaProvider(LLMProvider):
                 ) as resp:
                     if resp.status == 200:
                         data = await resp.json()
-                        return data.get("response", "")
+                        return str(data.get("response", ""))
 
                     logger.error(f"Ollama error: {resp.status}")
                     return ""
@@ -230,7 +230,7 @@ class OpenAIProvider(LLMProvider):
                 ) as resp:
                     if resp.status == 200:
                         data = await resp.json()
-                        return data["choices"][0]["message"]["content"]
+                        return str(data["choices"][0]["message"]["content"])
 
                     error = await resp.text()
                     logger.error(f"OpenAI error: {resp.status} - {error}")
@@ -376,7 +376,7 @@ class AnthropicProvider(LLMProvider):
 class LLMFactory:
     """Factory for creating LLM provider instances."""
 
-    _providers = {
+    _providers: dict[str, type[LLMProvider]] = {
         "ollama": OllamaProvider,
         "openai": OpenAIProvider,
         "anthropic": AnthropicProvider,

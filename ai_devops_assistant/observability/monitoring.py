@@ -23,7 +23,7 @@ class PrometheusExporter:
             push_gateway_url: Optional PushGateway URL for pushing metrics
         """
         self.push_gateway_url = push_gateway_url
-        self._last_push = 0
+        self._last_push = 0.0
         self._push_interval = 60  # Push every 60 seconds
 
     def get_metrics_text(self) -> str:

@@ -3,6 +3,7 @@
 import logging
 from collections import deque
 from datetime import datetime
+from typing import cast
 
 logger = logging.getLogger(__name__)
 
@@ -48,7 +49,7 @@ class ConversationMemory:
 
     def get_context(self, key: str) -> str | None:
         """Get context value."""
-        return self.context.get(key)
+        return cast("str | None", self.context.get(key))
 
     def set_context(self, key: str, value: str) -> None:
         """Set context value."""

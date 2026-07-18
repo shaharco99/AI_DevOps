@@ -561,7 +561,6 @@ class DevOpsAgent:
 
         return results
 
-
     def _build_system_context(self, memory: ConversationMemory, rag_context: str) -> str:
         """Build system context for LLM."""
         context_parts = [SYSTEM_PROMPT]

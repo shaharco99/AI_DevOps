@@ -267,7 +267,7 @@ class SitemapScraper:
 
             # Parse URLs from sitemap
             soup = BeautifulSoup(xml, "xml")
-            urls = []
+            urls: list[str] = []
 
             for loc in soup.find_all("loc"):
                 url = loc.get_text(strip=True)

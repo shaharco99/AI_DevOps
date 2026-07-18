@@ -282,7 +282,11 @@ class LLMEvaluator:
 
         try:
             # Query RAG for relevant context
-            rag_result = await self.rag_pipeline.query(case.prompt, top_k=3)
+            # query() takes a RAGQuery for anything beyond the default top_k; it
+            # has no top_k keyword. Same defect as the one fixed in agents/agent.py.
+            from ai_devops_assistant.rag.pipeline import RAGQuery
+
+            rag_result = await self.rag_pipeline.query(RAGQuery(query=case.prompt, top_k=3))
 
             if not rag_result.documents:
                 return 0.3  # Low groundedness if no relevant context
@@ -469,7 +473,9 @@ class LLMEvaluator:
 
 
 # Backward compatibility
-async def evaluate(model_fn: Callable[[str], str], cases: list[EvaluationCase]) -> dict[str, Any]:
+async def evaluate(
+    model_fn: Callable[[str], Awaitable[str]], cases: list[EvaluationCase]
+) -> dict[str, Any]:
     """Backward compatibility function."""
     evaluator = LLMEvaluator()
     report = await evaluator.evaluate_model(model_fn, "model", cases)

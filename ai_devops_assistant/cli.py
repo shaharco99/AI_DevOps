@@ -43,7 +43,7 @@ async def _evaluate_model(
     client = FallbackLLMClient(targets=[{"provider": "ollama", "model": model_name}])
 
     async def model_fn(prompt: str) -> str:
-        return await client.generate(prompt)
+        return str(await client.generate(prompt))
 
     # Run evaluation
     results = await quick_evaluate_model(model_fn, model_name, categories)
@@ -69,7 +69,7 @@ async def _benchmark_models(
         client = FallbackLLMClient(targets=[{"provider": "ollama", "model": model_name}])
 
         async def model_fn(prompt: str, client=client) -> str:
-            return await client.generate(prompt)
+            return str(await client.generate(prompt))
 
         models[model_name] = model_fn
 
@@ -123,7 +123,7 @@ async def _run_custom_evaluation(
     client = FallbackLLMClient(targets=[{"provider": "ollama", "model": model_name}])
 
     async def model_fn(prompt: str) -> str:
-        return await client.generate(prompt)
+        return str(await client.generate(prompt))
 
     # Run evaluation
     evaluator = LLMEvaluator()
