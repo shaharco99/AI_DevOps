@@ -89,12 +89,19 @@ async def _benchmark_models(
     for model_name, metrics in results.items():
         print(f"\n📊 {model_name}")
         print("-" * 30)
-        print(".4f")
-        print(".4f")
-        print(".4f")
-        print(".4f")
-        print(".4f")
-        print(".2f")
+        # These were bare print(".4f") calls, which print the literal string
+        # ".4f" rather than any metric — a format spec with no value attached.
+        for label, key in (
+            ("Correctness", "correctness"),
+            ("Relevance", "relevance"),
+            ("Coherence", "coherence"),
+            ("Groundedness", "groundedness"),
+            ("Overall", "overall"),
+        ):
+            if key in metrics:
+                print(f"  {label}: {metrics[key]:.4f}")
+        if "latency_ms_avg" in metrics:
+            print(f"  Avg latency: {metrics['latency_ms_avg']:.2f} ms")
         print(f"  Test Cases: {metrics['total_cases']}")
 
     # Show ranking
@@ -137,12 +144,17 @@ async def _run_custom_evaluation(
         print(f"Evaluation Report for {model_name}")
         print("=" * 40)
         print(f"Total Cases: {report.total_cases}")
-        print(".4f")
-        print(".4f")
-        print(".4f")
-        print(".4f")
-        print(".4f")
-        print(".2f")
+        for label, value in (
+            ("Correctness", report.correctness_avg),
+            ("Relevance", getattr(report, "relevance_avg", None)),
+            ("Coherence", getattr(report, "coherence_avg", None)),
+            ("Groundedness", getattr(report, "groundedness_avg", None)),
+        ):
+            if value is not None:
+                print(f"{label}: {value:.4f}")
+        latency = getattr(report, "latency_ms_avg", None)
+        if latency is not None:
+            print(f"Avg latency: {latency:.2f} ms")
 
 
 def _list_evaluation_categories() -> None:

@@ -45,6 +45,12 @@ class Settings(BaseSettings):
     # offers is unavailable through the Kubernetes and SQL tools.
     ENABLE_SHELL_TOOL: bool = False
 
+    # Conversation memory storage. Empty uses an in-process dict, which is
+    # correct for tests and single-process development but loses history across
+    # WEB_CONCURRENCY workers and restarts. compose already runs a Redis.
+    REDIS_URL: str = ""
+    SESSION_STORE_TTL_SECONDS: int = 3600
+
     # Web UI. Served same-origin from this app, so it needs no CORS entry.
     ENABLE_WEB_UI: bool = True
     # Session cookies are signed and self-contained, so they cannot be revoked

@@ -7,6 +7,7 @@ from typing import Any
 from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from ai_devops_assistant.database.context import get_current_session
 from ai_devops_assistant.database.models import ApplicationLog
 from ai_devops_assistant.tools.base import BaseTool
 
@@ -22,11 +23,21 @@ class LogAnalysisTool(BaseTool):
             name="log_analysis_tool",
             description="Search and analyze application logs and pipeline logs.",
         )
-        self.session: AsyncSession | None = None
+        self._session: AsyncSession | None = None
+
+    @property
+    def session(self) -> AsyncSession | None:
+        """The caller's session.
+
+        Prefers the request-scoped context so this shared tool instance never
+        serves one request using another's session. self._session remains for
+        direct construction in tests and scripts.
+        """
+        return get_current_session() or self._session
 
     def set_session(self, session: AsyncSession) -> None:
         """Set database session."""
-        self.session = session
+        self._session = session
 
     # Narrows BaseTool.execute(**kwargs) to this tool's named parameters. The
     # registry always dispatches by keyword and validate_parameters() guards the

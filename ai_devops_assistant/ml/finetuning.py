@@ -258,9 +258,8 @@ class FineTuner:
                 logger.error("Training data not prepared. Call prepare_dataset() first.")
                 return False
 
-            from transformers import DataCollatorForLanguageModeling, Trainer, TrainingArguments
-
             from datasets import Dataset
+            from transformers import DataCollatorForLanguageModeling, Trainer, TrainingArguments
 
             logger.info("Preparing training data...")
 

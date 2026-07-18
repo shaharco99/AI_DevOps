@@ -38,14 +38,18 @@ class VectorStoreService:
 
             logger.info(f"Initializing Chroma with persist dir: {self.persist_dir}")
 
-            # Create Chroma client with persistence
-            chroma_settings = Settings(
-                chroma_db_impl="duckdb+parquet",
-                persist_directory=self.persist_dir,
-                anonymized_telemetry=settings.CHROMA_ANONYMIZED_TELEMETRY,
+            # PersistentClient, not Client(Settings(chroma_db_impl=...)).
+            # chroma_db_impl is a chromadb <=0.3 setting. Modern versions accept
+            # it silently — pydantic ignores the unknown field — and then
+            # chromadb.Client() raises a migration error, so this failed at
+            # runtime while looking correct on inspection. The agent's broad
+            # except turned that into "RAG pipeline not available".
+            self.client = chromadb.PersistentClient(
+                path=self.persist_dir,
+                settings=Settings(
+                    anonymized_telemetry=settings.CHROMA_ANONYMIZED_TELEMETRY,
+                ),
             )
-
-            self.client = chromadb.Client(chroma_settings)
 
             # Get or create collection
             self.collection = self.client.get_or_create_collection(

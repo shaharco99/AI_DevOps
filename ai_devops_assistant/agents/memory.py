@@ -3,7 +3,10 @@
 import logging
 from collections import deque
 from datetime import datetime
-from typing import cast
+from typing import TYPE_CHECKING, cast
+
+if TYPE_CHECKING:
+    from ai_devops_assistant.agents.session_store import SessionStore
 
 logger = logging.getLogger(__name__)
 
@@ -81,16 +84,25 @@ class ConversationMemory:
 
 
 class SessionManager:
-    """Manage multiple conversation sessions."""
+    """Manage conversation sessions through a pluggable store.
 
-    def __init__(self, session_ttl_minutes: int = 60):
+    Sessions used to live in a dict on this object, which is process-local: with
+    WEB_CONCURRENCY > 1 a user's turns hit different workers and see different
+    histories, and a restart dropped everything. The store is injected instead —
+    Redis in production, in-process for tests and single-process development.
+    """
+
+    def __init__(self, session_ttl_minutes: int = 60, store: "SessionStore | None" = None):
         """Initialize session manager.
 
         Args:
             session_ttl_minutes: Session time-to-live in minutes
+            store: SessionStore to use. Defaults to the configured one.
         """
+        from ai_devops_assistant.agents.session_store import build_session_store
+
         self.session_ttl_minutes = session_ttl_minutes
-        self.sessions: dict[str, ConversationMemory] = {}
+        self.store: SessionStore = store if store is not None else build_session_store()
 
     def create_session(self, session_id: str) -> ConversationMemory:
         """Create new session.
@@ -101,12 +113,13 @@ class SessionManager:
         Returns:
             ConversationMemory: New session memory
         """
-        if session_id in self.sessions:
+        existing = self.store.get(session_id)
+        if existing is not None:
             logger.warning(f"Session {session_id} already exists")
-            return self.sessions[session_id]
+            return existing
 
         session = ConversationMemory()
-        self.sessions[session_id] = session
+        self.store.save(session_id, session)
         logger.info(f"Created session: {session_id}")
         return session
 
@@ -119,7 +132,15 @@ class SessionManager:
         Returns:
             ConversationMemory or None
         """
-        return self.sessions.get(session_id)
+        return self.store.get(session_id)
+
+    def save_session(self, session_id: str, memory: ConversationMemory) -> None:
+        """Persist a session's memory.
+
+        Required for any store that does not hold live objects: an in-process
+        dict sees mutations for free, Redis does not.
+        """
+        self.store.save(session_id, memory)
 
     def delete_session(self, session_id: str) -> None:
         """Delete session.
@@ -127,13 +148,12 @@ class SessionManager:
         Args:
             session_id: Session identifier
         """
-        if session_id in self.sessions:
-            del self.sessions[session_id]
-            logger.info(f"Deleted session: {session_id}")
+        self.store.delete(session_id)
+        logger.info(f"Deleted session: {session_id}")
 
     def list_sessions(self) -> list[str]:
         """List all session IDs."""
-        return list(self.sessions.keys())
+        return self.store.list_sessions()
 
     def get_or_create_session(self, session_id: str) -> ConversationMemory:
         """Get existing session or create new one."""

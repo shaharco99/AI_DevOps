@@ -77,6 +77,10 @@ services:
       API_ENVIRONMENT: ${API_ENVIRONMENT:-development}
       API_LOG_LEVEL: INFO
       API_KEY: ${API_KEY:-}
+      # Conversation memory. Without this the in-process store is used, which
+      # loses history across workers and restarts — and WEB_CONCURRENCY below
+      # is exactly what makes that visible.
+      REDIS_URL: redis://redis:6379/0
       WEB_CONCURRENCY: ${WEB_CONCURRENCY:-1}
     ports:
       - "8000:8000"
@@ -86,6 +90,8 @@ services:
       postgres:
         condition: service_healthy
       ollama:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     networks:
       - devops
@@ -186,7 +192,9 @@ services:
     container_name: ai-devops-grafana
     restart: unless-stopped
     environment:
-      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      # No default: compose fails with a clear message if it is unset, rather
+      # than silently standing up Grafana with admin/admin on a shared network.
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?set GRAFANA_ADMIN_PASSWORD in .env}
       GF_INSTALL_PLUGINS: grafana-worldmap-panel
     ports:
       - "127.0.0.1:3000:3000"

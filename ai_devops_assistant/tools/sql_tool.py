@@ -8,6 +8,7 @@ from sqlalchemy import inspect, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ai_devops_assistant.config.constants import ERROR_SQL_INJECTION_DETECTED, MAX_SQL_RESULT_ROWS
+from ai_devops_assistant.database.context import get_current_session
 from ai_devops_assistant.tools.base import BaseTool
 from ai_devops_assistant.tools.sql_correction import _convert_sqlite_syntax, validate_and_fix_sql
 
@@ -24,8 +25,18 @@ class SQLQueryTool(BaseTool):
             description="Execute SQL queries to retrieve data from the application database. "
             "Supports SELECT queries only for security.",
         )
-        self.session: AsyncSession | None = None
+        self._session: AsyncSession | None = None
         self._schema_cache: dict[str, list[str]] | None = None
+
+    @property
+    def session(self) -> AsyncSession | None:
+        """The caller's session.
+
+        Prefers the request-scoped context so this shared tool instance never
+        serves one request using another's session. self._session remains for
+        direct construction in tests and scripts.
+        """
+        return get_current_session() or self._session
 
     def set_session(self, session: AsyncSession) -> None:
         """Set database session.
@@ -33,7 +44,7 @@ class SQLQueryTool(BaseTool):
         Args:
             session: SQLAlchemy async session
         """
-        self.session = session
+        self._session = session
         # A new session may point at a different database, so the cached schema
         # from the previous one must not be reused.
         self._schema_cache = None

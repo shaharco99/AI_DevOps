@@ -164,7 +164,10 @@ class DevOpsAgent:
         self.rag_pipeline: "RAGPipeline | None" = None
         self.session_manager = get_session_manager()
         self.session = session
-        self.conversation_memory: ConversationMemory | None = None
+        # Conversation memory is deliberately NOT agent state. The agent is a
+        # process-wide singleton, so an instance attribute here is shared by
+        # every concurrent request — it leaked one user's history into the next
+        # user's context. Memory is resolved per call from session_id instead.
 
         # Agent state
         self.current_task: AgentTask | None = None
@@ -257,16 +260,16 @@ class DevOpsAgent:
         """
         with trace_context("agent_chat", agent_role=self.config.role.value):
             try:
-                # Initialize conversation memory if needed
-                if session_id and not self.conversation_memory:
-                    self.conversation_memory = self.session_manager.get_or_create_session(
-                        session_id
-                    )
+                # Resolved per call, never stored on self: this agent instance is
+                # shared across every request in the process.
+                memory = (
+                    self.session_manager.get_or_create_session(session_id) if session_id else None
+                )
 
                 task = AgentTask(description=message, context={"session_id": session_id})
 
                 response: AgentResponse | None = None
-                async for event in self._execute_task_stream(task, use_rag=use_rag):
+                async for event in self._execute_task_stream(task, use_rag=use_rag, memory=memory):
                     if event.type is EventType.DONE:
                         # Carries the assembled response; held back so memory and
                         # history are updated before the caller sees the terminal event.
@@ -277,9 +280,12 @@ class DevOpsAgent:
                 if response is None:  # pragma: no cover - defensive
                     raise RuntimeError("agent produced no response")
 
-                if self.conversation_memory:
-                    self.conversation_memory.add_message("user", message)
-                    self.conversation_memory.add_message("assistant", response.content)
+                if memory and session_id:
+                    memory.add_message("user", message)
+                    memory.add_message("assistant", response.content)
+                    # Explicit save: a process-local dict sees the mutation for
+                    # free, Redis does not.
+                    self.session_manager.save_session(session_id, memory)
 
                 self.execution_history.append(
                     {
@@ -321,20 +327,28 @@ class DevOpsAgent:
             "session_id": session_id,
         }
 
-    async def _execute_task(self, task: AgentTask, use_rag: bool = True) -> AgentResponse:
+    async def _execute_task(
+        self,
+        task: AgentTask,
+        use_rag: bool = True,
+        memory: ConversationMemory | None = None,
+    ) -> AgentResponse:
         """Execute a task and return the finished response.
 
         Thin consumer of _execute_task_stream so there is one implementation of
         the loop.
         """
-        async for event in self._execute_task_stream(task, use_rag=use_rag):
+        async for event in self._execute_task_stream(task, use_rag=use_rag, memory=memory):
             if event.type is EventType.DONE:
                 response: AgentResponse = event.data["response"]
                 return response
         raise RuntimeError("agent produced no response")  # pragma: no cover - defensive
 
     async def _execute_task_stream(
-        self, task: AgentTask, use_rag: bool = True
+        self,
+        task: AgentTask,
+        use_rag: bool = True,
+        memory: ConversationMemory | None = None,
     ) -> AsyncIterator[AgentEvent]:
         """Execute a task, emitting an event at each observable step.
 
@@ -348,7 +362,7 @@ class DevOpsAgent:
         try:
             # Step 1: Gather context
             yield status_event("gathering_context")
-            context = await self._gather_context(task, use_rag)
+            context = await self._gather_context(task, use_rag, memory)
             reasoning_steps.append("Gathered relevant context from knowledge base")
 
             # Step 2: Plan execution (if planning enabled)
@@ -471,7 +485,12 @@ class DevOpsAgent:
             task.error = str(e)
             raise
 
-    async def _gather_context(self, task: AgentTask, use_rag: bool) -> str:
+    async def _gather_context(
+        self,
+        task: AgentTask,
+        use_rag: bool,
+        memory: ConversationMemory | None = None,
+    ) -> str:
         """Gather relevant context for task execution.
 
         Retrieved documents are *not* returned here. They are untrusted (anyone
@@ -482,9 +501,10 @@ class DevOpsAgent:
         self._untrusted_sections = []
         context_parts = []
 
-        # Add conversation history if available
-        if self.conversation_memory:
-            history = self.conversation_memory.get_last_n_messages(5)
+        # Add conversation history if available. Passed in per call — reading it
+        # from self would mix conversations between concurrent users.
+        if memory:
+            history = memory.get_last_n_messages(5)
             if history:
                 context_parts.append("Recent conversation:")
                 for msg in history[-3:]:  # Last 3 messages for context
@@ -743,165 +763,21 @@ class DevOpsAgent:
         }
         return role_contexts.get(self.config.role)
 
-    # Multi-agent coordination methods
-    async def delegate_to_specialist(
-        self, task: AgentTask, specialist_role: AgentRole
-    ) -> AgentResponse:
-        """Delegate a task to a specialist agent."""
-        # Create specialist agent
-        specialist_config = AgentConfig(
-            role=specialist_role,
-            capabilities=[
-                AgentCapability.TOOL_USE,
-                AgentCapability.RAG_RETRIEVAL,
-                AgentCapability.ANALYSIS,
-            ],
-        )
 
-        specialist = DevOpsAgent(specialist_config, self.session)
-        await specialist.initialize()
-
-        # Execute with specialist
-        return await specialist._execute_task(task)
-
-    async def collaborate_on_task(
-        self, task: AgentTask, collaborators: list[AgentRole]
-    ) -> dict[str, AgentResponse]:
-        """Collaborate with other specialist agents on a complex task."""
-        results = {}
-
-        # Execute with each collaborator
-        for role in collaborators:
-            try:
-                result = await self.delegate_to_specialist(task, role)
-                results[role.value] = result
-            except Exception as e:
-                logger.error(f"Collaboration with {role.value} failed: {e}")
-                results[role.value] = AgentResponse(
-                    content=f"Collaboration failed: {str(e)}", confidence_score=0.0
-                )
-
-        return results
-
-    def _build_system_context(self, memory: ConversationMemory, rag_context: str) -> str:
-        """Build system context for LLM."""
-        context_parts = [SYSTEM_PROMPT]
-
-        if rag_context:
-            context_parts.append(f"\nRelevant Knowledge Base:\n{rag_context[:2000]}")
-
-        available_tools = self.tool_executor.get_available_tools()
-        if available_tools:
-            context_parts.append("\nAvailable Tools:")
-            for tool_name, description in available_tools.items():
-                context_parts.append(f"- {tool_name}: {description}")
-
-        return "\n".join(context_parts)
-
-    def _format_messages_for_llm(
-        self, memory: ConversationMemory, current_message: str
-    ) -> list[dict]:
-        """Format conversation history for LLM."""
-        messages = []
-
-        # Add system message
-        messages.append(
-            {
-                "role": "system",
-                "content": SYSTEM_PROMPT,
-            }
-        )
-
-        # Add previous messages from memory
-        for msg in memory.get_last_n_messages(6):  # Keep last 6 messages
-            messages.append(
-                {
-                    "role": msg["role"],
-                    "content": msg["content"],
-                }
-            )
-
-        return messages
-
-    async def _execute_tool_calls(
-        self,
-        llm_response: str,
-        user_query: str,
-    ) -> tuple[list[dict], dict[str, Any]]:
-        """Extract and execute tool calls from LLM response.
-
-        Returns:
-            tuple: (tool_calls, tool_results)
-        """
-        tool_calls = []
-        tool_results = {}
-
-        # Try to parse JSON tool calls from response
-        try:
-            # Simple heuristic: look for JSON blocks in response
-            if "```json" in llm_response:
-                json_start = llm_response.find("```json") + 7
-                json_end = llm_response.find("```", json_start)
-                json_str = llm_response[json_start:json_end].strip()
-                tool_data = json.loads(json_str)
-
-                # Execute tools
-                if isinstance(tool_data, dict) and "tools" in tool_data:
-                    for tool_call in tool_data["tools"]:
-                        tool_name = tool_call.get("name")
-                        params = tool_call.get("parameters", {})
-
-                        result = await self.tool_executor.execute_tool(tool_name, **params)
-                        tool_calls.append({"name": tool_name, "parameters": params})
-                        tool_results[tool_name] = result
-
-        except (json.JSONDecodeError, ValueError, IndexError):
-            # No valid tool calls found, that's okay
-            pass
-
-        return tool_calls, tool_results
-
-    def _build_synthesis_prompt(
-        self,
-        user_query: str,
-        tool_results: dict[str, Any],
-    ) -> str:
-        """Build synthesis prompt for final response."""
-        results_text = "\n".join(
-            f"- {tool_name}: {result}" for tool_name, result in tool_results.items()
-        )
-
-        return f"""Based on the tool results below, provide a comprehensive answer to the user's question.
-
-User Question: {user_query}
-
-Tool Results:
-{results_text}
-
-Please synthesize these results into a clear, actionable response."""
-
-    def _error_response(
-        self, error: str, memory: ConversationMemory | None = None
-    ) -> dict[str, Any]:
-        """Build error response."""
-        return {
-            "success": False,
-            "message": f"Error: {error}",
-            "tool_calls": [],
-            "tool_results": {},
-            "session_id": None,
-        }
-
-
-# Global agent instance
+# Global agent instance. Safe as a singleton because the agent now holds no
+# per-request state: conversation memory is resolved per call from session_id,
+# and the database session comes from the request context (database/context.py).
 _agent: DevOpsAgent | None = None
 
 
 async def get_agent(session: AsyncSession | None = None) -> DevOpsAgent:
-    """Get or create DevOps agent.
+    """Get or create the shared DevOps agent.
 
     Args:
-        session: Optional database session
+        session: Optional database session, used only on first construction.
+            Per-request sessions arrive through database/context.py instead —
+            binding one here made every later request use the first request's
+            (by then closed) session.
 
     Returns:
         DevOpsAgent: Agent instance

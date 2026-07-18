@@ -14,8 +14,6 @@ from ai_devops_assistant.tools.pipeline_tool import PipelineTool
 from ai_devops_assistant.tools.shell_tool import ShellTool
 from ai_devops_assistant.tools.sql_tool import SQLQueryTool
 
-# from ai_devops_assistant.rag.retriever import get_rag_retriever  # Disabled for now
-
 logger = logging.getLogger(__name__)
 
 
@@ -94,7 +92,6 @@ class ToolExecutor:
             registry: Tool registry (creates new if not provided)
         """
         self.registry = registry or ToolRegistry()
-        self.rag_retriever = None  # get_rag_retriever() if settings.ENABLE_RAG else None
 
     async def execute_tool(
         self,
@@ -119,42 +116,6 @@ class ToolExecutor:
 
         logger.info(f"Executing tool: {tool_name}")
         return await tool(**parameters)
-
-    async def execute_rag_retrieval(
-        self,
-        query: str,
-        category: str | None = None,
-    ) -> dict[str, Any]:
-        """Execute RAG retrieval.
-
-        Args:
-            query: Search query
-            category: Optional category filter
-
-        Returns:
-            dict: Retrieved documents
-        """
-        if not self.rag_retriever:
-            return {
-                "success": False,
-                "error": "RAG system not enabled",
-            }
-
-        try:
-            documents = self.rag_retriever.retrieve(query, category)
-            context = self.rag_retriever.format_context(documents)
-            return {
-                "success": True,
-                "documents": documents,
-                "context": context,
-                "count": len(documents),
-            }
-        except Exception as e:
-            logger.error(f"RAG retrieval failed: {e}")
-            return {
-                "success": False,
-                "error": str(e),
-            }
 
     def get_available_tools(self) -> dict[str, str]:
         """Get available tools with descriptions."""
