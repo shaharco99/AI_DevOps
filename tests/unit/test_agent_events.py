@@ -9,7 +9,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from ai_devops_assistant.agents.agent import DevOpsAgent, _chunk_response, _summarise_tool_result
+from ai_devops_assistant.agents.agent import DevOpsAgent, _summarise_tool_result
 from ai_devops_assistant.agents.events import AgentEvent, EventType, error_event, status_event
 
 
@@ -74,21 +74,53 @@ class TestSummariseToolResult:
         assert _summarise_tool_result("all good") == "all good"
 
 
-class TestChunkResponse:
-    """The interim token-streaming stand-in."""
+class TestMessageBoundary:
+    """The final-response prompt must keep system and user separate.
 
-    def test_empty_text_yields_nothing(self):
-        assert _chunk_response("") == []
+    It used to concatenate the system prompt, retrieved context and tool output
+    into a single user message, which erases the distinction phase 6's
+    injection fencing depends on.
+    """
 
-    def test_chunks_rejoin_to_the_original(self):
-        text = "The pod is in CrashLoopBackOff because the readiness probe fails."
-        assert "".join(_chunk_response(text)).strip() == text.strip()
+    def test_system_prompt_is_its_own_message(self):
+        from ai_devops_assistant.agents.agent import AgentTask
 
-    def test_does_not_split_inside_a_word(self):
-        text = "extraordinarily supercalifragilistic tokens here"
-        for chunk in _chunk_response(text, size=5):
-            for word in chunk.split():
-                assert word in text
+        agent = DevOpsAgent()
+        messages = agent._build_response_messages(
+            AgentTask(description="which pods are failing?"),
+            context="retrieved doc text",
+            tool_results="Tool kubernetes_tool: 3 pods",
+            system_prompt="You are a DevOps assistant.",
+        )
+
+        assert [m["role"] for m in messages] == ["system", "user"]
+        assert messages[0]["content"] == "You are a DevOps assistant."
+
+    def test_context_and_tool_output_go_in_the_user_turn_not_the_system_one(self):
+        from ai_devops_assistant.agents.agent import AgentTask
+
+        agent = DevOpsAgent()
+        messages = agent._build_response_messages(
+            AgentTask(description="q"),
+            context="UNTRUSTED DOC",
+            tool_results="TOOL OUTPUT",
+            system_prompt="SYSTEM RULES",
+        )
+
+        assert "UNTRUSTED DOC" not in messages[0]["content"]
+        assert "TOOL OUTPUT" not in messages[0]["content"]
+        assert "UNTRUSTED DOC" in messages[1]["content"]
+        assert "TOOL OUTPUT" in messages[1]["content"]
+
+    def test_empty_context_and_tools_are_omitted_cleanly(self):
+        from ai_devops_assistant.agents.agent import AgentTask
+
+        agent = DevOpsAgent()
+        messages = agent._build_response_messages(
+            AgentTask(description="just a question"), "", "", "SYSTEM"
+        )
+        assert "Context Information" not in messages[1]["content"]
+        assert "Tool Execution Results" not in messages[1]["content"]
 
 
 def _mock_agent_deps(chat_side_effect=None, chat_return="Final answer"):
@@ -309,3 +341,134 @@ class TestChatStreamParity:
         assert result["error"] == "nope"
         assert result["tool_calls"] == []
         assert result["session_id"] == "s1"
+
+
+class TestRealTokenStreaming:
+    """Phase 5.4: tokens come from the provider, not from chunking a finished string."""
+
+    @pytest.fixture
+    def agent(self):
+        return DevOpsAgent()
+
+    @staticmethod
+    def _streaming_llm(chunks, stream_fails=None, chat_reply="fallback reply"):
+        llm = AsyncMock()
+        llm.health_check.return_value = True
+        llm.chat.return_value = chat_reply
+
+        async def _stream(messages, **kwargs):
+            if stream_fails:
+                raise stream_fails
+            for chunk in chunks:
+                yield chunk
+
+        llm.stream_chat = _stream
+        return llm
+
+    @pytest.mark.asyncio
+    async def test_tokens_come_from_the_provider_stream(self, agent):
+        with (
+            patch("ai_devops_assistant.agents.agent.get_llm_service") as mock_llm,
+            patch("ai_devops_assistant.agents.agent.get_tool_executor") as mock_exec,
+            patch("ai_devops_assistant.agents.agent.get_session_manager") as mock_sm,
+        ):
+            mock_llm.return_value = self._streaming_llm(["Three ", "pods ", "failed"])
+            mock_exec.return_value = MagicMock()
+            mock_sm.return_value = MagicMock()
+            await agent.initialize()
+
+            events = [e async for e in agent.chat_stream("q", session_id="s1")]
+
+        tokens = [e.data["t"] for e in events if e.type is EventType.TOKEN]
+        assert tokens == ["Three ", "pods ", "failed"], "chunk boundaries must be the provider's"
+
+    @pytest.mark.asyncio
+    async def test_the_done_message_is_the_joined_stream(self, agent):
+        with (
+            patch("ai_devops_assistant.agents.agent.get_llm_service") as mock_llm,
+            patch("ai_devops_assistant.agents.agent.get_tool_executor") as mock_exec,
+            patch("ai_devops_assistant.agents.agent.get_session_manager") as mock_sm,
+        ):
+            mock_llm.return_value = self._streaming_llm(["a", "b", "c"])
+            mock_exec.return_value = MagicMock()
+            mock_sm.return_value = MagicMock()
+            await agent.initialize()
+
+            events = [e async for e in agent.chat_stream("q", session_id="s1")]
+
+        assert events[-1].data["message"] == "abc"
+
+    @pytest.mark.asyncio
+    async def test_a_broken_stream_falls_back_to_a_single_call(self, agent):
+        """A provider with a broken streaming endpoint must not lose the reply."""
+        with (
+            patch("ai_devops_assistant.agents.agent.get_llm_service") as mock_llm,
+            patch("ai_devops_assistant.agents.agent.get_tool_executor") as mock_exec,
+            patch("ai_devops_assistant.agents.agent.get_session_manager") as mock_sm,
+        ):
+            mock_llm.return_value = self._streaming_llm(
+                [], stream_fails=RuntimeError("streaming unsupported"), chat_reply="non-streamed"
+            )
+            mock_exec.return_value = MagicMock()
+            mock_sm.return_value = MagicMock()
+            await agent.initialize()
+
+            events = [e async for e in agent.chat_stream("q", session_id="s1")]
+
+        assert events[-1].type is EventType.DONE
+        assert events[-1].data["message"] == "non-streamed"
+
+    @pytest.mark.asyncio
+    async def test_a_failure_after_the_first_token_is_not_retried(self, agent):
+        """The caller has already rendered part of the answer; a retry would splice two."""
+        llm = AsyncMock()
+        llm.health_check.return_value = True
+        llm.chat.return_value = "should not be used"
+
+        async def _stream(messages, **kwargs):
+            yield "partial "
+            raise RuntimeError("connection lost")
+
+        llm.stream_chat = _stream
+
+        with (
+            patch("ai_devops_assistant.agents.agent.get_llm_service", return_value=llm),
+            patch("ai_devops_assistant.agents.agent.get_tool_executor") as mock_exec,
+            patch("ai_devops_assistant.agents.agent.get_session_manager") as mock_sm,
+        ):
+            mock_exec.return_value = MagicMock()
+            mock_sm.return_value = MagicMock()
+            await agent.initialize()
+
+            events = [e async for e in agent.chat_stream("q", session_id="s1")]
+
+        assert events[-1].type is EventType.ERROR
+        tokens = [e.data["t"] for e in events if e.type is EventType.TOKEN]
+        assert tokens == ["partial "]
+
+    @pytest.mark.asyncio
+    async def test_the_provider_receives_a_system_and_a_user_message(self, agent):
+        """The boundary must survive all the way to the provider call."""
+        seen = {}
+
+        llm = AsyncMock()
+        llm.health_check.return_value = True
+
+        async def _stream(messages, **kwargs):
+            seen["messages"] = messages
+            yield "ok"
+
+        llm.stream_chat = _stream
+
+        with (
+            patch("ai_devops_assistant.agents.agent.get_llm_service", return_value=llm),
+            patch("ai_devops_assistant.agents.agent.get_tool_executor") as mock_exec,
+            patch("ai_devops_assistant.agents.agent.get_session_manager") as mock_sm,
+        ):
+            mock_exec.return_value = MagicMock()
+            mock_sm.return_value = MagicMock()
+            await agent.initialize()
+
+            [e async for e in agent.chat_stream("q", session_id="s1")]
+
+        assert [m["role"] for m in seen["messages"]] == ["system", "user"]

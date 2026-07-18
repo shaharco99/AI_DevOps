@@ -65,11 +65,7 @@ class PromptManager:
         """
         try:
             # Build file path
-            if version:
-                filename = f"{name}_v{version}.md"
-            else:
-                # Find latest version
-                filename = self._find_latest_prompt(name)
+            filename = self._resolve_prompt_file(name, version)
 
             if not filename:
                 logger.error(f"Prompt not found: {name}")
@@ -101,10 +97,7 @@ class PromptManager:
             Raw prompt text or None
         """
         try:
-            if version:
-                filename = f"{name}_v{version}.md"
-            else:
-                filename = self._find_latest_prompt(name)
+            filename = self._resolve_prompt_file(name, version)
 
             if not filename:
                 return None
@@ -335,6 +328,22 @@ class PromptManager:
             logger.error(f"Error saving prompt: {e}")
             return False
 
+    def _resolve_prompt_file(self, name: str, version: str | None) -> str | None:
+        """Locate a prompt file, searching subdirectories.
+
+        Returns a path relative to prompts_dir, or None. Used by both loaders so
+        an explicit version resolves the same way the latest one does — asking
+        for version="2.0" used to look only in the prompts_dir root and miss
+        every prompt in the repo.
+        """
+        if not version:
+            return self._find_latest_prompt(name)
+
+        matches = list(self.prompts_dir.glob(f"**/{name}_v{version}.md"))
+        if not matches:
+            return None
+        return str(matches[0].relative_to(self.prompts_dir))
+
     def _find_latest_prompt(self, name: str) -> str | None:
         """Find the latest version of a prompt.
 
@@ -364,7 +373,11 @@ class PromptManager:
                 return (0,)
 
             latest = sorted(matches, key=get_version, reverse=True)[0]
-            return latest.name
+            # Relative to prompts_dir, not just the bare name: prompts live in
+            # subdirectories (system/, rag/, agents/), and callers join this to
+            # prompts_dir. Returning latest.name made every prompt in the repo
+            # unresolvable, which is why the agent used a hardcoded string.
+            return str(latest.relative_to(self.prompts_dir))
 
         except Exception as e:
             logger.error(f"Error finding latest prompt: {e}")

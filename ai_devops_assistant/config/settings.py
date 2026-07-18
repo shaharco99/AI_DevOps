@@ -67,9 +67,13 @@ class Settings(BaseSettings):
     LLM_MAX_TOKENS: int = 2048
     LLM_TIMEOUT: int = 60
     LLM_PROVIDER: str = "ollama"
-    LLM_FALLBACK_MODELS: str = "mistral,llama3"
+    # Comma-separated model names tried, in order, when the primary model fails.
+    # Empty disables the fallback chain. Parsed by llm_service._fallback_models();
+    # it is a string rather than a list because it arrives from the environment.
+    LLM_FALLBACK_MODELS: str = ""
     OPENAI_API_KEY: str | None = None
     OPENAI_BASE_URL: str = "https://api.openai.com/v1"
+    OPENAI_MODEL: str = "gpt-4o"
     ANTHROPIC_API_KEY: str | None = None
     ANTHROPIC_MODEL: str = "claude-opus-4-8"
     # Claude output cap includes thinking tokens; keep generous headroom

@@ -30,8 +30,10 @@ logger = logging.getLogger(__name__)
 # chip before the user expands it.
 TOOL_SUMMARY_MAX_CHARS = 200
 
-# Size of the chunks the final response is split into for TOKEN events.
-RESPONSE_CHUNK_SIZE = 24
+
+def _messages_to_trace(messages: list[dict[str, str]]) -> str:
+    """Flatten messages for the observability trace only, never for a request."""
+    return "\n".join(f"{m.get('role', '?')}: {m.get('content', '')}" for m in messages)
 
 
 def _summarise_tool_result(result: Any) -> str:
@@ -46,28 +48,6 @@ def _summarise_tool_result(result: Any) -> str:
     if len(text) > TOOL_SUMMARY_MAX_CHARS:
         return text[:TOOL_SUMMARY_MAX_CHARS] + "…"
     return text
-
-
-def _chunk_response(text: str, size: int = RESPONSE_CHUNK_SIZE) -> list[str]:
-    """Split a finished response into incremental pieces for TOKEN events.
-
-    Interim stand-in for real token streaming (see the phase-5 TODO at the call
-    site). Splits on whitespace boundaries so words are not torn apart mid-render.
-    """
-    if not text:
-        return []
-    chunks: list[str] = []
-    current = ""
-    for word in text.split(" "):
-        candidate = f"{current} {word}" if current else word
-        if len(candidate) >= size:
-            chunks.append(candidate + " ")
-            current = ""
-        else:
-            current = candidate
-    if current:
-        chunks.append(current)
-    return chunks
 
 
 class AgentRole(Enum):
@@ -424,16 +404,17 @@ class DevOpsAgent:
                     reasoning_steps.append(reasoning)
                     context += f"\nReasoning: {reasoning}"
 
-            # Step 4: Generate final response
+            # Step 4: Generate final response, streaming real token deltas.
+            # This replaces the phase-2 placeholder that chunked an already
+            # finished string; the event shape is unchanged, so the frontend
+            # needed no modification.
             yield status_event("responding")
-            final_response = await self._generate_final_response(task, context, tool_calls)
-            reasoning_steps.append("Generated final response incorporating all context")
-
-            # TODO(phase-5): replace with real token deltas from LLMProvider.stream_chat.
-            # Chunking a finished string gives the UI its incremental rendering path
-            # now, so the frontend does not have to change when real streaming lands.
-            for chunk in _chunk_response(final_response):
+            chunks: list[str] = []
+            async for chunk in self._stream_final_response(task, context, tool_calls):
+                chunks.append(chunk)
                 yield AgentEvent(type=EventType.TOKEN, data={"t": chunk})
+            final_response = "".join(chunks)
+            reasoning_steps.append("Generated final response incorporating all context")
 
             # Calculate confidence
             confidence = self._calculate_confidence(tool_calls, reasoning_steps)
@@ -629,28 +610,80 @@ class DevOpsAgent:
                 ]
             )
 
-        full_prompt = f"""
-        {system_prompt}
-
-        Task: {task.description}
-
-        Context Information:
-        {context}
-
-        Tool Execution Results:
-        {tool_results}
-
-        Based on the above information, provide a comprehensive and helpful response.
-        """
+        messages = self._build_response_messages(task, context, tool_results, system_prompt)
 
         response = await observability_manager.trace_llm_call(
             provider=settings.LLM_PROVIDER,
             model=getattr(self.llm_service, "model", self.config.model_name),
-            prompt=full_prompt,
-            call_fn=lambda: self.llm_service.chat([{"role": "user", "content": full_prompt}]),
+            prompt=_messages_to_trace(messages),
+            call_fn=lambda: self.llm_service.chat(messages),
         )
 
         return response
+
+    def _build_response_messages(
+        self,
+        task: AgentTask,
+        context: str,
+        tool_results: str,
+        system_prompt: str,
+    ) -> list[dict[str, str]]:
+        """Build the final-response conversation.
+
+        The system prompt is its own message rather than being concatenated into
+        the user turn. That distinction is what a provider needs in order to
+        treat instructions and data differently, and it is the seam that phase 6
+        fences retrieved documents and tool output behind. Flattening it into one
+        string — as this did — makes that impossible to express.
+        """
+        user_parts = [f"Task: {task.description}"]
+        if context:
+            user_parts.append(f"Context Information:\n{context}")
+        if tool_results:
+            user_parts.append(f"Tool Execution Results:\n{tool_results}")
+        user_parts.append(
+            "Based on the above information, provide a comprehensive and helpful response."
+        )
+
+        return [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": "\n\n".join(user_parts)},
+        ]
+
+    async def _stream_final_response(
+        self, task: AgentTask, context: str, tool_calls: list[ToolCall]
+    ) -> AsyncIterator[str]:
+        """Stream the final response, yielding real token deltas.
+
+        Falls back to a single non-streaming call if streaming fails *before* any
+        token arrives — a provider whose streaming endpoint is broken should not
+        take down the whole reply. A failure after the first token is not
+        retried, because the caller has already rendered part of the answer.
+        """
+        system_prompt = self.config.system_prompt or SYSTEM_PROMPT
+
+        tool_results = ""
+        if tool_calls:
+            tool_results = "\n".join(
+                [
+                    f"Tool {call.tool_name}: {call.result if call.result else f'Error: {call.error}'}"
+                    for call in tool_calls
+                ]
+            )
+
+        messages = self._build_response_messages(task, context, tool_results, system_prompt)
+
+        started = False
+        try:
+            async for chunk in self.llm_service.stream_chat(messages):
+                if chunk:
+                    started = True
+                    yield chunk
+        except Exception as e:
+            if started:
+                raise
+            logger.warning(f"Streaming unavailable, falling back to a single call: {e}")
+            yield await self.llm_service.chat(messages)
 
     def _calculate_confidence(
         self, tool_calls: list[ToolCall], reasoning_steps: list[str]

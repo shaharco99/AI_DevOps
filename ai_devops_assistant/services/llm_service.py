@@ -8,6 +8,12 @@ import httpx
 from tenacity import retry, retry_if_exception, stop_after_attempt, wait_exponential
 
 from ai_devops_assistant.config.settings import settings
+from ai_devops_assistant.services.multi_llm import (
+    FallbackLLMClient,
+    LLMFactory,
+    LLMProvider,
+    LLMProviderError,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -309,36 +315,87 @@ async def close_ollama_service() -> None:
 
 
 # Provider-agnostic accessors — selected via settings.LLM_PROVIDER
-_anthropic_service = None
+_provider: LLMProvider | None = None
 
 
-async def get_llm_service():
-    """Get the LLM service for the configured provider.
+async def get_llm_service() -> LLMProvider:
+    """Get the LLM provider for the configured LLM_PROVIDER.
+
+    Routes through LLMFactory rather than an if-chain, so there is one provider
+    abstraction rather than two. Adding a provider means adding it to
+    LLMFactory._providers; nothing here changes.
+
+    The instance is cached: providers are cheap to build but hold connection
+    pools, and the agent asks for one on every request.
 
     Returns:
-        OllamaService or AnthropicService (same chat/generate/health_check interface)
+        An LLMProvider (messages-first: chat/stream_chat).
+
+    Raises:
+        LLMProviderError: If the configured provider cannot be constructed.
     """
-    global _anthropic_service
-    provider = settings.LLM_PROVIDER.lower()
+    global _provider
+    if _provider is not None:
+        return _provider
 
-    if provider == "anthropic":
-        if _anthropic_service is None:
-            from ai_devops_assistant.services.anthropic_service import AnthropicService
+    name = settings.LLM_PROVIDER.lower()
+    if name not in LLMFactory.get_available_providers():
+        logger.warning(f"Unknown LLM_PROVIDER '{name}', falling back to ollama")
+        name = "ollama"
 
-            _anthropic_service = AnthropicService()
-            if not await _anthropic_service.health_check():
-                logger.warning("Anthropic service not reachable")
-        return _anthropic_service
+    kwargs = _provider_kwargs(name)
+    provider = LLMFactory.create(name, **kwargs)
+    if provider is None:
+        raise LLMProviderError(f"Could not construct LLM provider '{name}'")
 
-    if provider != "ollama":
-        logger.warning(f"Unknown LLM_PROVIDER '{provider}', falling back to ollama")
-    return await get_ollama_service()
+    fallbacks = _fallback_models()
+    if fallbacks:
+        # Wrap in a fallback chain. FallbackLLMClient is itself an LLMProvider,
+        # so callers cannot tell the difference.
+        primary = kwargs.get("model", settings.LLM_MODEL)
+        targets = [{"provider": name, "model": primary}]
+        targets += [{"provider": name, "model": model} for model in fallbacks]
+        provider = FallbackLLMClient(targets)
+
+    _provider = provider
+    return _provider
+
+
+def _fallback_models() -> list[str]:
+    """Parse LLM_FALLBACK_MODELS into model names.
+
+    It is a comma-separated string because it comes from the environment;
+    iterating it directly would iterate characters.
+    """
+    raw = settings.LLM_FALLBACK_MODELS or ""
+    return [model.strip() for model in raw.split(",") if model.strip()]
+
+
+def _provider_kwargs(name: str) -> dict:
+    """Construction arguments for a provider, drawn from settings."""
+    if name == "ollama":
+        return {
+            "base_url": settings.OLLAMA_BASE_URL,
+            "model": settings.LLM_MODEL,
+            "timeout": settings.LLM_TIMEOUT,
+        }
+    if name == "anthropic":
+        return {
+            "api_key": settings.ANTHROPIC_API_KEY,
+            "model": settings.ANTHROPIC_MODEL,
+        }
+    if name == "openai":
+        return {
+            "api_key": settings.OPENAI_API_KEY or "",
+            "model": settings.OPENAI_MODEL,
+        }
+    return {}
 
 
 async def close_llm_service() -> None:
-    """Close whichever LLM services were created."""
-    global _anthropic_service
-    if _anthropic_service:
-        await _anthropic_service.close()
-        _anthropic_service = None
+    """Close the cached provider and the legacy Ollama client."""
+    global _provider
+    if _provider is not None:
+        await _provider.close()
+        _provider = None
     await close_ollama_service()
