@@ -5,8 +5,16 @@ Updated: 2026-07-18 | Phase: 2 | Branch: `feature/merge-mcp`
 
 ## Now
 
-Phase 7 — state, dead code, docs, ADRs. Highest-value items first: 7.2 (`get_agent()`
-cross-session bleed, a data-leak the sidebar makes visible) then 7.1 (Redis sessions).
+**The merge is complete.** All 8 phases done, all lint exclusions cleared.
+
+Remaining follow-ups, none blocking:
+- `OllamaRegistry` still implements the async `ModelRegistry` base synchronously
+  (CLI-only code; `CompositeRegistry.registries` is typed `Any` because of it).
+- `QueryRouter`/`ReflectionAgent` (plan 7.4) were not ported. `enable_reflection`
+  remains declared and unread. Both default off in the plan anyway, and reflection
+  doubles latency — worth measuring before building.
+- CI should set `TEST_POSTGRES_URL` and `TEST_REDIS_URL` so the 14 service-backed
+  tests do not silently skip there.
 
 ## Blocked
 
@@ -14,9 +22,9 @@ cross-session bleed, a data-leak the sidebar makes visible) then 7.1 (Redis sess
 
 ## Gate status: 5/5 green
 
-`ruff` · `black` · `isort` · `pylint 9.78` · `mypy 0 errors` · `pytest 430` (438 w/ Postgres) + 38 JS
+`ruff` · `black` · `isort` · `pylint 9.78` · `mypy 0 errors` · `pytest 478` (492 w/ Postgres+Redis) + 38 JS · **zero lint exclusions**
 Always verify with the CI-pinned linter versions (see Key facts).
-Suite grew 37 -> 430 Python + 38 JS (phases 2-6).
+Suite grew 37 -> 478 Python + 38 JS across the merge.
 JS tests: `node --test tests/js/*.test.js` (node's built-in runner, zero npm deps).
 
 ## Phases
@@ -59,7 +67,12 @@ JS tests: `node --test tests/js/*.test.js` (node's built-in runner, zero npm dep
   - [x] 6b LLM01 fencing: separate message + delimiters + marker stripping
   - [x] 6c LLM08 tool budget; `max_tool_iterations` was declared, never read
   - [x] 6d hash-pinned lockfile, ML extras split out, CycloneDX SBOM attested
-- [ ] 7 State/cleanup/docs (7.1-7.7)
+- [x] 7 State/cleanup/docs
+  - [x] 7.1 Redis session store; verified across processes
+  - [x] 7.2 cross-user conversation bleed fixed (reproduced first)
+  - [x] 7.3 8 dead methods, 12 broken cli prints, Grafana password, Chroma, datasets/
+  - [x] 7.5 loaders rewritten + `POST /rag/ingest`; upload button live
+  - [x] 7.6 docs consolidated · [x] 7.7 five ADRs in `docs/adr/`
 
 ## Key facts (verified 2026-07-18)
 
@@ -128,32 +141,17 @@ Measured on the merged tree, compared against the pre-merge baseline:
   iterates `self._documents`, which is never assigned → guaranteed AttributeError. Nothing
   calls it either way.
 
-## Debt (must clear before done)
+## Debt
 
-- [ ] lint exclusions remaining in `pyproject.toml`: only `rag/loaders.py` (phase 7.5).
-      Phase-3, -4 and -5 entries all cleared.
-- [ ] `docs/legacy/` (8 MCP markdowns) consolidate              → phase 7.6
-- [ ] re-add MCP-origin deps pinned as each feature lands: pypdf + doc parsers (phase 7.5).
-      psycopg2/pymysql/pyodbc no longer needed — the SQL port uses SQLAlchemy.
-- [ ] `GF_SECURITY_ADMIN_PASSWORD: admin` in docker-compose.secrets.yml:141 → phase 7
-- [ ] Chroma `chroma_db_impl` still unverified (masked earlier by the import failure) → phase 7
-
-- [ ] upload button enabled                              → phase 7.5
-- [x] ~~mypy: 124 errors~~ — cleared, gate green
-- [x] ~~`agent.py` dead `rag_retriever`~~ — method deleted
-- [x] ~~`SimpleRAGPipeline.ingest_website`~~ — fixed to `ingest_url`
-- [ ] `cli.py` broken f-strings: bare `print(".4f")` at 6+ sites, prints the literal
-      instead of the metric. Not a lint error, so no gate catches it → phase 7.3
-- [ ] `OllamaRegistry` implements the async `ModelRegistry` base synchronously, so
-      `CompositeRegistry.registries` must be typed `Any`. Unify the two → phase 7.3
-      (model_registry is CLI-only and was out of the phase-5 chat-path scope)
-- [ ] local `datasets/` dir (no `__init__.py`) shadows the HuggingFace `datasets`
-      package as a namespace package → phase 7 (the ML extra is split out now)
+All merge debt cleared: every `TODO(phase-N)` lint exclusion is gone and the five
+gates run over the whole tree. See "Now" for non-blocking follow-ups.
 
 ## Log
 
 <!-- newest first: YYYY-MM-DD | phase | what landed | commit -->
 
+- 2026-07-18 | 7 | loaders, /rag/ingest, ADRs; exclusions cleared (+29) | c73a464
+- 2026-07-18 | 7 | session bleed fixed, Redis store, dead code (+19) | b039178
 - 2026-07-18 | 6 | fail-closed config, LLM01 fencing, lockfile (+61 tests) | 5683dcb
 - 2026-07-18 | 5 | messages-first providers; _legacy deleted (+57 tests) | 54b8daf
 - 2026-07-18 | 4 | MCP server + ShellTool; RCE deleted (+82 tests) | edea77a
