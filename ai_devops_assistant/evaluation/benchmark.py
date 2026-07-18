@@ -2,7 +2,6 @@
 
 import logging
 from pathlib import Path
-from typing import Optional
 
 from ai_devops_assistant.evaluation.llm_evaluator import EvaluationCase, LLMEvaluator
 
@@ -108,7 +107,7 @@ class EvaluationTestSuite:
             self.test_cases[category] = []
         self.test_cases[category].append(case)
 
-    def get_test_cases(self, categories: Optional[list[str]] = None) -> list[EvaluationCase]:
+    def get_test_cases(self, categories: list[str] | None = None) -> list[EvaluationCase]:
         """Get test cases, optionally filtered by categories."""
         if categories is None:
             # Return all test cases
@@ -164,14 +163,14 @@ class EvaluationTestSuite:
 class ModelBenchmarker:
     """Benchmark multiple models against test suites."""
 
-    def __init__(self, evaluator: Optional[LLMEvaluator] = None):
+    def __init__(self, evaluator: LLMEvaluator | None = None):
         self.evaluator = evaluator or LLMEvaluator()
         self.test_suite = EvaluationTestSuite()
 
     async def benchmark_models(
         self,
         models: dict[str, callable],
-        categories: Optional[list[str]] = None,
+        categories: list[str] | None = None,
         save_reports: bool = True,
         output_dir: str = "evaluation_reports",
     ) -> dict[str, dict]:
@@ -259,7 +258,7 @@ class ModelBenchmarker:
     async def run_quick_benchmark(
         self,
         models: dict[str, callable],
-        categories: Optional[list[str]] = None,
+        categories: list[str] | None = None,
     ) -> str:
         """Run a quick benchmark and return formatted results."""
         results = await self.benchmark_models(models, categories, save_reports=False)
@@ -294,7 +293,7 @@ class ModelBenchmarker:
 async def quick_evaluate_model(
     model_fn: callable,
     model_name: str,
-    categories: Optional[list[str]] = None,
+    categories: list[str] | None = None,
 ) -> dict:
     """Quick evaluation of a single model."""
     benchmarker = ModelBenchmarker()

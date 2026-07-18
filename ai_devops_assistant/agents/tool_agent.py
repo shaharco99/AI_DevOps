@@ -3,7 +3,7 @@
 import asyncio
 import logging
 from dataclasses import dataclass, field
-from typing import Any, Optional
+from typing import Any
 
 from ai_devops_assistant.agents.agent import (
     AgentConfig,
@@ -23,7 +23,7 @@ class AgentOrchestrationResult:
     primary_response: AgentResponse
     specialist_contributions: dict[str, AgentResponse] = field(default_factory=dict)
     coordination_steps: list[str] = field(default_factory=list)
-    final_consensus: Optional[str] = None
+    final_consensus: str | None = None
     execution_time: float = 0.0
 
 
@@ -62,7 +62,7 @@ class AgentOrchestrator:
         task_description: str,
         primary_role: AgentRole = AgentRole.GENERAL,
         require_collaboration: bool = False,
-        collaboration_roles: Optional[list[AgentRole]] = None,
+        collaboration_roles: list[AgentRole] | None = None,
     ) -> AgentOrchestrationResult:
         """Orchestrate task execution across multiple agents.
 

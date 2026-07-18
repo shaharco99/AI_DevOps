@@ -2,7 +2,7 @@
 
 import logging
 import re
-from typing import Any, Optional
+from typing import Any
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -23,7 +23,7 @@ class SQLQueryTool(BaseTool):
             description="Execute SQL queries to retrieve data from the application database. "
             "Supports SELECT queries only for security.",
         )
-        self.session: Optional[AsyncSession] = None
+        self.session: AsyncSession | None = None
 
     def set_session(self, session: AsyncSession) -> None:
         """Set database session.
@@ -33,7 +33,7 @@ class SQLQueryTool(BaseTool):
         """
         self.session = session
 
-    def validate_sql_injection(self, query: str) -> tuple[bool, Optional[str]]:
+    def validate_sql_injection(self, query: str) -> tuple[bool, str | None]:
         """Check for potential SQL injection patterns.
 
         Args:
@@ -90,7 +90,7 @@ class SQLQueryTool(BaseTool):
 
         return True, None
 
-    def validate_parameters(self, **kwargs) -> tuple[bool, Optional[str]]:
+    def validate_parameters(self, **kwargs) -> tuple[bool, str | None]:
         """Validate tool parameters.
 
         Args:
@@ -109,7 +109,7 @@ class SQLQueryTool(BaseTool):
         # Validate SQL safety
         return self.validate_sql_injection(query)
 
-    async def execute(self, query: str, limit: Optional[int] = None, **kwargs) -> dict[str, Any]:
+    async def execute(self, query: str, limit: int | None = None, **kwargs) -> dict[str, Any]:
         """Execute SQL query.
 
         Args:

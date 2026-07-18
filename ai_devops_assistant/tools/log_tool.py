@@ -2,7 +2,7 @@
 
 import logging
 from datetime import datetime, timedelta
-from typing import Any, Optional
+from typing import Any
 
 from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -22,7 +22,7 @@ class LogAnalysisTool(BaseTool):
             name="log_analysis_tool",
             description="Search and analyze application logs and pipeline logs.",
         )
-        self.session: Optional[AsyncSession] = None
+        self.session: AsyncSession | None = None
 
     def set_session(self, session: AsyncSession) -> None:
         """Set database session."""
@@ -32,7 +32,7 @@ class LogAnalysisTool(BaseTool):
         self,
         query: str,
         log_type: str = "application",
-        level: Optional[str] = None,
+        level: str | None = None,
         time_range_hours: int = 24,
         limit: int = 100,
         **kwargs,
@@ -76,7 +76,7 @@ class LogAnalysisTool(BaseTool):
     async def _search_application_logs(
         self,
         query: str,
-        level: Optional[str] = None,
+        level: str | None = None,
         time_range_hours: int = 24,
         limit: int = 100,
     ) -> dict[str, Any]:

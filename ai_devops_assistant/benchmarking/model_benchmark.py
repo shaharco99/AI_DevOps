@@ -7,7 +7,7 @@ import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from statistics import mean, median, stdev
-from typing import Any, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -17,12 +17,12 @@ class BenchmarkMetrics:
     """Detailed metrics for a single benchmark run."""
 
     latency_ms: float
-    output_tokens: Optional[int] = None
-    input_tokens: Optional[int] = None
-    total_tokens: Optional[int] = None
+    output_tokens: int | None = None
+    input_tokens: int | None = None
+    total_tokens: int | None = None
     output_length_chars: int = 0
     prompt_length_chars: int = 0
-    error: Optional[str] = None
+    error: str | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
 
 
@@ -45,11 +45,11 @@ class ModelBenchmarkResult:
     total_output_length: int
 
     # Optional metrics (with defaults)
-    latency_stdev: Optional[float] = None
-    avg_input_tokens: Optional[float] = None
-    avg_output_tokens: Optional[float] = None
-    avg_total_tokens: Optional[float] = None
-    tokens_per_second: Optional[float] = None
+    latency_stdev: float | None = None
+    avg_input_tokens: float | None = None
+    avg_output_tokens: float | None = None
+    avg_total_tokens: float | None = None
+    tokens_per_second: float | None = None
     throughput_runs_per_minute: float = 0.0
 
     # Individual run data
@@ -306,7 +306,7 @@ class AdvancedModelBenchmark:
         ]
 
         results = await asyncio.gather(*benchmark_tasks)
-        results_dict = {r.model_name: r for r in results}
+        {r.model_name: r for r in results}
 
         # Save individual results
         Path(output_dir).mkdir(exist_ok=True)

@@ -4,7 +4,7 @@ import asyncio
 import logging
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Union
 
 from ai_devops_assistant.config.settings import settings
 from ai_devops_assistant.rag.document_ingestion import DocumentIngestionService, DocumentLoader
@@ -21,8 +21,8 @@ class RAGDocument:
     """Internal RAG document representation."""
 
     content: str
-    metadata: Dict[str, Any]
-    score: Optional[float] = None
+    metadata: dict[str, Any]
+    score: float | None = None
 
 
 @dataclass
@@ -31,9 +31,9 @@ class RAGQuery:
 
     query: str
     top_k: int = 5
-    score_threshold: Optional[float] = None
-    category_filter: Optional[str] = None
-    metadata_filters: Optional[Dict[str, Any]] = None
+    score_threshold: float | None = None
+    category_filter: str | None = None
+    metadata_filters: dict[str, Any] | None = None
 
 
 @dataclass
@@ -41,7 +41,7 @@ class RAGResult:
     """RAG retrieval result."""
 
     query: str
-    documents: List[RAGDocument]
+    documents: list[RAGDocument]
     total_found: int
     execution_time: float
 
@@ -71,9 +71,7 @@ class RAGPipeline:
 
         # Initialize components
         self.ingestion_service = DocumentIngestionService(
-            chunk_size=chunk_size,
-            chunk_overlap=chunk_overlap,
-            chunk_strategy=chunk_strategy
+            chunk_size=chunk_size, chunk_overlap=chunk_overlap, chunk_strategy=chunk_strategy
         )
         self.retriever = RAGRetriever()
         self.scraper = WebScraper()
@@ -105,10 +103,7 @@ class RAGPipeline:
             raise
 
     async def ingest_text(
-        self,
-        content: str,
-        metadata: Dict[str, Any],
-        chunk_strategy: Optional[str] = None
+        self, content: str, metadata: dict[str, Any], chunk_strategy: str | None = None
     ) -> int:
         """Ingest text content into RAG system.
 
@@ -126,8 +121,8 @@ class RAGPipeline:
     async def ingest_file(
         self,
         file_path: Union[str, "Path"],
-        metadata: Optional[Dict[str, Any]] = None,
-        chunk_strategy: Optional[str] = None
+        metadata: dict[str, Any] | None = None,
+        chunk_strategy: str | None = None,
     ) -> int:
         """Ingest document from file.
 
@@ -145,8 +140,8 @@ class RAGPipeline:
     async def ingest_url(
         self,
         url: str,
-        metadata: Optional[Dict[str, Any]] = None,
-        chunk_strategy: Optional[str] = "paragraph"
+        metadata: dict[str, Any] | None = None,
+        chunk_strategy: str | None = "paragraph",
     ) -> int:
         """Ingest content from URL.
 
@@ -172,17 +167,13 @@ class RAGPipeline:
                 "source": url,
                 "title": scraped.title,
                 "source_type": "web",
-                **scraped.metadata
+                **scraped.metadata,
             }
             if metadata:
                 url_metadata.update(metadata)
 
             # Ingest content
-            return self.ingestion_service.ingest_text(
-                scraped.content,
-                url_metadata,
-                chunk_strategy
-            )
+            return self.ingestion_service.ingest_text(scraped.content, url_metadata, chunk_strategy)
 
         except Exception as e:
             logger.error(f"Failed to ingest URL {url}: {e}")
@@ -191,9 +182,9 @@ class RAGPipeline:
     async def ingest_sitemap(
         self,
         sitemap_url: str,
-        metadata: Optional[Dict[str, Any]] = None,
+        metadata: dict[str, Any] | None = None,
         max_pages: int = 10,
-        chunk_strategy: Optional[str] = "paragraph"
+        chunk_strategy: str | None = "paragraph",
     ) -> int:
         """Ingest all pages from a sitemap.
 
@@ -210,6 +201,7 @@ class RAGPipeline:
 
         try:
             from ai_devops_assistant.rag.scraper import SitemapScraper
+
             sitemap_scraper = SitemapScraper()
 
             urls = await sitemap_scraper.discover_urls(sitemap_url, max_pages)
@@ -228,11 +220,7 @@ class RAGPipeline:
             logger.error(f"Failed to ingest sitemap {sitemap_url}: {e}")
             return 0
 
-    async def query(
-        self,
-        query: Union[str, RAGQuery],
-        include_metadata: bool = True
-    ) -> RAGResult:
+    async def query(self, query: str | RAGQuery, include_metadata: bool = True) -> RAGResult:
         """Query the RAG system.
 
         Args:
@@ -245,6 +233,7 @@ class RAGPipeline:
         await self.initialize()
 
         import time
+
         start_time = time.time()
 
         # Parse query
@@ -267,7 +256,7 @@ class RAGPipeline:
                 doc = RAGDocument(
                     content=result.get("content", ""),
                     metadata=result.get("metadata", {}) if include_metadata else {},
-                    score=result.get("score")
+                    score=result.get("score"),
                 )
                 documents.append(doc)
 
@@ -277,20 +266,17 @@ class RAGPipeline:
                 query=rag_query.query,
                 documents=documents,
                 total_found=len(documents),
-                execution_time=execution_time
+                execution_time=execution_time,
             )
 
         except Exception as e:
             logger.error(f"Failed to query RAG system: {e}")
             execution_time = time.time() - start_time
             return RAGResult(
-                query=rag_query.query,
-                documents=[],
-                total_found=0,
-                execution_time=execution_time
+                query=rag_query.query, documents=[], total_found=0, execution_time=execution_time
             )
 
-    async def get_stats(self) -> Dict[str, Any]:
+    async def get_stats(self) -> dict[str, Any]:
         """Get RAG system statistics.
 
         Returns:
@@ -335,7 +321,7 @@ class SimpleRAGPipeline(RAGPipeline):
     def __init__(self, chunk_size: int = 1000, chunk_overlap: int = 100):
         super().__init__(chunk_size=chunk_size, chunk_overlap=chunk_overlap)
 
-    def ingest_text(self, content: str, metadata: Dict[str, Any]) -> int:
+    def ingest_text(self, content: str, metadata: dict[str, Any]) -> int:
         """Synchronous ingestion for backward compatibility."""
         # Run async method in event loop
         try:
@@ -343,6 +329,7 @@ class SimpleRAGPipeline(RAGPipeline):
             if loop.is_running():
                 # If loop is already running, we need to handle differently
                 import concurrent.futures
+
                 with concurrent.futures.ThreadPoolExecutor() as executor:
                     future = executor.submit(asyncio.run, self.ingest_text_async(content, metadata))
                     return future.result()
@@ -352,26 +339,9 @@ class SimpleRAGPipeline(RAGPipeline):
             # Fallback to async run
             return asyncio.run(self.ingest_text_async(content, metadata))
 
-    async def ingest_text_async(self, content: str, metadata: Dict[str, Any]) -> int:
+    async def ingest_text_async(self, content: str, metadata: dict[str, Any]) -> int:
         """Async ingestion method."""
         return await super().ingest_text(content, metadata)
-
-    def retrieve(self, query: str, k: int = 5) -> List[RAGDocument]:
-        """Synchronous retrieval for backward compatibility."""
-        try:
-            loop = asyncio.get_event_loop()
-            if loop.is_running():
-                import concurrent.futures
-                with concurrent.futures.ThreadPoolExecutor() as executor:
-                    future = executor.submit(asyncio.run, self.query_async(query, k))
-                    result = future.result()
-                    return result.documents
-            else:
-                result = loop.run_until_complete(self.query_async(query, k))
-                return result.documents
-        except Exception:
-            result = asyncio.run(self.query_async(query, k))
-            return result.documents
 
     async def query_async(self, query: str, k: int = 5) -> RAGResult:
         """Async query method."""
@@ -384,16 +354,22 @@ class SimpleRAGPipeline(RAGPipeline):
         return self.ingest_text(scraped.content, metadata)
 
     def retrieve(self, query: str, k: int = 5) -> list[RAGDocument]:
-        """Simple lexical retrieval for local usage and tests."""
-        query_terms = {t for t in query.lower().split() if t}
-        scored: list[tuple[int, RAGDocument]] = []
-        for doc in self._documents:
-            text = doc.content.lower()
-            score = sum(1 for term in query_terms if term in text)
-            if score > 0:
-                scored.append((score, doc))
-        scored.sort(key=lambda x: x[0], reverse=True)
-        return [doc for _, doc in scored[:k]]
+        """Synchronous retrieval for backward compatibility."""
+        try:
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                import concurrent.futures
+
+                with concurrent.futures.ThreadPoolExecutor() as executor:
+                    future = executor.submit(asyncio.run, self.query_async(query, k))
+                    result = future.result()
+                    return result.documents
+            else:
+                result = loop.run_until_complete(self.query_async(query, k))
+                return result.documents
+        except Exception:
+            result = asyncio.run(self.query_async(query, k))
+            return result.documents
 
     def _chunk_text(self, text: str) -> list[str]:
         if len(text) <= self.chunk_size:

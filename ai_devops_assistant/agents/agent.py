@@ -7,7 +7,7 @@ import re
 import uuid
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Optional
+from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -58,8 +58,8 @@ class AgentConfig:
     model_name: str = "llama3"
     temperature: float = 0.7
     max_tokens: int = 2048
-    system_prompt: Optional[str] = None
-    tool_allowlist: Optional[list[str]] = None
+    system_prompt: str | None = None
+    tool_allowlist: list[str] | None = None
     max_tool_iterations: int = 5
     enable_planning: bool = True
     enable_reflection: bool = True
@@ -76,8 +76,8 @@ class AgentTask:
     context: dict[str, Any] = field(default_factory=dict)
     dependencies: list[str] = field(default_factory=list)
     status: str = "pending"
-    result: Optional[Any] = None
-    error: Optional[str] = None
+    result: Any | None = None
+    error: str | None = None
 
 
 @dataclass
@@ -97,9 +97,9 @@ class ToolCall:
     def __init__(self, tool_name: str, parameters: dict[str, Any]):
         self.tool_name = tool_name
         self.parameters = parameters
-        self.result: Optional[Any] = None
-        self.error: Optional[str] = None
-        self.execution_time: Optional[float] = None
+        self.result: Any | None = None
+        self.error: str | None = None
+        self.execution_time: float | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -114,9 +114,7 @@ class ToolCall:
 class DevOpsAgent:
     """Advanced AI DevOps Agent with tool use and multi-agent capabilities."""
 
-    def __init__(
-        self, config: Optional[AgentConfig] = None, session: Optional[AsyncSession] = None
-    ):
+    def __init__(self, config: AgentConfig | None = None, session: AsyncSession | None = None):
         """Initialize agent.
 
         Args:
@@ -129,10 +127,10 @@ class DevOpsAgent:
         self.rag_pipeline = None
         self.session_manager = get_session_manager()
         self.session = session
-        self.conversation_memory: Optional[ConversationMemory] = None
+        self.conversation_memory: ConversationMemory | None = None
 
         # Agent state
-        self.current_task: Optional[AgentTask] = None
+        self.current_task: AgentTask | None = None
         self.execution_history: list[dict[str, Any]] = []
 
     async def initialize(self) -> None:
@@ -157,7 +155,7 @@ class DevOpsAgent:
             raise
 
     async def chat(
-        self, message: str, session_id: Optional[str] = None, use_rag: bool = True, **kwargs
+        self, message: str, session_id: str | None = None, use_rag: bool = True, **kwargs
     ) -> dict[str, Any]:
         """Process user message and generate response with advanced agent capabilities.
 
@@ -251,7 +249,6 @@ class DevOpsAgent:
                 ]
 
             # Step 3: Execute plan
-            response_content = ""
             tool_calls = []
 
             for step in plan:
@@ -316,7 +313,13 @@ class DevOpsAgent:
             and AgentCapability.RAG_RETRIEVAL in self.config.capabilities
         ):
             try:
-                rag_result = await self.rag_pipeline.query(task.description, top_k=3)
+                from ai_devops_assistant.rag.pipeline import RAGQuery
+
+                # query() takes a RAGQuery for anything beyond the default top_k;
+                # it has no top_k keyword of its own.
+                rag_result = await self.rag_pipeline.query(
+                    RAGQuery(query=task.description, top_k=3)
+                )
                 if rag_result.documents:
                     context_parts.append("Relevant knowledge:")
                     for doc in rag_result.documents:
@@ -497,7 +500,7 @@ class DevOpsAgent:
 
         return min(1.0, confidence)
 
-    def _get_role_context(self) -> Optional[str]:
+    def _get_role_context(self) -> str | None:
         """Get role-specific context and instructions."""
         role_contexts = {
             AgentRole.DEVOPS: "You are a DevOps specialist. Focus on infrastructure, deployment, monitoring, and operational excellence.",
@@ -656,7 +659,7 @@ Tool Results:
 Please synthesize these results into a clear, actionable response."""
 
     def _error_response(
-        self, error: str, memory: Optional[ConversationMemory] = None
+        self, error: str, memory: ConversationMemory | None = None
     ) -> dict[str, Any]:
         """Build error response."""
         return {
@@ -669,10 +672,10 @@ Please synthesize these results into a clear, actionable response."""
 
 
 # Global agent instance
-_agent: Optional[DevOpsAgent] = None
+_agent: DevOpsAgent | None = None
 
 
-async def get_agent(session: Optional[AsyncSession] = None) -> DevOpsAgent:
+async def get_agent(session: AsyncSession | None = None) -> DevOpsAgent:
     """Get or create DevOps agent.
 
     Args:

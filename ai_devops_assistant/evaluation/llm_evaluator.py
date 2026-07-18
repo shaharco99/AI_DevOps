@@ -8,7 +8,7 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 from statistics import mean, median, stdev
-from typing import Any, Optional, Union
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -64,9 +64,9 @@ class LLMEvaluator:
 
     def __init__(
         self,
-        metrics: Optional[list[str]] = None,
+        metrics: list[str] | None = None,
         use_rag_context: bool = False,
-        custom_evaluators: Optional[dict[str, Callable]] = None,
+        custom_evaluators: dict[str, Callable] | None = None,
     ):
         """Initialize evaluator.
 
@@ -381,7 +381,7 @@ class LLMEvaluator:
 
         return reports
 
-    def save_report(self, report: ModelEvaluationReport, file_path: Union[str, Path]) -> None:
+    def save_report(self, report: ModelEvaluationReport, file_path: str | Path) -> None:
         """Save evaluation report to JSON file."""
         path = Path(file_path)
 
@@ -427,7 +427,7 @@ class LLMEvaluator:
 
         logger.info(f"Report saved to {path}")
 
-    def load_report(self, file_path: Union[str, Path]) -> ModelEvaluationReport:
+    def load_report(self, file_path: str | Path) -> ModelEvaluationReport:
         """Load evaluation report from JSON file."""
         path = Path(file_path)
 

@@ -3,7 +3,6 @@
 import logging
 from collections import deque
 from datetime import datetime
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +21,7 @@ class ConversationMemory:
         self.started_at = datetime.utcnow()
         self.context: dict = {}
 
-    def add_message(self, role: str, content: str, metadata: Optional[dict] = None) -> None:
+    def add_message(self, role: str, content: str, metadata: dict | None = None) -> None:
         """Add message to memory.
 
         Args:
@@ -47,7 +46,7 @@ class ConversationMemory:
         """Get last n messages."""
         return list(self.messages)[-n:]
 
-    def get_context(self, key: str) -> Optional[str]:
+    def get_context(self, key: str) -> str | None:
         """Get context value."""
         return self.context.get(key)
 
@@ -110,7 +109,7 @@ class SessionManager:
         logger.info(f"Created session: {session_id}")
         return session
 
-    def get_session(self, session_id: str) -> Optional[ConversationMemory]:
+    def get_session(self, session_id: str) -> ConversationMemory | None:
         """Get existing session.
 
         Args:
@@ -144,7 +143,7 @@ class SessionManager:
 
 
 # Global instance
-_session_manager: Optional[SessionManager] = None
+_session_manager: SessionManager | None = None
 
 
 def get_session_manager() -> SessionManager:

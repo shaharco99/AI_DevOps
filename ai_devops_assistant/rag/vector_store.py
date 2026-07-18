@@ -2,7 +2,7 @@
 
 import logging
 import os
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import chromadb
 from chromadb.config import Settings
@@ -23,8 +23,8 @@ class VectorStoreService:
             persist_dir: Directory to persist vector database
         """
         self.persist_dir = persist_dir
-        self.client: Optional[chromadb.Client] = None
-        self.collection: Optional[chromadb.Collection] = None
+        self.client: chromadb.Client | None = None
+        self.collection: chromadb.Collection | None = None
         self._initialized = False
 
     def initialize(self) -> None:
@@ -64,7 +64,7 @@ class VectorStoreService:
         self,
         documents: list[str],
         ids: list[str],
-        metadatas: Optional[list[dict]] = None,
+        metadatas: list[dict] | None = None,
     ) -> None:
         """Add documents to vector store.
 
@@ -102,8 +102,8 @@ class VectorStoreService:
         self,
         query: str,
         k: int = 5,
-        where: Optional[dict] = None,
-    ) -> List[Dict[str, Any]]:
+        where: dict | None = None,
+    ) -> list[dict[str, Any]]:
         """Search vector store.
 
         Args:
@@ -149,7 +149,7 @@ class VectorStoreService:
             logger.error(f"Search failed: {e}")
             raise
 
-    def get_all_documents(self, limit: int = 1000) -> List[Dict[str, Any]]:
+    def get_all_documents(self, limit: int = 1000) -> list[dict[str, Any]]:
         """Get all documents (limited for performance).
 
         Args:
@@ -193,7 +193,7 @@ class VectorStoreService:
         """Clear all documents from collection."""
         self.delete_all()
 
-    def get_document(self, doc_id: str) -> Optional[dict]:
+    def get_document(self, doc_id: str) -> dict | None:
         """Get document by ID.
 
         Args:
@@ -282,7 +282,7 @@ class VectorStoreService:
 
 
 # Global instance
-_vector_store_service: Optional[VectorStoreService] = None
+_vector_store_service: VectorStoreService | None = None
 
 
 def get_vector_store_service() -> VectorStoreService:

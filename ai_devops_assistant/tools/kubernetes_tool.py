@@ -1,7 +1,7 @@
 """Kubernetes tool for querying cluster state."""
 
 import logging
-from typing import Any, Optional
+from typing import Any
 
 from kubernetes import client, config
 from kubernetes.client.rest import ApiException
@@ -49,7 +49,7 @@ class KubernetesTool(BaseTool):
     async def execute(
         self,
         action: str,
-        namespace: Optional[str] = None,
+        namespace: str | None = None,
         **kwargs,
     ) -> dict[str, Any]:
         """Execute Kubernetes query.
@@ -126,7 +126,7 @@ class KubernetesTool(BaseTool):
                 "error": str(e),
             }
 
-    async def _get_pod(self, namespace: str, pod_name: Optional[str]) -> dict[str, Any]:
+    async def _get_pod(self, namespace: str, pod_name: str | None) -> dict[str, Any]:
         """Get specific pod details."""
         if not pod_name:
             return {
@@ -197,9 +197,7 @@ class KubernetesTool(BaseTool):
                 "error": str(e),
             }
 
-    async def _get_deployment(
-        self, namespace: str, deployment_name: Optional[str]
-    ) -> dict[str, Any]:
+    async def _get_deployment(self, namespace: str, deployment_name: str | None) -> dict[str, Any]:
         """Get specific deployment details."""
         if not deployment_name:
             return {

@@ -9,7 +9,7 @@ import time
 import uuid
 from collections import defaultdict, deque
 from dataclasses import dataclass, field
-from typing import Any, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -71,16 +71,16 @@ class TraceSpan:
     name: str
     service: str
     start_time: float = field(default_factory=time.time)
-    end_time: Optional[float] = None
-    duration_ms: Optional[float] = None
+    end_time: float | None = None
+    duration_ms: float | None = None
     trace_id: str = field(default_factory=get_trace_id)
     span_id: str = field(default_factory=generate_span_id)
-    parent_span_id: Optional[str] = None
+    parent_span_id: str | None = None
     tags: dict[str, Any] = field(default_factory=dict)
     events: list[dict[str, Any]] = field(default_factory=list)
-    error: Optional[str] = None
+    error: str | None = None
 
-    def add_event(self, name: str, attributes: Optional[dict[str, Any]] = None) -> None:
+    def add_event(self, name: str, attributes: dict[str, Any] | None = None) -> None:
         """Add an event to the span."""
         self.events.append(
             {
@@ -94,7 +94,7 @@ class TraceSpan:
         """Set a tag on the span."""
         self.tags[key] = value
 
-    def finish(self, error: Optional[str] = None) -> None:
+    def finish(self, error: str | None = None) -> None:
         """Finish the span."""
         self.end_time = time.time()
         self.duration_ms = (self.end_time - self.start_time) * 1000
@@ -113,22 +113,22 @@ class LLMTrace:
     span_id: str = field(default_factory=generate_span_id)
     started_at: float = field(default_factory=time.perf_counter)
     metadata: dict[str, Any] = field(default_factory=dict)
-    prompt_tokens: Optional[int] = None
-    completion_tokens: Optional[int] = None
-    total_tokens: Optional[int] = None
-    temperature: Optional[float] = None
-    max_tokens: Optional[int] = None
-    response: Optional[str] = None
-    error: Optional[str] = None
-    latency_ms: Optional[float] = None
+    prompt_tokens: int | None = None
+    completion_tokens: int | None = None
+    total_tokens: int | None = None
+    temperature: float | None = None
+    max_tokens: int | None = None
+    response: str | None = None
+    error: str | None = None
+    latency_ms: float | None = None
 
     def complete(
         self,
-        response: Optional[str] = None,
-        error: Optional[str] = None,
-        prompt_tokens: Optional[int] = None,
-        completion_tokens: Optional[int] = None,
-        total_tokens: Optional[int] = None,
+        response: str | None = None,
+        error: str | None = None,
+        prompt_tokens: int | None = None,
+        completion_tokens: int | None = None,
+        total_tokens: int | None = None,
     ) -> None:
         """Emit structured completion log."""
         self.latency_ms = round((time.perf_counter() - self.started_at) * 1000, 2)
@@ -314,8 +314,8 @@ class ObservabilityManager:
         self,
         name: str,
         service: str = "ai-devops-assistant",
-        parent_span_id: Optional[str] = None,
-        tags: Optional[dict[str, Any]] = None,
+        parent_span_id: str | None = None,
+        tags: dict[str, Any] | None = None,
     ) -> TraceSpan:
         """Start a new trace span."""
         span = TraceSpan(
@@ -333,7 +333,7 @@ class ObservabilityManager:
 
         return span
 
-    def finish_trace(self, span: TraceSpan, error: Optional[str] = None) -> None:
+    def finish_trace(self, span: TraceSpan, error: str | None = None) -> None:
         """Finish a trace span."""
         span.finish(error)
 
@@ -456,7 +456,7 @@ observability_manager = ObservabilityManager()
 
 
 # Convenience functions
-def start_request_trace(request_id: Optional[str] = None) -> str:
+def start_request_trace(request_id: str | None = None) -> str:
     """Start tracing for a new request."""
     req_id = request_id or generate_request_id()
     trace_id = generate_trace_id()
@@ -465,14 +465,14 @@ def start_request_trace(request_id: Optional[str] = None) -> str:
     set_trace_id(trace_id)
 
     # Start root span
-    span = observability_manager.start_trace(
+    observability_manager.start_trace(
         name="http_request", service="ai-devops-assistant", tags={"request_id": req_id}
     )
 
     return req_id
 
 
-def finish_request_trace(error: Optional[str] = None) -> None:
+def finish_request_trace(error: str | None = None) -> None:
     """Finish tracing for the current request."""
     # Find and finish the root span
     current_span_id = get_span_id()
@@ -483,15 +483,17 @@ def finish_request_trace(error: Optional[str] = None) -> None:
                 observability_manager.finish_trace(span, error)
 
 
-# Context manager for automatic trace management
-class trace_context:
+# Context manager for automatic trace management.
+# Lowercase name is deliberate: this is used as `with trace_context(...)`, following
+# the contextlib naming convention rather than the CapWords class convention.
+class trace_context:  # noqa: N801
     """Context manager for automatic span tracing."""
 
     def __init__(self, name: str, service: str = "ai-devops-assistant", **tags):
         self.name = name
         self.service = service
         self.tags = tags
-        self.span: Optional[TraceSpan] = None
+        self.span: TraceSpan | None = None
 
     def __enter__(self) -> TraceSpan:
         self.span = observability_manager.start_trace(

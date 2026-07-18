@@ -13,7 +13,7 @@ import logging
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 from jinja2 import Environment, FileSystemLoader, Template
 
@@ -53,7 +53,7 @@ class PromptManager:
             lstrip_blocks=True,
         )
 
-    def load_prompt(self, name: str, version: Optional[str] = None) -> Optional[Template]:
+    def load_prompt(self, name: str, version: str | None = None) -> Template | None:
         """Load a prompt template.
 
         Args:
@@ -90,7 +90,7 @@ class PromptManager:
             logger.error(f"Error loading prompt {name}: {e}")
             return None
 
-    def load_prompt_text(self, name: str, version: Optional[str] = None) -> Optional[str]:
+    def load_prompt_text(self, name: str, version: str | None = None) -> str | None:
         """Load raw prompt text without templating.
 
         Args:
@@ -121,7 +121,7 @@ class PromptManager:
         self,
         template_or_name: str | Template,
         context: dict[str, Any],
-        version: Optional[str] = None,
+        version: str | None = None,
     ) -> str:
         """Render a prompt with context variables.
 
@@ -149,9 +149,7 @@ class PromptManager:
             logger.error(f"Error rendering prompt: {e}")
             return ""
 
-    def get_prompt_metadata(
-        self, name: str, version: Optional[str] = None
-    ) -> Optional[PromptMetadata]:
+    def get_prompt_metadata(self, name: str, version: str | None = None) -> PromptMetadata | None:
         """Get metadata for a prompt.
 
         Args:
@@ -180,8 +178,8 @@ class PromptManager:
             return None
 
     def _parse_metadata(
-        self, metadata_str: str, name: str, version: Optional[str]
-    ) -> Optional[PromptMetadata]:
+        self, metadata_str: str, name: str, version: str | None
+    ) -> PromptMetadata | None:
         """Parse YAML metadata.
 
         Args:
@@ -245,7 +243,7 @@ class PromptManager:
 
         return sorted(list(vars_set))
 
-    def list_prompts(self, category: Optional[str] = None) -> list[str]:
+    def list_prompts(self, category: str | None = None) -> list[str]:
         """List available prompts.
 
         Args:
@@ -285,7 +283,7 @@ class PromptManager:
         content: str,
         version: str = "1.0",
         category: str = "general",
-        metadata: Optional[dict] = None,
+        metadata: dict | None = None,
     ) -> bool:
         """Save a new prompt.
 
@@ -333,7 +331,7 @@ class PromptManager:
             logger.error(f"Error saving prompt: {e}")
             return False
 
-    def _find_latest_prompt(self, name: str) -> Optional[str]:
+    def _find_latest_prompt(self, name: str) -> str | None:
         """Find the latest version of a prompt.
 
         Args:

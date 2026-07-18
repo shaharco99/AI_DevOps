@@ -1,7 +1,7 @@
 """Tool executor and registry."""
 
 import logging
-from typing import Any, Optional
+from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -52,7 +52,7 @@ class ToolRegistry:
 
         logger.info(f"Tool registry initialized with {len(self.tools)} tools")
 
-    def get_tool(self, tool_name: str) -> Optional[BaseTool]:
+    def get_tool(self, tool_name: str) -> BaseTool | None:
         """Get tool by name."""
         return self.tools.get(tool_name)
 
@@ -75,7 +75,7 @@ class ToolRegistry:
 class ToolExecutor:
     """Execute tools with validation and error handling."""
 
-    def __init__(self, registry: Optional[ToolRegistry] = None):
+    def __init__(self, registry: ToolRegistry | None = None):
         """Initialize executor.
 
         Args:
@@ -111,7 +111,7 @@ class ToolExecutor:
     async def execute_rag_retrieval(
         self,
         query: str,
-        category: Optional[str] = None,
+        category: str | None = None,
     ) -> dict[str, Any]:
         """Execute RAG retrieval.
 
@@ -153,8 +153,8 @@ class ToolExecutor:
 
 
 # Global instances
-_tool_registry: Optional[ToolRegistry] = None
-_tool_executor: Optional[ToolExecutor] = None
+_tool_registry: ToolRegistry | None = None
+_tool_executor: ToolExecutor | None = None
 
 
 def get_tool_registry() -> ToolRegistry:
@@ -165,7 +165,7 @@ def get_tool_registry() -> ToolRegistry:
     return _tool_registry
 
 
-def get_tool_executor(session: Optional[AsyncSession] = None) -> ToolExecutor:
+def get_tool_executor(session: AsyncSession | None = None) -> ToolExecutor:
     """Get or create tool executor."""
     global _tool_executor
     if _tool_executor is None:

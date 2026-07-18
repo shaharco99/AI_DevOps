@@ -3,7 +3,7 @@
 import logging
 import os
 from abc import ABC, abstractmethod
-from typing import Any, Optional
+from typing import Any
 
 import aiohttp
 
@@ -19,7 +19,7 @@ class PipelineProvider(ABC):
         self.name = name
 
     @abstractmethod
-    async def get_recent_builds(self, pipeline_name: Optional[str] = None) -> dict[str, Any]:
+    async def get_recent_builds(self, pipeline_name: str | None = None) -> dict[str, Any]:
         """Get recent pipeline builds."""
         pass
 
@@ -52,7 +52,7 @@ class AzureDevOpsProvider(PipelineProvider):
     def is_configured(self) -> bool:
         return all([self.organization, self.project, self.pat])
 
-    async def get_recent_builds(self, pipeline_name: Optional[str] = None) -> dict[str, Any]:
+    async def get_recent_builds(self, pipeline_name: str | None = None) -> dict[str, Any]:
         """Get recent pipeline builds."""
         if not self.is_configured():
             return {
@@ -200,7 +200,7 @@ class AzureDevOpsProvider(PipelineProvider):
                         "error": f"Failed to get build details: {response.status}",
                     }
 
-    async def _get_pipeline_id(self, pipeline_name: str) -> Optional[int]:
+    async def _get_pipeline_id(self, pipeline_name: str) -> int | None:
         """Get pipeline definition ID by name."""
         url = f"{self.base_url}/{self.organization}/{self.project}/_apis/build/definitions"
 
@@ -240,7 +240,7 @@ class JenkinsProvider(PipelineProvider):
     def is_configured(self) -> bool:
         return all([self.base_url, self.username, self.api_token])
 
-    async def get_recent_builds(self, pipeline_name: Optional[str] = None) -> dict[str, Any]:
+    async def get_recent_builds(self, pipeline_name: str | None = None) -> dict[str, Any]:
         """Get recent pipeline builds."""
         if not self.is_configured():
             return {
@@ -410,7 +410,7 @@ class GitHubActionsProvider(PipelineProvider):
     def is_configured(self) -> bool:
         return all([self.owner, self.repo, self.token])
 
-    async def get_recent_builds(self, pipeline_name: Optional[str] = None) -> dict[str, Any]:
+    async def get_recent_builds(self, pipeline_name: str | None = None) -> dict[str, Any]:
         """Get recent workflow runs."""
         if not self.is_configured():
             return {
@@ -553,7 +553,7 @@ class GitHubActionsProvider(PipelineProvider):
                         "error": f"Failed to get workflow details: {response.status}",
                     }
 
-    async def _get_workflow_id(self, workflow_name: str) -> Optional[str]:
+    async def _get_workflow_id(self, workflow_name: str) -> str | None:
         """Get workflow ID by name."""
         url = f"{self.base_url}/repos/{self.owner}/{self.repo}/actions/workflows"
 
@@ -595,8 +595,8 @@ class PipelineTool(BaseTool):
         self,
         action: str = "get_recent_builds",
         provider: str = "azure_devops",
-        pipeline_name: Optional[str] = None,
-        build_id: Optional[str] = None,
+        pipeline_name: str | None = None,
+        build_id: str | None = None,
         **kwargs,
     ) -> dict[str, Any]:
         """Execute CI/CD pipeline query.

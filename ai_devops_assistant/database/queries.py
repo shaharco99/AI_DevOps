@@ -3,7 +3,6 @@
 import logging
 import uuid
 from datetime import datetime, timedelta
-from typing import Optional
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -51,7 +50,7 @@ async def create_chat_session(
 async def get_chat_session(
     session: AsyncSession,
     session_id: str,
-) -> Optional[ChatSession]:
+) -> ChatSession | None:
     """Get chat session by ID.
 
     Args:
@@ -70,7 +69,7 @@ async def add_chat_message(
     session_id: str,
     role: str,
     content: str,
-    tools_used: Optional[list] = None,
+    tools_used: list | None = None,
 ) -> ChatMessage:
     """Add message to chat session.
 
@@ -138,7 +137,7 @@ async def store_pipeline_log(
     run_number: int,
     status: str,
     log_content: str,
-    error_summary: Optional[str] = None,
+    error_summary: str | None = None,
 ) -> PipelineLog:
     """Store pipeline log.
 
@@ -201,7 +200,7 @@ async def store_metric_snapshot(
     service_name: str,
     metric_name: str,
     value: float,
-    labels: Optional[dict] = None,
+    labels: dict | None = None,
 ) -> MetricSnapshot:
     """Store metric snapshot.
 
@@ -232,7 +231,7 @@ async def store_metric_snapshot(
 async def get_metrics_by_service(
     session: AsyncSession,
     service_name: str,
-    metric_name: Optional[str] = None,
+    metric_name: str | None = None,
     time_range_hours: int = 1,
     limit: int = 1000,
 ) -> list[MetricSnapshot]:
@@ -271,7 +270,7 @@ async def store_rag_document(
     content: str,
     source: str,
     category: str,
-    embedding_id: Optional[str] = None,
+    embedding_id: str | None = None,
 ) -> RAGDocument:
     """Store RAG document.
 
@@ -334,7 +333,7 @@ async def store_application_log(
     level: str,
     message: str,
     source: str,
-    metadata: Optional[dict] = None,
+    metadata: dict | None = None,
 ) -> ApplicationLog:
     """Store application log.
 
@@ -363,7 +362,7 @@ async def store_application_log(
 
 async def get_application_logs(
     session: AsyncSession,
-    level: Optional[str] = None,
+    level: str | None = None,
     time_range_hours: int = 24,
     limit: int = 500,
 ) -> list[ApplicationLog]:

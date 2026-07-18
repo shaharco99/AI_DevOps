@@ -6,7 +6,7 @@ import logging
 import threading
 import time
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 from ai_devops_assistant.observability.ai_observability import observability_manager
 
@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 class PrometheusExporter:
     """Exports AI observability metrics to Prometheus format."""
 
-    def __init__(self, push_gateway_url: Optional[str] = None):
+    def __init__(self, push_gateway_url: str | None = None):
         """Initialize Prometheus exporter.
 
         Args:
@@ -263,7 +263,7 @@ class GrafanaDashboardGenerator:
             },
         ]
 
-    def save_dashboard(self, filename: str, dashboard: Optional[dict[str, Any]] = None) -> None:
+    def save_dashboard(self, filename: str, dashboard: dict[str, Any] | None = None) -> None:
         """Save dashboard to JSON file."""
         if dashboard is None:
             dashboard = self.generate_ai_observability_dashboard()
@@ -322,7 +322,7 @@ class MonitoringIntegration:
 
     def __init__(
         self,
-        prometheus_pushgateway_url: Optional[str] = None,
+        prometheus_pushgateway_url: str | None = None,
         enable_push_loop: bool = True,
     ):
         """Initialize monitoring integration.

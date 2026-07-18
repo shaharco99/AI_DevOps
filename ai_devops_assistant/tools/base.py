@@ -2,7 +2,7 @@
 
 import logging
 from abc import ABC, abstractmethod
-from typing import Any, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +32,7 @@ class BaseTool(ABC):
         """
         pass
 
-    def validate_parameters(self, **kwargs) -> tuple[bool, Optional[str]]:
+    def validate_parameters(self, **kwargs) -> tuple[bool, str | None]:
         """Validate tool parameters.
 
         Args:

@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 def _is_retryable(exc: BaseException) -> bool:
     """Retry on rate limits, connection errors, and 5xx — not on auth/4xx."""
-    if isinstance(exc, (anthropic.RateLimitError, anthropic.APIConnectionError)):
+    if isinstance(exc, anthropic.RateLimitError | anthropic.APIConnectionError):
         return True
     return isinstance(exc, anthropic.APIStatusError) and exc.status_code >= 500
 

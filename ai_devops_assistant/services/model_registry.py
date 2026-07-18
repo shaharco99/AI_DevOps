@@ -15,7 +15,6 @@ Example:
 import json
 import logging
 from dataclasses import dataclass
-from typing import Optional
 
 import aiohttp
 import requests
@@ -30,12 +29,12 @@ class ModelInfo:
     name: str
     id: str
     description: str
-    size_gb: Optional[float]
-    parameters: Optional[str]
+    size_gb: float | None
+    parameters: str | None
     license: str
     tags: list[str]
-    downloads: Optional[int]
-    rating: Optional[float]
+    downloads: int | None
+    rating: float | None
     url: str
 
 
@@ -54,7 +53,7 @@ class ModelRegistry:
         """
         raise NotImplementedError
 
-    async def get_model_info(self, model_id: str) -> Optional[ModelInfo]:
+    async def get_model_info(self, model_id: str) -> ModelInfo | None:
         """Get detailed information about a specific model.
 
         Args:
@@ -85,14 +84,14 @@ class HuggingFaceRegistry(ModelRegistry):
     BASE_URL = "https://huggingface.co/api"
     MODELS_ENDPOINT = "/models"
 
-    def __init__(self, api_key: Optional[str] = None):
+    def __init__(self, api_key: str | None = None):
         """Initialize HuggingFace registry.
 
         Args:
             api_key: Optional HuggingFace API key
         """
         self.api_key = api_key
-        self.session: Optional[aiohttp.ClientSession] = None
+        self.session: aiohttp.ClientSession | None = None
 
     async def _get_session(self) -> aiohttp.ClientSession:
         """Get or create aiohttp session."""
@@ -134,7 +133,7 @@ class HuggingFaceRegistry(ModelRegistry):
             logger.error(f"Error searching HuggingFace models: {e}")
             return []
 
-    async def get_model_info(self, model_id: str) -> Optional[ModelInfo]:
+    async def get_model_info(self, model_id: str) -> ModelInfo | None:
         """Get HuggingFace model information.
 
         Args:
@@ -232,7 +231,7 @@ class OllamaRegistry(ModelRegistry):
             logger.error(f"Error searching Ollama models: {e}")
             return []
 
-    def get_model_info(self, model_id: str) -> Optional[ModelInfo]:
+    def get_model_info(self, model_id: str) -> ModelInfo | None:
         """Get Ollama model information.
 
         Args:
@@ -326,7 +325,7 @@ class CompositeRegistry(ModelRegistry):
 
         return results[:limit]
 
-    async def get_model_info(self, model_id: str) -> Optional[ModelInfo]:
+    async def get_model_info(self, model_id: str) -> ModelInfo | None:
         """Get model info from appropriate registry.
 
         Args:

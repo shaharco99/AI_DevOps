@@ -14,7 +14,6 @@ Example:
 
 import logging
 from abc import ABC, abstractmethod
-from typing import Optional
 
 import aiohttp
 
@@ -297,7 +296,7 @@ class OpenAIProvider(LLMProvider):
 class AnthropicProvider(LLMProvider):
     """Anthropic Claude LLM provider (official SDK)."""
 
-    def __init__(self, api_key: Optional[str] = None, model: str = "claude-opus-4-8"):
+    def __init__(self, api_key: str | None = None, model: str = "claude-opus-4-8"):
         """Initialize Anthropic provider.
 
         Args:
@@ -384,7 +383,7 @@ class LLMFactory:
     }
 
     @classmethod
-    def create(cls, provider_name: str, **kwargs) -> Optional[LLMProvider]:
+    def create(cls, provider_name: str, **kwargs) -> LLMProvider | None:
         """Create an LLM provider instance.
 
         Args:
