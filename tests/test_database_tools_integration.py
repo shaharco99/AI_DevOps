@@ -13,38 +13,22 @@ repo_root = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(repo_root))
 
 from LLM_CI import database_tools
-from quick_start_database import create_sample_database, setup_db_config
+from conftest import call_tool
 
 
-@pytest.fixture(scope='module')
-def sample_db():
-    """Create sample database for integration tests."""
-    db_path = create_sample_database()
-    setup_db_config()
-    yield db_path
-    # Cleanup
-    try:
-        if os.path.exists(db_path):
-            os.remove(db_path)
-        if os.path.exists('db_config.json'):
-            os.remove('db_config.json')
-    except Exception:
-        pass
-
-
-def test_end_to_end_query_workflow(sample_db):
+def test_end_to_end_query_workflow():
     """Test complete workflow: schema -> validate -> execute."""
     # Step 1: Get schema
-    schema = database_tools.get_database_schema_info()
+    schema = call_tool(database_tools.get_database_schema_info)
     assert 'clients' in schema.lower()
 
     # Step 2: Get table preview
-    preview = database_tools.get_table_preview('clients', limit=2)
+    preview = call_tool(database_tools.get_table_preview, 'clients', limit=2)
     assert 'clients' in preview.lower()
 
     # Step 3: Validate query
     q = "SELECT name, country FROM clients WHERE country = 'USA'"
-    validation_result = database_tools.validate_sql_query(q)
+    validation_result = call_tool(database_tools.validate_sql_query, q)
     validation_data = json.loads(validation_result)
     assert validation_data['valid'] is True
 
@@ -56,12 +40,12 @@ def test_end_to_end_query_workflow(sample_db):
     assert 'country' in rows[0]
 
 
-def test_validate_then_execute_workflow(sample_db):
+def test_validate_then_execute_workflow():
     """Test workflow of validating then executing a query."""
     q = 'SELECT c.name, o.total_amount FROM clients c JOIN orders o ON c.id = o.client_id WHERE o.total_amount > 200'
 
     # Validate first
-    validation_result = database_tools.validate_sql_query(q)
+    validation_result = call_tool(database_tools.validate_sql_query, q)
     validation_data = json.loads(validation_result)
 
     if validation_data['valid']:
@@ -72,9 +56,9 @@ def test_validate_then_execute_workflow(sample_db):
         assert isinstance(rows, list)
 
 
-def test_schema_info_format(sample_db):
+def test_schema_info_format():
     """Test that schema info is in expected format."""
-    schema = database_tools.get_database_schema_info()
+    schema = call_tool(database_tools.get_database_schema_info)
     assert isinstance(schema, str)
     assert len(schema) > 0
 
@@ -86,9 +70,9 @@ def test_schema_info_format(sample_db):
     assert any('clients' in line.lower() or 'orders' in line.lower() or 'products' in line.lower() for line in lines)
 
 
-def test_table_preview_format(sample_db):
+def test_table_preview_format():
     """Test that table preview is in expected format."""
-    preview = database_tools.get_table_preview('clients', limit=3)
+    preview = call_tool(database_tools.get_table_preview, 'clients', limit=3)
     assert isinstance(preview, str)
     assert 'clients' in preview.lower()
 

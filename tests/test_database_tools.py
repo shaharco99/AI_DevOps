@@ -9,6 +9,7 @@ repo_root = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(repo_root))
 
 from LLM_CI import database_tools
+from conftest import call_tool
 from quick_start_database import create_sample_database, setup_db_config
 
 
@@ -60,7 +61,7 @@ def test_execute_query_returns_rows(sample_db):
 
 def test_get_database_schema_info(sample_db):
     """Test the get_database_schema_info tool function."""
-    result = database_tools.get_database_schema_info()
+    result = call_tool(database_tools.get_database_schema_info)
     assert isinstance(result, str)
     assert 'clients' in result.lower()
     assert 'orders' in result.lower()
@@ -70,20 +71,20 @@ def test_get_database_schema_info(sample_db):
 
 def test_get_table_preview(sample_db):
     """Test the get_table_preview tool function."""
-    result = database_tools.get_table_preview('clients', limit=3)
+    result = call_tool(database_tools.get_table_preview, 'clients', limit=3)
     assert isinstance(result, str)
     assert 'clients' in result.lower()
     assert 'Preview' in result or 'Row' in result
 
     # Test with non-existent table
-    result = database_tools.get_table_preview('nonexistent_table')
+    result = call_tool(database_tools.get_table_preview, 'nonexistent_table')
     assert 'not exist' in result.lower() or 'error' in result.lower()
 
 
 def test_validate_sql_query_tool_valid(sample_db):
     """Test validate_sql_query tool with a valid query."""
     q = "SELECT name, country FROM clients WHERE country = 'USA'"
-    result = database_tools.validate_sql_query(q)
+    result = call_tool(database_tools.validate_sql_query, q)
     data = json.loads(result)
     assert data['valid'] is True
     assert 'query' in data
@@ -93,7 +94,7 @@ def test_validate_sql_query_tool_valid(sample_db):
 def test_validate_sql_query_tool_invalid(sample_db):
     """Test validate_sql_query tool with an invalid query."""
     q = 'SELECT nonexistent_column FROM clients'
-    result = database_tools.validate_sql_query(q)
+    result = call_tool(database_tools.validate_sql_query, q)
     data = json.loads(result)
     assert data['valid'] is False
     assert 'message' in data
@@ -103,7 +104,7 @@ def test_validate_sql_query_tool_invalid(sample_db):
 def test_validate_sql_query_tool_unsafe(sample_db):
     """Test validate_sql_query tool with an unsafe query (INSERT)."""
     q = "INSERT INTO clients (name) VALUES ('Test')"
-    result = database_tools.validate_sql_query(q)
+    result = call_tool(database_tools.validate_sql_query, q)
     data = json.loads(result)
     assert data['valid'] is False
     assert 'not permitted' in data['message'].lower() or 'only select' in data['message'].lower()

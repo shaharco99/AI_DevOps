@@ -2,5 +2,7 @@
     "python.analysis.extraPaths": [
         "./LLM_CI"
     ],
-    "python.defaultInterpreterPath": "/home/shahar/repos/MCP/.venv/bin/python"
+    "python.defaultInterpreterPath": "/home/shahar/repos/MCP/.venv/bin/python",
+    "snyk.advanced.organization": "ccade1ff-7ffe-4bb4-9d1e-0fc897e4b331",
+    "snyk.advanced.autoSelectOrganization": true
 }

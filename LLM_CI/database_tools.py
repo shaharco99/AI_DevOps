@@ -22,9 +22,18 @@ except Exception:
 
 # Conditional decorator that works when tool is None
 def conditional_tool(func):
-    """Apply @tool decorator if available, otherwise return function unchanged."""
+    """Apply @tool decorator if available, otherwise return function unchanged.
+    
+    This decorator ensures the original function remains callable for both:
+    - Direct function calls (for testing and internal use)
+    - LangChain agent use (via the decorated StructuredTool)
+    """
     if tool is not None:
-        return tool(func)
+        # Create the tool but keep original function accessible
+        decorated = tool(func)
+        # Store reference to original function for direct calls
+        decorated._original_func = func
+        return decorated
     return func
 
 _db_config: Optional[Dict[str, Any]] = None
