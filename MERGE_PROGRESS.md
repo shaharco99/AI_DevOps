@@ -5,9 +5,9 @@ Updated: 2026-07-18 | Phase: 2 | Branch: `feature/merge-mcp`
 
 ## Now
 
-Phase 5 — LLM provider consolidation. Extend `LLMProvider` ABC to messages-first
-(5.1) BEFORE the factory work; the system/user boundary is what phase 6's prompt-injection
-fencing depends on.
+Phase 6 — security remediation (#1-15). The messages-first boundary from phase 5 is in
+place, so the LLM01 fencing (#9/#10) is now expressible. Several items are already done
+by earlier phases — see the phase-6 notes below.
 
 ## Blocked
 
@@ -15,9 +15,9 @@ fencing depends on.
 
 ## Gate status: 5/5 green
 
-`ruff` · `black` · `isort` · `pylint 9.78` · `mypy 0 errors` · `pytest 312` (320 w/ Postgres) + 38 JS
+`ruff` · `black` · `isort` · `pylint 9.78` · `mypy 0 errors` · `pytest 369` (377 w/ Postgres) + 38 JS
 Always verify with the CI-pinned linter versions (see Key facts).
-Suite grew 37 -> 312 Python + 38 JS (phases 2-4).
+Suite grew 37 -> 369 Python + 38 JS (phases 2-5).
 JS tests: `node --test tests/js/*.test.js` (node's built-in runner, zero npm deps).
 
 ## Phases
@@ -50,7 +50,11 @@ JS tests: `node --test tests/js/*.test.js` (node's built-in runner, zero npm dep
   - [x] 4.3 K8S_VERIFY_SSL was declared-but-unused; now applied, refused in production
   - [x] 4.4 second compose service, same image, port 8001, loopback-bound
   - [x] 4.5 refuses to start in production without MCP_AUTH_TOKEN
-- [ ] 5 LLM consolidation  (5.1 ABC · 5.2 factory · 5.3 prompt · 5.4 real stream)
+- [x] 5 LLM consolidation — one abstraction; `_legacy/` deleted; real streaming live
+  - [x] 5.1 messages-first ABC; chat/stream_chat abstract, generate inherited
+  - [x] 5.2 `get_llm_service()` -> `LLMFactory`; anthropic_service deleted
+  - [x] 5.3 system prompt ported to `prompts/system/devops_assistant_v2.0.md`
+  - [x] 5.4 real token deltas; placeholder chunking removed
 - [ ] 6 Security           (#1-15)
 - [ ] 7 State/cleanup/docs (7.1-7.7)
 
@@ -123,16 +127,13 @@ Measured on the merged tree, compared against the pre-merge baseline:
 
 ## Debt (must clear before done)
 
-- [ ] lint exclusions remaining in `pyproject.toml`: `_legacy/` (phase 5),
-      `rag/loaders.py` (phase 7.5). Phase-3 and phase-4 entries cleared.
+- [ ] lint exclusions remaining in `pyproject.toml`: only `rag/loaders.py` (phase 7.5).
+      Phase-3, -4 and -5 entries all cleared.
 - [ ] `docs/legacy/` (8 MCP markdowns) consolidate              → phase 7.6
-- [ ] `_legacy/mcp/` (Dockerfile, compose, config variant) — superseded, delete → phase 5
 - [ ] re-add MCP-origin deps pinned as each feature lands: pypdf + doc parsers (phase 7.5).
       psycopg2/pymysql/pyodbc no longer needed — the SQL port uses SQLAlchemy.
 - [ ] `GF_SECURITY_ADMIN_PASSWORD: admin` in docker-compose.secrets.yml:141 → phase 6
 
-- [ ] `_legacy/` empty + CI check                        → phase 5
-- [ ] simulated stream → real `stream_chat`              → phase 5.4
 - [ ] upload button enabled                              → phase 7.5
 - [x] ~~mypy: 124 errors~~ — cleared, gate green
 - [x] ~~`agent.py` dead `rag_retriever`~~ — method deleted
@@ -140,7 +141,8 @@ Measured on the merged tree, compared against the pre-merge baseline:
 - [ ] `cli.py` broken f-strings: bare `print(".4f")` at 6+ sites, prints the literal
       instead of the metric. Not a lint error, so no gate catches it → phase 7.3
 - [ ] `OllamaRegistry` implements the async `ModelRegistry` base synchronously, so
-      `CompositeRegistry.registries` must be typed `Any`. Unify the two → phase 5
+      `CompositeRegistry.registries` must be typed `Any`. Unify the two → phase 7.3
+      (model_registry is CLI-only and was out of the phase-5 chat-path scope)
 - [ ] local `datasets/` dir (no `__init__.py`) shadows the HuggingFace `datasets`
       package as a namespace package → phase 6 (rename when ML extra is split out)
 
@@ -148,6 +150,7 @@ Measured on the merged tree, compared against the pre-merge baseline:
 
 <!-- newest first: YYYY-MM-DD | phase | what landed | commit -->
 
+- 2026-07-18 | 5 | messages-first providers; _legacy deleted (+57 tests) | 54b8daf
 - 2026-07-18 | 4 | MCP server + ShellTool; RCE deleted (+82 tests) | edea77a
 - 2026-07-18 | 3 | SQL engine ported (+118 tests, real-PG verified) | 965f0ba
 - 2026-07-18 | 2 | web UI at /ui (+16 py, +38 js tests) | f0601e0
