@@ -5,9 +5,8 @@ Updated: 2026-07-18 | Phase: 2 | Branch: `feature/merge-mcp`
 
 ## Now
 
-Phase 6 — security remediation (#1-15). The messages-first boundary from phase 5 is in
-place, so the LLM01 fencing (#9/#10) is now expressible. Several items are already done
-by earlier phases — see the phase-6 notes below.
+Phase 7 — state, dead code, docs, ADRs. Highest-value items first: 7.2 (`get_agent()`
+cross-session bleed, a data-leak the sidebar makes visible) then 7.1 (Redis sessions).
 
 ## Blocked
 
@@ -15,9 +14,9 @@ by earlier phases — see the phase-6 notes below.
 
 ## Gate status: 5/5 green
 
-`ruff` · `black` · `isort` · `pylint 9.78` · `mypy 0 errors` · `pytest 369` (377 w/ Postgres) + 38 JS
+`ruff` · `black` · `isort` · `pylint 9.78` · `mypy 0 errors` · `pytest 430` (438 w/ Postgres) + 38 JS
 Always verify with the CI-pinned linter versions (see Key facts).
-Suite grew 37 -> 369 Python + 38 JS (phases 2-5).
+Suite grew 37 -> 430 Python + 38 JS (phases 2-6).
 JS tests: `node --test tests/js/*.test.js` (node's built-in runner, zero npm deps).
 
 ## Phases
@@ -55,7 +54,11 @@ JS tests: `node --test tests/js/*.test.js` (node's built-in runner, zero npm dep
   - [x] 5.2 `get_llm_service()` -> `LLMFactory`; anthropic_service deleted
   - [x] 5.3 system prompt ported to `prompts/system/devops_assistant_v2.0.md`
   - [x] 5.4 real token deltas; placeholder chunking removed
-- [ ] 6 Security           (#1-15)
+- [x] 6 Security — all 15 items closed; verified by building the real image
+  - [x] 6a fail-closed production config; /metrics behind auth
+  - [x] 6b LLM01 fencing: separate message + delimiters + marker stripping
+  - [x] 6c LLM08 tool budget; `max_tool_iterations` was declared, never read
+  - [x] 6d hash-pinned lockfile, ML extras split out, CycloneDX SBOM attested
 - [ ] 7 State/cleanup/docs (7.1-7.7)
 
 ## Key facts (verified 2026-07-18)
@@ -132,7 +135,8 @@ Measured on the merged tree, compared against the pre-merge baseline:
 - [ ] `docs/legacy/` (8 MCP markdowns) consolidate              → phase 7.6
 - [ ] re-add MCP-origin deps pinned as each feature lands: pypdf + doc parsers (phase 7.5).
       psycopg2/pymysql/pyodbc no longer needed — the SQL port uses SQLAlchemy.
-- [ ] `GF_SECURITY_ADMIN_PASSWORD: admin` in docker-compose.secrets.yml:141 → phase 6
+- [ ] `GF_SECURITY_ADMIN_PASSWORD: admin` in docker-compose.secrets.yml:141 → phase 7
+- [ ] Chroma `chroma_db_impl` still unverified (masked earlier by the import failure) → phase 7
 
 - [ ] upload button enabled                              → phase 7.5
 - [x] ~~mypy: 124 errors~~ — cleared, gate green
@@ -144,12 +148,13 @@ Measured on the merged tree, compared against the pre-merge baseline:
       `CompositeRegistry.registries` must be typed `Any`. Unify the two → phase 7.3
       (model_registry is CLI-only and was out of the phase-5 chat-path scope)
 - [ ] local `datasets/` dir (no `__init__.py`) shadows the HuggingFace `datasets`
-      package as a namespace package → phase 6 (rename when ML extra is split out)
+      package as a namespace package → phase 7 (the ML extra is split out now)
 
 ## Log
 
 <!-- newest first: YYYY-MM-DD | phase | what landed | commit -->
 
+- 2026-07-18 | 6 | fail-closed config, LLM01 fencing, lockfile (+61 tests) | 5683dcb
 - 2026-07-18 | 5 | messages-first providers; _legacy deleted (+57 tests) | 54b8daf
 - 2026-07-18 | 4 | MCP server + ShellTool; RCE deleted (+82 tests) | edea77a
 - 2026-07-18 | 3 | SQL engine ported (+118 tests, real-PG verified) | 965f0ba
