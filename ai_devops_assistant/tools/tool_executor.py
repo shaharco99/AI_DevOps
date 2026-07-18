@@ -11,6 +11,7 @@ from ai_devops_assistant.tools.kubernetes_tool import KubernetesTool
 from ai_devops_assistant.tools.log_tool import LogAnalysisTool
 from ai_devops_assistant.tools.metrics_tool import MetricsTool
 from ai_devops_assistant.tools.pipeline_tool import PipelineTool
+from ai_devops_assistant.tools.shell_tool import ShellTool
 from ai_devops_assistant.tools.sql_tool import SQLQueryTool
 
 # from ai_devops_assistant.rag.retriever import get_rag_retriever  # Disabled for now
@@ -31,6 +32,11 @@ class ToolRegistry:
         # SQL tool
         if settings.ENABLE_SQL_TOOL:
             self.tools["sql_query_tool"] = SQLQueryTool()
+
+        # Shell tool. Off by default: it runs processes on the host, and
+        # everything it can read is also reachable through the Kubernetes tool.
+        if settings.ENABLE_SHELL_TOOL:
+            self.tools["shell_tool"] = ShellTool()
 
         # Kubernetes tool
         if settings.ENABLE_K8S_TOOL:

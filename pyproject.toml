@@ -28,9 +28,12 @@ classifiers = [
 
 dependencies = [
     # FastAPI & Web
-    "fastapi==0.110.0",
-    "uvicorn[standard]==0.27.0",
+    "fastapi==0.115.6",
+    "uvicorn[standard]==0.34.0",
     "sse-starlette==2.1.3",
+
+    # MCP protocol server
+    "fastmcp==2.3.4",
     "pydantic==2.11.3",
     "pydantic-settings==2.10.1",
 
@@ -56,8 +59,8 @@ dependencies = [
 
     # Utilities
     "requests==2.32.3",
-    "httpx==0.27.2",
-    "python-dotenv==1.0.0",
+    "httpx==0.28.1",
+    "python-dotenv==1.2.2",
     "pyyaml==6.0.1",
     "tenacity==8.2.3",
     "slowapi==0.1.9",
@@ -118,7 +121,7 @@ test = [
     "pytest==7.4.3",
     "pytest-asyncio==0.23.2",
     "pytest-cov==4.1.0",
-    "httpx==0.27.2",
+    "httpx==0.28.1",
 ]
 
 [project.urls]

@@ -101,6 +101,48 @@ services:
       retries: 3
 
   # ========================================================================
+  # MCP Protocol Server
+  # ========================================================================
+  # The same image as the backend, a different entrypoint. Separate container
+  # rather than separate image: one build, but independent scaling, independent
+  # NetworkPolicy and an independent blast radius. It serves the same
+  # ToolRegistry the REST API does, so the two can never expose different tools.
+  mcp-server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ai-devops-mcp
+    restart: unless-stopped
+    command: [ "python", "-m", "ai_devops_assistant.mcp_server" ]
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-devops_user}:${POSTGRES_PASSWORD:-devops_password}@postgres:5432/${POSTGRES_DB:-devops}
+      OLLAMA_BASE_URL: http://ollama:11434
+      LLM_PROVIDER: ${LLM_PROVIDER:-ollama}
+      CHROMA_PERSIST_DIR: /data/chroma
+      PROMETHEUS_URL: http://prometheus:9090
+      API_ENVIRONMENT: ${API_ENVIRONMENT:-development}
+      API_LOG_LEVEL: INFO
+      # Required when API_ENVIRONMENT=production; the server refuses to start
+      # without it, because the MCP transport executes tools.
+      MCP_AUTH_TOKEN: ${MCP_AUTH_TOKEN:-}
+      MCP_PORT: 8001
+    ports:
+      # Loopback only. MCP clients run alongside; nothing needs this on 0.0.0.0.
+      - "127.0.0.1:8001:8001"
+    volumes:
+      - chroma_data:/data/chroma
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - devops
+    deploy:
+      resources:
+        limits:
+          cpus: "1"
+          memory: 512M
+
+  # ========================================================================
   # Prometheus Monitoring
   # ========================================================================
   prometheus:

@@ -4,6 +4,7 @@ import logging
 from typing import Any
 
 from kubernetes import client, config
+from kubernetes.client import Configuration
 from kubernetes.client.rest import ApiException
 
 from ai_devops_assistant.config.settings import settings
@@ -36,6 +37,25 @@ class KubernetesTool(BaseTool):
                 config.load_kube_config(config_file=settings.KUBECONFIG)
             else:
                 config.load_incluster_config()  # For running in-cluster
+
+            # K8S_VERIFY_SSL was declared in settings but never applied, so TLS
+            # verification was simply whatever the kubeconfig said. It is applied
+            # here, and disabling it is refused in production: turning off
+            # verification against the cluster API exposes every request —
+            # including tokens — to interception.
+            if not settings.K8S_VERIFY_SSL:
+                if settings.is_production:
+                    raise ValueError(
+                        "K8S_VERIFY_SSL=false is not permitted in production; "
+                        "it disables TLS verification against the cluster API"
+                    )
+                logger.warning(
+                    "Kubernetes TLS verification is DISABLED (K8S_VERIFY_SSL=false). "
+                    "Development only."
+                )
+                configuration = Configuration.get_default_copy()
+                configuration.verify_ssl = False
+                Configuration.set_default(configuration)
 
             self.v1 = client.CoreV1Api()
             self.apps_v1 = client.AppsV1Api()
@@ -86,6 +106,8 @@ class KubernetesTool(BaseTool):
                 return await self._list_services(namespace)
             elif action == "list_events":
                 return await self._list_events(namespace)
+            elif action == "cluster_overview":
+                return await self._cluster_overview(namespace)
             else:
                 return {
                     "success": False,
@@ -94,6 +116,37 @@ class KubernetesTool(BaseTool):
 
         except Exception as e:
             logger.error(f"Kubernetes query failed: {e}")
+            return {
+                "success": False,
+                "error": str(e),
+            }
+
+    async def _cluster_overview(self, namespace: str) -> dict[str, Any]:
+        """Summarise the cluster: namespaces, and pods/deployments in one of them.
+
+        Ported from MCP's standalone server, where it was the one genuinely useful
+        aggregate. It answers "what am I looking at?" in a single call instead of
+        three, which matters when an agent is paying per round trip.
+        """
+        try:
+            namespaces = [n.metadata.name for n in self.v1.list_namespace().items]
+            pods = [p.metadata.name for p in self.v1.list_namespaced_pod(namespace).items]
+            deployments = [
+                d.metadata.name for d in self.apps_v1.list_namespaced_deployment(namespace).items
+            ]
+            return {
+                "success": True,
+                "namespace": namespace,
+                "namespaces": namespaces,
+                "pods": pods,
+                "deployments": deployments,
+                "counts": {
+                    "namespaces": len(namespaces),
+                    "pods": len(pods),
+                    "deployments": len(deployments),
+                },
+            }
+        except ApiException as e:
             return {
                 "success": False,
                 "error": str(e),
@@ -314,6 +367,7 @@ class KubernetesTool(BaseTool):
                             "get_deployment",
                             "list_services",
                             "list_events",
+                            "cluster_overview",
                         ],
                         "description": "Action to perform",
                     },

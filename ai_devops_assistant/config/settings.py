@@ -27,6 +27,18 @@ class Settings(BaseSettings):
     RATE_LIMIT_CHAT: str = "30/minute"
     RATE_LIMIT_SQL: str = "60/minute"
 
+    # MCP protocol server. Runs as a separate process from the same image, so it
+    # binds its own port — 8000 is uvicorn's.
+    MCP_HOST: str = "0.0.0.0"
+    MCP_PORT: int = 8001
+    # Required in production: the MCP transport exposes tool execution, so an
+    # unauthenticated listener is a remote administrative interface.
+    MCP_AUTH_TOKEN: str | None = None
+
+    # Shell tool. Off by default — it runs processes on the host, and nothing it
+    # offers is unavailable through the Kubernetes and SQL tools.
+    ENABLE_SHELL_TOOL: bool = False
+
     # Web UI. Served same-origin from this app, so it needs no CORS entry.
     ENABLE_WEB_UI: bool = True
     # Session cookies are signed and self-contained, so they cannot be revoked
