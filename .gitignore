@@ -62,6 +62,12 @@ local_settings.py
 db.sqlite3
 db.sqlite3-journal
 
+# Database binaries. DB/database.db and Tests_DB.db predate this rule and stay
+# tracked (0B and 8KB); this prevents new ones from being committed.
+*.db
+*.sqlite
+*.sqlite3
+
 # Flask stuff:
 instance/
 .webassets-cache
