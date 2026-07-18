@@ -5,6 +5,7 @@ import json
 import logging
 import re
 import uuid
+from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import TYPE_CHECKING, Any
@@ -14,6 +15,7 @@ if TYPE_CHECKING:
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from ai_devops_assistant.agents.events import AgentEvent, EventType, error_event, status_event
 from ai_devops_assistant.agents.memory import ConversationMemory, get_session_manager
 from ai_devops_assistant.agents.prompts import SYSTEM_PROMPT
 from ai_devops_assistant.config.settings import settings
@@ -22,6 +24,50 @@ from ai_devops_assistant.services.llm_service import get_llm_service
 from ai_devops_assistant.tools.tool_executor import get_tool_executor
 
 logger = logging.getLogger(__name__)
+
+# How much of a tool result to put in a tool_end event. The full payload stays
+# available in the DONE event's tool_results; this is only what the UI shows on a
+# chip before the user expands it.
+TOOL_SUMMARY_MAX_CHARS = 200
+
+# Size of the chunks the final response is split into for TOKEN events.
+RESPONSE_CHUNK_SIZE = 24
+
+
+def _summarise_tool_result(result: Any) -> str:
+    """Render a short, safe summary of a tool result for a tool_end event."""
+    if result is None:
+        return ""
+    if isinstance(result, dict):
+        rows = result.get("rows")
+        if isinstance(rows, list):
+            return f"{len(rows)} row{'s' if len(rows) != 1 else ''}"
+    text = str(result)
+    if len(text) > TOOL_SUMMARY_MAX_CHARS:
+        return text[:TOOL_SUMMARY_MAX_CHARS] + "…"
+    return text
+
+
+def _chunk_response(text: str, size: int = RESPONSE_CHUNK_SIZE) -> list[str]:
+    """Split a finished response into incremental pieces for TOKEN events.
+
+    Interim stand-in for real token streaming (see the phase-5 TODO at the call
+    site). Splits on whitespace boundaries so words are not torn apart mid-render.
+    """
+    if not text:
+        return []
+    chunks: list[str] = []
+    current = ""
+    for word in text.split(" "):
+        candidate = f"{current} {word}" if current else word
+        if len(candidate) >= size:
+            chunks.append(candidate + " ")
+            current = ""
+        else:
+            current = candidate
+    if current:
+        chunks.append(current)
+    return chunks
 
 
 class AgentRole(Enum):
@@ -178,6 +224,52 @@ class DevOpsAgent:
         Returns:
             Response dictionary with content, metadata, and tool calls
         """
+        # Drains chat_stream() rather than reimplementing the loop. Forking the two
+        # would let them drift; this keeps a single implementation and guarantees
+        # the streaming and non-streaming paths cannot disagree.
+        terminal: AgentEvent | None = None
+        async for event in self.chat_stream(
+            message, session_id=session_id, use_rag=use_rag, **kwargs
+        ):
+            if event.is_terminal:
+                terminal = event
+
+        if terminal is not None and terminal.type is EventType.DONE:
+            return {"success": True, **terminal.data}
+
+        error_message = (
+            terminal.data.get("message", "unknown error") if terminal is not None else "no response"
+        )
+        return {
+            "success": False,
+            "content": f"I apologize, but I encountered an error: {error_message}",
+            "message": f"I apologize, but I encountered an error: {error_message}",
+            "error": error_message,
+            "tool_calls": [],
+            "tool_results": {},
+            "metadata": {},
+            "confidence_score": 0.0,
+            "reasoning_steps": [],
+            "session_id": session_id,
+        }
+
+    async def chat_stream(
+        self, message: str, session_id: str | None = None, use_rag: bool = True, **kwargs
+    ) -> AsyncIterator[AgentEvent]:
+        """Process a user message, emitting progress events as the work happens.
+
+        This is the real implementation of the chat loop; chat() consumes it.
+
+        Args:
+            message: User input message
+            session_id: Conversation session ID
+            use_rag: Whether to use RAG for context
+            **kwargs: Additional parameters
+
+        Yields:
+            AgentEvent instances. Exactly one terminal event (DONE or ERROR) is
+            emitted last, and nothing follows it.
+        """
         with trace_context("agent_chat", agent_role=self.config.role.value):
             try:
                 # Initialize conversation memory if needed
@@ -186,18 +278,24 @@ class DevOpsAgent:
                         session_id
                     )
 
-                # Create task for this interaction
                 task = AgentTask(description=message, context={"session_id": session_id})
 
-                # Execute task
-                response = await self._execute_task(task, use_rag=use_rag)
+                response: AgentResponse | None = None
+                async for event in self._execute_task_stream(task, use_rag=use_rag):
+                    if event.type is EventType.DONE:
+                        # Carries the assembled response; held back so memory and
+                        # history are updated before the caller sees the terminal event.
+                        response = event.data["response"]
+                        continue
+                    yield event
 
-                # Update conversation memory
+                if response is None:  # pragma: no cover - defensive
+                    raise RuntimeError("agent produced no response")
+
                 if self.conversation_memory:
                     self.conversation_memory.add_message("user", message)
                     self.conversation_memory.add_message("assistant", response.content)
 
-                # Record execution
                 self.execution_history.append(
                     {
                         "timestamp": asyncio.get_event_loop().time(),
@@ -208,48 +306,68 @@ class DevOpsAgent:
                     }
                 )
 
-                return {
-                    "success": True,
-                    "content": response.content,
-                    "message": response.content,
-                    "tool_calls": [
-                        {"name": call.tool_name, "parameters": call.parameters}
-                        for call in response.tool_calls
-                    ],
-                    "tool_results": {call.tool_name: call.result for call in response.tool_calls},
-                    "thinking": "\n".join(response.reasoning_steps) or None,
-                    "metadata": response.metadata,
-                    "confidence_score": response.confidence_score,
-                    "reasoning_steps": response.reasoning_steps,
-                    "session_id": session_id,
-                }
+                yield AgentEvent(
+                    type=EventType.DONE,
+                    data=self._response_payload(response, session_id),
+                )
 
             except Exception as e:
                 logger.error(f"Agent chat failed: {e}", exc_info=True)
-                return {
-                    "success": False,
-                    "content": f"I apologize, but I encountered an error: {str(e)}",
-                    "message": f"I apologize, but I encountered an error: {str(e)}",
-                    "error": str(e),
-                    "tool_calls": [],
-                    "tool_results": {},
-                    "metadata": {},
-                    "confidence_score": 0.0,
-                    "reasoning_steps": [],
-                    "session_id": session_id,
-                }
+                yield error_event(str(e))
+
+    def _response_payload(self, response: AgentResponse, session_id: str | None) -> dict[str, Any]:
+        """Build the JSON-safe response body shared by chat() and the DONE event.
+
+        Defined once so the streaming and non-streaming paths cannot describe the
+        same response differently.
+        """
+        return {
+            "content": response.content,
+            "message": response.content,
+            "tool_calls": [
+                {"name": call.tool_name, "parameters": call.parameters}
+                for call in response.tool_calls
+            ],
+            "tool_results": {call.tool_name: call.result for call in response.tool_calls},
+            "thinking": "\n".join(response.reasoning_steps) or None,
+            "metadata": response.metadata,
+            "confidence_score": response.confidence_score,
+            "reasoning_steps": response.reasoning_steps,
+            "session_id": session_id,
+        }
 
     async def _execute_task(self, task: AgentTask, use_rag: bool = True) -> AgentResponse:
-        """Execute a task using agent capabilities."""
+        """Execute a task and return the finished response.
+
+        Thin consumer of _execute_task_stream so there is one implementation of
+        the loop.
+        """
+        async for event in self._execute_task_stream(task, use_rag=use_rag):
+            if event.type is EventType.DONE:
+                response: AgentResponse = event.data["response"]
+                return response
+        raise RuntimeError("agent produced no response")  # pragma: no cover - defensive
+
+    async def _execute_task_stream(
+        self, task: AgentTask, use_rag: bool = True
+    ) -> AsyncIterator[AgentEvent]:
+        """Execute a task, emitting an event at each observable step.
+
+        The terminal DONE event carries the assembled AgentResponse under
+        data["response"]; it is the only event whose payload is not JSON-safe, and
+        chat_stream() consumes it rather than forwarding it.
+        """
         task.status = "running"
         reasoning_steps = []
 
         try:
             # Step 1: Gather context
+            yield status_event("gathering_context")
             context = await self._gather_context(task, use_rag)
             reasoning_steps.append("Gathered relevant context from knowledge base")
 
             # Step 2: Plan execution (if planning enabled)
+            yield status_event("planning")
             if self.config.enable_planning and AgentCapability.PLANNING in self.config.capabilities:
                 plan = await self._create_execution_plan(task, context)
                 reasoning_steps.append(f"Created execution plan with {len(plan)} steps")
@@ -258,15 +376,44 @@ class DevOpsAgent:
                     {"action": "direct_response", "reasoning": "Simple query - direct response"}
                 ]
 
+            yield AgentEvent(type=EventType.PLAN, data={"steps": plan})
+
             # Step 3: Execute plan
             tool_calls = []
 
-            for step in plan:
+            for index, step in enumerate(plan):
                 if step["action"] == "tool_call":
-                    # Execute tool
+                    call_id = f"tc_{index}"
+                    yield AgentEvent(
+                        type=EventType.TOOL_START,
+                        data={
+                            "id": call_id,
+                            "name": step.get("tool_name", "unknown"),
+                            "params": step.get("parameters", {}),
+                        },
+                    )
+
                     tool_call = await self._execute_tool_call(step)
                     tool_calls.append(tool_call)
                     reasoning_steps.append(f"Executed tool: {tool_call.tool_name}")
+
+                    yield AgentEvent(
+                        type=EventType.TOOL_END,
+                        data={
+                            "id": call_id,
+                            "name": tool_call.tool_name,
+                            "ok": tool_call.error is None,
+                            "error": tool_call.error,
+                            "duration_ms": (
+                                round(tool_call.execution_time * 1000, 2)
+                                if tool_call.execution_time is not None
+                                else None
+                            ),
+                            # A summary, never the raw result: tool output can be
+                            # thousands of rows and would swamp the event stream.
+                            "summary": _summarise_tool_result(tool_call.result),
+                        },
+                    )
 
                     # Incorporate tool result into context
                     context += f"\nTool result ({tool_call.tool_name}): {tool_call.result}"
@@ -278,8 +425,15 @@ class DevOpsAgent:
                     context += f"\nReasoning: {reasoning}"
 
             # Step 4: Generate final response
+            yield status_event("responding")
             final_response = await self._generate_final_response(task, context, tool_calls)
             reasoning_steps.append("Generated final response incorporating all context")
+
+            # TODO(phase-5): replace with real token deltas from LLMProvider.stream_chat.
+            # Chunking a finished string gives the UI its incremental rendering path
+            # now, so the frontend does not have to change when real streaming lands.
+            for chunk in _chunk_response(final_response):
+                yield AgentEvent(type=EventType.TOKEN, data={"t": chunk})
 
             # Calculate confidence
             confidence = self._calculate_confidence(tool_calls, reasoning_steps)
@@ -287,16 +441,21 @@ class DevOpsAgent:
             task.status = "completed"
             task.result = final_response
 
-            return AgentResponse(
-                content=final_response,
-                tool_calls=tool_calls,
-                metadata={
-                    "task_id": task.id,
-                    "execution_plan": plan,
-                    "context_sources": len(context.split("\n")) if context else 0,
+            yield AgentEvent(
+                type=EventType.DONE,
+                data={
+                    "response": AgentResponse(
+                        content=final_response,
+                        tool_calls=tool_calls,
+                        metadata={
+                            "task_id": task.id,
+                            "execution_plan": plan,
+                            "context_sources": len(context.split("\n")) if context else 0,
+                        },
+                        confidence_score=confidence,
+                        reasoning_steps=reasoning_steps,
+                    )
                 },
-                confidence_score=confidence,
-                reasoning_steps=reasoning_steps,
             )
 
         except Exception as e:
