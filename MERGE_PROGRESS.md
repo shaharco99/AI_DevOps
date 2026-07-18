@@ -5,8 +5,8 @@ Updated: 2026-07-18 | Phase: 2 | Branch: `feature/merge-mcp`
 
 ## Now
 
-Phase 2.3/2.5 — the web frontend: vanilla ES modules at `/ui`, sidebar, tool-call chips,
-streaming cursor, DOMPurify on all LLM output. Backend for it is done and tested.
+Phase 3 — port MCP's SQL auto-correction engine into `tools/sql_tool.py`.
+Watch the dialect landmine (3.3) and re-validate after correction (3.2).
 
 ## Blocked
 
@@ -14,9 +14,10 @@ streaming cursor, DOMPurify on all LLM output. Backend for it is done and tested
 
 ## Gate status: 5/5 green
 
-`ruff` · `black` · `isort` · `pylint 9.78` · `mypy 0 errors` · `pytest 103/103`
+`ruff` · `black` · `isort` · `pylint 9.78` · `mypy 0 errors` · `pytest 120/120` + `node --test` 38 JS
 Always verify with the CI-pinned linter versions (see Key facts).
-Suite grew 37 -> 103 during phase 2 (agent events 24, auth 25, SSE 17).
+Suite grew 37 -> 120 Python + 38 JS during phase 2.
+JS tests: `node --test tests/js/*.test.js` (node's built-in runner, zero npm deps).
 
 ## Phases
 
@@ -31,11 +32,11 @@ Suite grew 37 -> 103 during phase 2 (agent events 24, auth 25, SSE 17).
   - [x] 1.3 merge `--allow-unrelated-histories`, **0 conflicts, 0 path collisions**
   - [x] 1.4 union config: .gitignore, gitleaks + detect-secrets hooks, baseline regenerated
   - [x] 1.5 verified — see Phase 1 evidence
-- [ ] 2 Web chat + SSE
+- [x] 2 Web chat + SSE — working UI at /ui, verified against a live server
   - [x] 2.1 `chat_stream()` + `agents/events.py`; `chat()` drains it (no forked logic)
   - [x] 2.2 `POST /chat/stream` SSE; persistence in `finally` survives Stop
   - [x] 2.4 cookie session auth; browser never holds the API key
-  - [ ] 2.3/2.5 frontend + UX
+  - [x] 2.3/2.5 frontend + UX — vanilla ESM at /ui, no build step, no vendored libs
 - [ ] 3 SQL engine port    (3.1 purify · 3.2 guard 2x · 3.3 dialect gate · 3.4 params · 3.5 tests)
 - [ ] 4 MCP server         (4.1 adapter · 4.2 tools · 4.3 kube · 4.4 deploy · 4.5 auth)
 - [ ] 5 LLM consolidation  (5.1 ABC · 5.2 factory · 5.3 prompt · 5.4 real stream)
@@ -80,6 +81,13 @@ Measured on the merged tree, compared against the pre-merge baseline:
 
 <!-- deviations from the plan only; format: date — decision — why -->
 
+- 2026-07-18 — frontend renders markdown to DOM nodes instead of the planned
+  marked -> DOMPurify -> innerHTML. No innerHTML anywhere, so XSS is structurally
+  impossible rather than filtered, and three vendored libraries disappear. Cost: a
+  markdown subset, not full CommonMark.
+- 2026-07-18 — added a dependency-free `package.json` (type:module only) so
+  `node --test` can import the frontend sources. No node_modules, no lockfile.
+
 - 2026-07-18 — fixed RAG syntax + typing errors before Phase 1, on `fix/rag-syntax-errors`
   rather than inside the merge — keeps a 1180-line pre-existing breakage out of the merge
   diff, where it would have been indistinguishable from merge fallout.
@@ -115,6 +123,7 @@ Measured on the merged tree, compared against the pre-merge baseline:
 
 <!-- newest first: YYYY-MM-DD | phase | what landed | commit -->
 
+- 2026-07-18 | 2 | web UI at /ui (+16 py, +38 js tests) | f0601e0
 - 2026-07-18 | 2 | SSE endpoint POST /chat/stream (+17 tests) | 6dc5dc6
 - 2026-07-18 | 2 | cookie session auth (+25 tests) | 5a254f2
 - 2026-07-18 | 2 | chat_stream() + events (+24 tests) | e2eb8f1
