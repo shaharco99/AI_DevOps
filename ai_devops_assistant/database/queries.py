@@ -60,8 +60,8 @@ async def get_chat_session(
     Returns:
         ChatSession or None
     """
-    result = await session.execute(select(ChatSession).where(ChatSession.id == session_id))
-    return result.scalars().first()
+    result = await session.scalars(select(ChatSession).where(ChatSession.id == session_id))
+    return result.first()
 
 
 async def add_chat_message(
@@ -123,7 +123,7 @@ async def get_chat_messages(
         .order_by(ChatMessage.created_at.desc())
         .limit(limit)
     )
-    return result.scalars().all()
+    return list(result.scalars().all())
 
 
 # ============================================================================
@@ -187,7 +187,7 @@ async def get_pipeline_logs(
         .order_by(PipelineLog.created_at.desc())
         .limit(limit)
     )
-    return result.scalars().all()
+    return list(result.scalars().all())
 
 
 # ============================================================================
@@ -256,7 +256,7 @@ async def get_metrics_by_service(
         query = query.where(MetricSnapshot.metric_name == metric_name)
 
     result = await session.execute(query.order_by(MetricSnapshot.timestamp.desc()).limit(limit))
-    return result.scalars().all()
+    return list(result.scalars().all())
 
 
 # ============================================================================
@@ -320,7 +320,7 @@ async def get_rag_documents_by_category(
         .order_by(RAGDocument.created_at.desc())
         .limit(limit)
     )
-    return result.scalars().all()
+    return list(result.scalars().all())
 
 
 # ============================================================================
@@ -385,4 +385,4 @@ async def get_application_logs(
         query = query.where(ApplicationLog.level == level)
 
     result = await session.execute(query.order_by(ApplicationLog.created_at.desc()).limit(limit))
-    return result.scalars().all()
+    return list(result.scalars().all())

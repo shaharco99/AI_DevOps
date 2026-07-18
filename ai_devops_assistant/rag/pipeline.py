@@ -202,18 +202,28 @@ class RAGPipeline:
         try:
             from ai_devops_assistant.rag.scraper import SitemapScraper
 
-            sitemap_scraper = SitemapScraper()
+            # SitemapScraper requires a WebScraper, and its API is
+            # scrape_from_sitemap() -> list[ScrapedContent]. There is no
+            # discover_urls(). Because it returns already-scraped content, the
+            # pages are ingested directly rather than re-fetched one URL at a
+            # time, which also drops the need for the manual rate-limit sleep.
+            sitemap_scraper = SitemapScraper(self.scraper)
 
-            urls = await sitemap_scraper.discover_urls(sitemap_url, max_pages)
-            logger.info(f"Found {len(urls)} URLs in sitemap")
+            pages = await sitemap_scraper.scrape_from_sitemap(sitemap_url, max_pages)
+            logger.info(f"Scraped {len(pages)} pages from sitemap")
 
             total_chunks = 0
-            for url in urls:
-                chunks = await self.ingest_url(url, metadata, chunk_strategy)
-                total_chunks += chunks
-                await asyncio.sleep(1)  # Rate limiting
+            for page in pages:
+                page_metadata: dict[str, Any] = {
+                    "source": page.url,
+                    "title": page.title,
+                    "source_type": "sitemap",
+                }
+                if metadata:
+                    page_metadata.update(metadata)
+                total_chunks += await self.ingest_text(page.content, page_metadata, chunk_strategy)
 
-            logger.info(f"Ingested {total_chunks} chunks from {len(urls)} sitemap URLs")
+            logger.info(f"Ingested {total_chunks} chunks from {len(pages)} sitemap pages")
             return total_chunks
 
         except Exception as e:
@@ -321,7 +331,12 @@ class SimpleRAGPipeline(RAGPipeline):
     def __init__(self, chunk_size: int = 1000, chunk_overlap: int = 100):
         super().__init__(chunk_size=chunk_size, chunk_overlap=chunk_overlap)
 
-    def ingest_text(self, content: str, metadata: dict[str, Any]) -> int:
+    # Deliberately overrides the async RAGPipeline.ingest_text with a sync facade
+    # for callers that are not in an event loop (ingest_scraped below, and the
+    # CLI). mypy cannot express "sync override of an async method", and the
+    # signature also drops chunk_strategy. Both are intentional; the async path
+    # remains available as ingest_text_async.
+    def ingest_text(self, content: str, metadata: dict[str, Any]) -> int:  # type: ignore[override]
         """Synchronous ingestion for backward compatibility."""
         # Run async method in event loop
         try:

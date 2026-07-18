@@ -27,7 +27,9 @@ def _install_model(model: str) -> None:
 
 async def _ingest_url(url: str) -> None:
     pipeline = SimpleRAGPipeline()
-    chunks = await pipeline.ingest_website(url)
+    # ingest_website() has never existed on this class; ingest_url() is the real
+    # entry point, so `ai-devops ingest <url>` raised AttributeError on every run.
+    chunks = await pipeline.ingest_url(url)
     print(f"ingested_chunks={chunks}")
 
 

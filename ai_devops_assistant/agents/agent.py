@@ -7,7 +7,10 @@ import re
 import uuid
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from ai_devops_assistant.rag.pipeline import RAGPipeline
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -85,7 +88,10 @@ class AgentResponse:
     """Response from an agent execution."""
 
     content: str
-    tool_calls: list[dict[str, Any]] = field(default_factory=list)
+    # ToolCall objects, not dicts: _execute_task passes the ToolCall instances it
+    # built, and chat() reads .tool_name/.parameters/.result off them. Forward
+    # reference because ToolCall is defined below.
+    tool_calls: list["ToolCall"] = field(default_factory=list)
     metadata: dict[str, Any] = field(default_factory=dict)
     confidence_score: float = 0.0
     reasoning_steps: list[str] = field(default_factory=list)
@@ -122,9 +128,13 @@ class DevOpsAgent:
             session: SQLAlchemy async session for database tools
         """
         self.config = config or AgentConfig()
-        self.llm_service = None
+        # Both are populated by initialize(), not here, so they must be declared
+        # Optional — otherwise their inferred type is None and every later use is
+        # an error. RAGPipeline is imported lazily inside initialize() to keep the
+        # heavy rag/ import off the module import path, hence the string annotation.
+        self.llm_service: Any | None = None
         self.tool_executor = get_tool_executor(session)
-        self.rag_pipeline = None
+        self.rag_pipeline: "RAGPipeline | None" = None
         self.session_manager = get_session_manager()
         self.session = session
         self.conversation_memory: ConversationMemory | None = None
@@ -551,15 +561,6 @@ class DevOpsAgent:
 
         return results
 
-    async def _retrieve_rag_context(self, query: str) -> str:
-        """Retrieve context from RAG system."""
-        try:
-            documents = self.rag_retriever.retrieve(query)
-            context = self.rag_retriever.format_context(documents)
-            return context
-        except Exception as e:
-            logger.error(f"RAG retrieval error: {e}")
-            return ""
 
     def _build_system_context(self, memory: ConversationMemory, rag_context: str) -> str:
         """Build system context for LLM."""

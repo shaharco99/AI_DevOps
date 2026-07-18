@@ -3,10 +3,17 @@
 from datetime import datetime
 
 from sqlalchemy import JSON, DateTime, Integer, String, Text, func
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
-Base = declarative_base()
+
+class Base(DeclarativeBase):
+    """Declarative base for all ORM models.
+
+    Declared as a class rather than via declarative_base() so that mypy can
+    treat it as a type. The rest of this module already uses the SQLAlchemy 2.0
+    Mapped/mapped_column style; this completes that migration and drops the
+    deprecated sqlalchemy.ext.declarative import path.
+    """
 
 
 class PipelineLog(Base):
