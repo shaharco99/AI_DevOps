@@ -1,11 +1,12 @@
 # Merge Progress
 
 Plan: `~/.claude/plans/compiled-enchanting-parasol.md`
-Updated: 2026-07-18 | Phase: 0 | Branch: `fix/rag-syntax-errors` (off `feature/production-hardening`)
+Updated: 2026-07-18 | Phase: 2 | Branch: `feature/merge-mcp`
 
 ## Now
 
-Decide on mypy (see Blocked), then Phase 1.1 — relocate MCP files on an MCP-side branch.
+Phase 2.1 — add `DevOpsAgent.chat_stream()` as an async generator and make the existing
+`chat()` consume it (must not fork the logic).
 
 ## Blocked
 
@@ -22,7 +23,12 @@ Decide on mypy (see Blocked), then Phase 1.1 — relocate MCP files on an MCP-si
   - [x] 0.2 secret sweep — clean, see Key facts
   - [x] 0.3 accept DB binaries + gitignore `*.db`
   - [x] 0.4 baseline CI — 4/5 gates green; mypy red (above)
-- [ ] 1 History merge      (1.1 relocate · 1.2 delete dead · 1.3 merge · 1.4 configs · 1.5 CI green)
+- [x] 1 History merge — merge commit `e7cbec1`, 178 files, blame preserved
+  - [x] 1.1 relocate (10 src + 12 tests/fixtures + 8 docs, all rename-only)
+  - [x] 1.2 delete 6 dead modules, each verified unreferenced first
+  - [x] 1.3 merge `--allow-unrelated-histories`, **0 conflicts, 0 path collisions**
+  - [x] 1.4 union config: .gitignore, gitleaks + detect-secrets hooks, baseline regenerated
+  - [x] 1.5 verified — see Phase 1 evidence
 - [ ] 2 Web chat + SSE     (2.1 chat_stream · 2.2 endpoint · 2.3 frontend · 2.4 auth · 2.5 UX)
 - [ ] 3 SQL engine port    (3.1 purify · 3.2 guard 2x · 3.3 dialect gate · 3.4 params · 3.5 tests)
 - [ ] 4 MCP server         (4.1 adapter · 4.2 tools · 4.3 kube · 4.4 deploy · 4.5 auth)
@@ -46,6 +52,24 @@ Decide on mypy (see Blocked), then Phase 1.1 — relocate MCP files on an MCP-si
 - Lint tooling: CI pins `ruff==0.1.11`, but a local venv had 0.15.11 and reported ~30 extra
   findings. Always verify gates with the pinned versions.
 
+## Phase 1 evidence (zero behavior change)
+
+Measured on the merged tree, compared against the pre-merge baseline:
+
+| Check | Result |
+|---|---|
+| Path collisions | **0** — set comparison of both file lists before merging |
+| Merge conflicts | **0** |
+| File count | 138 + 40 = **178**, set-compared: nothing extra, nothing missing |
+| Blame | `git blame sql_correction.py` shows `LLM_CI/database_tools.py`, orig. author/date |
+| MCP history | 44 commits reachable; merge commit has 2 parents |
+| mypy | **124 errors / 28 files — identical to baseline**, merge added zero |
+| pylint | 9.78/10 (baseline 9.77) |
+| ruff / black / isort | pass; 68 files still checked (unchanged), `agent.py` still linted |
+| pytest | 37 collected, 37 pass; **0** collected from `tests/mcp` |
+| App | `create_app()` builds, **16 routes — identical surface** |
+| Merged code inert | no MCP module in `sys.modules` after `create_app()` |
+
 ## Decisions
 
 <!-- deviations from the plan only; format: date — decision — why -->
@@ -60,7 +84,14 @@ Decide on mypy (see Blocked), then Phase 1.1 — relocate MCP files on an MCP-si
 
 ## Debt (must clear before done)
 
-- [ ] lint exclusions: `_legacy/`, `sql_correction.py`   → phases 3/5
+- [ ] lint exclusions in `pyproject.toml`, 5 tools each with own syntax, all TODO(phase-N)
+      tagged: ruff/black/isort/mypy/pylint + pytest `norecursedirs` → phases 3/4/5/7.5
+- [ ] `docs/legacy/` (8 MCP markdowns) consolidate              → phase 7.6
+- [ ] `_legacy/mcp/` (Dockerfile, compose, config variant)      → phase 4
+- [ ] re-add MCP-origin deps pinned as each feature lands: psycopg2/pymysql/pyodbc
+      (phase 3), pypdf + doc parsers (phase 7.5)
+- [ ] `GF_SECURITY_ADMIN_PASSWORD: admin` in docker-compose.secrets.yml:141 → phase 6
+- [ ] stale `python LLM_CI/ChatGUI.py` hint in tests/fixtures/sample_database.py → phase 3
 - [ ] `_legacy/` empty + CI check                        → phase 5
 - [ ] simulated stream → real `stream_chat`              → phase 5.4
 - [ ] upload button enabled                              → phase 7.5
@@ -74,6 +105,10 @@ Decide on mypy (see Blocked), then Phase 1.1 — relocate MCP files on an MCP-si
 
 <!-- newest first: YYYY-MM-DD | phase | what landed | commit -->
 
+- 2026-07-18 | 1 | time-boxed lint exclusions, 5 tools | da2c12f
+- 2026-07-18 | 1 | union config + regenerated secrets baseline | b51a7e8
+- 2026-07-18 | 1 | **MCP merged, 0 conflicts, history preserved** | e7cbec1
+- 2026-07-18 | 1 | MCP-side: relocate, delete dead, drop configs | f62355c..a46d1c2
 - 2026-07-18 | 0 | ruff/black/isort green + RAG bugs they exposed | c98f56c
 - 2026-07-18 | 0 | repaired 4 unparseable files; RAG imports again | e6c31c2
 - 2026-07-18 | 0 | MCP: snapshot commit + tag, `*.db` ignored | 950cefc (MCP repo)
