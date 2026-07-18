@@ -1,3 +1,0 @@
-# This file is deprecated. Please use the files in the `requirements/` directory.
-# For development, use: pip install -r requirements/dev.txt
-# For production, use: pip install -r requirements/prod.txt
