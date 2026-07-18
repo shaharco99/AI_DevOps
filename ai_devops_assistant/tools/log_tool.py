@@ -28,7 +28,10 @@ class LogAnalysisTool(BaseTool):
         """Set database session."""
         self.session = session
 
-    async def execute(
+    # Narrows BaseTool.execute(**kwargs) to this tool's named parameters. The
+    # registry always dispatches by keyword and validate_parameters() guards the
+    # required ones, so the narrowing is deliberate; mypy cannot express it.
+    async def execute(  # type: ignore[override]
         self,
         query: str,
         log_type: str = "application",
@@ -133,7 +136,7 @@ class LogAnalysisTool(BaseTool):
             return "No logs found matching the query."
 
         # Count by level
-        level_counts = {}
+        level_counts: dict[str, int] = {}
         for log in logs:
             level = log.get("level", "UNKNOWN")
             level_counts[level] = level_counts.get(level, 0) + 1

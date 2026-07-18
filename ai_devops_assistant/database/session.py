@@ -2,6 +2,7 @@
 
 import logging
 from collections.abc import AsyncGenerator
+from typing import Any
 
 from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
@@ -10,7 +11,10 @@ from ai_devops_assistant.config.settings import settings
 
 logger = logging.getLogger(__name__)
 
-engine_kwargs = {
+# Annotated because the values are heterogeneous (bool, int, dict); without it
+# the type is inferred as dict[str, bool] from this first entry and every pool
+# setting below is an error.
+engine_kwargs: dict[str, Any] = {
     "echo": settings.DATABASE_ECHO,
 }
 

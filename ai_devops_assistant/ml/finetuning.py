@@ -23,6 +23,7 @@ import json
 import logging
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -54,7 +55,9 @@ class FineTuningDataset:
             data_path: Path to training data
         """
         self.data_path = Path(data_path)
-        self.data = []
+        # Training examples are strings: both loaders append the text field, and
+        # validate() rejects any entry that is not a non-empty str.
+        self.data: list[str] = []
 
     def load_json_lines(self) -> None:
         """Load JSONL format data.
@@ -135,9 +138,11 @@ class FineTuner:
             config: FineTuningConfig object
         """
         self.config = config
-        self.model = None
-        self.tokenizer = None
-        self.trainer = None
+        # Populated by the load/prepare steps, not here. Declared Optional so
+        # their inferred type is not None, which made every later use an error.
+        self.model: Any | None = None
+        self.tokenizer: Any | None = None
+        self.trainer: Any | None = None
 
     def load_model(self) -> bool:
         """Load model and tokenizer.

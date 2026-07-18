@@ -44,7 +44,7 @@ class PromptManager:
             prompts_dir: Directory containing prompts
         """
         self.prompts_dir = Path(prompts_dir)
-        self.cache = {}
+        self.cache: dict[str, Any] = {}
 
         # Initialize Jinja2 environment
         self.env = Environment(
@@ -199,12 +199,16 @@ class PromptManager:
                     key = key.strip().lower()
                     value = value.strip()
 
+                    # tags parses to a list while every other key stays a string,
+                    # so the parsed form goes in its own variable rather than
+                    # rebinding `value` to a second type.
+                    parsed: Any = value
                     if key == "tags":
-                        value = [v.strip() for v in value.strip("[]").split(",")]
+                        parsed = [v.strip() for v in value.strip("[]").split(",")]
                     elif key == "version":
                         version = value
 
-                    metadata[key] = value
+                    metadata[key] = parsed
 
             return PromptMetadata(
                 name=name,

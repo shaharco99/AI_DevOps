@@ -24,7 +24,10 @@ class MetricsTool(BaseTool):
         self.prometheus_url = settings.PROMETHEUS_URL
         self.timeout = settings.PROMETHEUS_TIMEOUT
 
-    async def execute(
+    # Narrows BaseTool.execute(**kwargs) to this tool's named parameters. The
+    # registry always dispatches by keyword and validate_parameters() guards the
+    # required ones, so the narrowing is deliberate; mypy cannot express it.
+    async def execute(  # type: ignore[override]
         self,
         query: str,
         duration: str = "1h",

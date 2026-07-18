@@ -46,7 +46,10 @@ class KubernetesTool(BaseTool):
             logger.warning(f"Failed to initialize Kubernetes client: {e}")
             self._initialized = False
 
-    async def execute(
+    # Narrows BaseTool.execute(**kwargs) to this tool's named parameters. The
+    # registry always dispatches by keyword and validate_parameters() guards the
+    # required ones, so the narrowing is deliberate; mypy cannot express it.
+    async def execute(  # type: ignore[override]
         self,
         action: str,
         namespace: str | None = None,

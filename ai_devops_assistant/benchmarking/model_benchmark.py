@@ -7,7 +7,7 @@ import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from statistics import mean, median, stdev
-from typing import Any
+from typing import Any, Callable
 
 logger = logging.getLogger(__name__)
 
@@ -93,7 +93,7 @@ class AdvancedModelBenchmark:
     async def benchmark_model(
         self,
         model_name: str,
-        model_fn: callable,
+        model_fn: Callable[..., Any],
         prompts: list[str],
         runs_per_prompt: int = 3,
     ) -> ModelBenchmarkResult:
@@ -152,7 +152,7 @@ class AdvancedModelBenchmark:
         return result
 
     async def _single_run(
-        self, model_name: str, model_fn: callable, prompt: str, run_num: int
+        self, model_name: str, model_fn: Callable[..., Any], prompt: str, run_num: int
     ) -> BenchmarkMetrics:
         """Execute a single benchmark run."""
         try:
@@ -522,7 +522,7 @@ class AdvancedModelBenchmark:
 
 
 # Backward compatibility
-async def benchmark_model(model_name: str, fn: callable, prompts: list[str]) -> dict:
+async def benchmark_model(model_name: str, fn: Callable[..., Any], prompts: list[str]) -> dict:
     """Backward compatibility function."""
     benchmarker = AdvancedModelBenchmark()
     result = await benchmarker.benchmark_model(model_name, fn, prompts, runs_per_prompt=1)

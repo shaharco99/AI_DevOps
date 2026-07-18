@@ -109,7 +109,10 @@ class SQLQueryTool(BaseTool):
         # Validate SQL safety
         return self.validate_sql_injection(query)
 
-    async def execute(self, query: str, limit: int | None = None, **kwargs) -> dict[str, Any]:
+    # Narrows BaseTool.execute(**kwargs) to this tool's named parameters. The
+    # registry always dispatches by keyword and validate_parameters() guards the
+    # required ones, so the narrowing is deliberate; mypy cannot express it.
+    async def execute(self, query: str, limit: int | None = None, **kwargs) -> dict[str, Any]:  # type: ignore[override]
         """Execute SQL query.
 
         Args:

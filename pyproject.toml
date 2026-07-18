@@ -211,8 +211,21 @@ module = [
     "chromadb.*",
     "kubernetes.*",
     "ollama.*",
+    # HuggingFace datasets/transformers/peft are optional ML extras, not
+    # installed in the default environment. Note that the repo also has a local
+    # datasets/ data directory with no __init__.py, which python treats as a
+    # namespace package and which therefore shadows the real `datasets` library
+    # on sys.path. ml/finetuning.py imports it lazily inside a function, so this
+    # only bites if the ML extra is actually used from the repo root.
+    "datasets.*",
+    "transformers.*",
+    "peft.*",
+    "torch.*",
+    # requests ships no inline types and types-requests is not a dependency.
+    "requests.*",
 ]
 ignore_missing_imports = true
+follow_imports = "skip"
 
 [tool.pytest.ini_options]
 minversion = "7.0"

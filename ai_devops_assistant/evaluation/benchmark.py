@@ -291,7 +291,7 @@ class ModelBenchmarker:
 
 # Convenience functions
 async def quick_evaluate_model(
-    model_fn: callable,
+    model_fn: Callable[..., Any],
     model_name: str,
     categories: list[str] | None = None,
 ) -> dict:

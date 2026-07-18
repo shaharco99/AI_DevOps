@@ -9,7 +9,7 @@ import time
 import uuid
 from collections import defaultdict, deque
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Callable
 
 logger = logging.getLogger(__name__)
 
@@ -172,10 +172,14 @@ class MetricsCollector:
         self._lock = threading.Lock()
 
         # Metrics storage
-        self.llm_requests = deque(maxlen=max_history)
-        self.errors = deque(maxlen=max_history)
-        self.latencies = defaultdict(lambda: deque(maxlen=max_history))
-        self.token_usage = defaultdict(lambda: deque(maxlen=max_history))
+        self.llm_requests: deque[dict[str, Any]] = deque(maxlen=max_history)
+        self.errors: deque[dict[str, Any]] = deque(maxlen=max_history)
+        self.latencies: defaultdict[str, deque[float]] = defaultdict(
+            lambda: deque(maxlen=max_history)
+        )
+        self.token_usage: defaultdict[str, deque[int]] = defaultdict(
+            lambda: deque(maxlen=max_history)
+        )
 
         # Aggregated metrics
         self.total_requests = 0
@@ -361,7 +365,7 @@ class ObservabilityManager:
             logger.info("Trace span completed", extra=log_data)
 
     async def trace_llm_call(
-        self, provider: str, model: str, prompt: str, call_fn: callable, **kwargs
+        self, provider: str, model: str, prompt: str, call_fn: Callable[..., Any], **kwargs
     ) -> str:
         """Trace an LLM call with automatic metrics collection."""
         # Start trace span
