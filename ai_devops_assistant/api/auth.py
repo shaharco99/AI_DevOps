@@ -18,7 +18,7 @@ import secrets
 import time
 from base64 import urlsafe_b64decode, urlsafe_b64encode
 
-from fastapi import Cookie, HTTPException, Security
+from fastapi import Cookie, HTTPException, Request, Security
 from fastapi.security import APIKeyHeader
 from slowapi import Limiter
 from slowapi.util import get_remote_address
@@ -115,6 +115,40 @@ async def require_auth(
         return
 
     raise HTTPException(status_code=401, detail="Invalid or missing credentials")
+
+
+async def require_csrf(
+    request: Request,
+    session: str | None = Cookie(default=None, alias=SESSION_COOKIE_NAME),
+    csrf_cookie: str | None = Cookie(default=None, alias=CSRF_COOKIE_NAME),
+) -> None:
+    """Require a matching CSRF token on cookie-authenticated writes.
+
+    The double-submit pattern: the token is sent both as a JavaScript-readable
+    cookie and as a header the client has to echo. Another origin can make the
+    browser attach the cookie, but cannot read it to set the header.
+
+    Two deliberate exemptions:
+
+    - Safe methods. They do not change state, and blocking them would break
+      loading the UI itself.
+    - Requests with no session cookie. Those are API-key clients (CI, scripts);
+      a browser cannot be tricked into attaching a header it never had, so there
+      is nothing to forge. This also keeps existing machine callers working.
+
+    SameSite=strict on the session cookie is the primary defence. This is the
+    second layer, for the streaming POST in particular.
+    """
+    if request.method in ("GET", "HEAD", "OPTIONS"):
+        return
+
+    if not session:
+        return
+
+    header = request.headers.get(CSRF_HEADER_NAME)
+    if not header or not csrf_cookie or not hmac.compare_digest(header, csrf_cookie):
+        logger.warning("Rejected a cookie-authenticated write with a missing/invalid CSRF token")
+        raise HTTPException(status_code=403, detail="Missing or invalid CSRF token")
 
 
 # Backwards-compatible alias: require_api_key was the original name and is still

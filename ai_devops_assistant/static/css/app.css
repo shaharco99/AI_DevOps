@@ -414,6 +414,71 @@ body {
   color: #fff;
 }
 
+/* -------------------------------------------------------------------- login */
+
+.login-overlay {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  /* Opaque rather than translucent: the chat behind it is not usable until a
+     session exists, and showing it greyed out invites clicking at it. */
+  background: var(--bg);
+  z-index: 10;
+}
+
+.login-card {
+  width: min(360px, calc(100vw - 32px));
+  padding: 24px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-raised);
+}
+
+.login-title {
+  margin: 0 0 8px;
+  font-size: 18px;
+}
+
+.login-hint {
+  margin: 0 0 16px;
+  color: var(--text-dim);
+  font-size: 14px;
+}
+
+.login-input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+}
+
+.login-error {
+  min-height: 18px;
+  margin: 8px 0;
+  color: var(--fail);
+  font-size: 13px;
+}
+
+.login-submit {
+  width: 100%;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: var(--radius);
+  background: var(--accent);
+  color: var(--accent-contrast);
+  font: inherit;
+  cursor: pointer;
+}
+
+.login-submit:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
 /* ------------------------------------------------------------ small screens */
 
 @media (max-width: 720px) {

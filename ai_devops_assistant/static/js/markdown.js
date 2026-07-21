@@ -167,7 +167,17 @@ export function parseMarkdown(markdown) {
     }
 
     // Paragraph: consume until a blank line or the start of another block.
-    const paragraph = [];
+    //
+    // The first line is taken unconditionally rather than being re-tested by the
+    // loop guard, because that is what guarantees the outer loop advances. A
+    // line can start with ``` yet not match the fence pattern above (an LLM
+    // emitting "```sh cmd ```" all on one line does exactly this). Such a line
+    // satisfies no block form and is rejected by the guard below, so leaving the
+    // guard to consume it means i never moves: the outer loop spins forever
+    // pushing empty paragraphs and hangs the tab. This runs on every streamed
+    // token, so a single such line freezes the whole response.
+    const paragraph = [lines[i]];
+    i += 1;
     while (
       i < lines.length &&
       lines[i].trim() !== "" &&

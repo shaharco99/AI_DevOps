@@ -72,7 +72,7 @@ def create_app() -> FastAPI:
     from slowapi import _rate_limit_exceeded_handler
     from slowapi.errors import RateLimitExceeded
 
-    from ai_devops_assistant.api.auth import limiter, require_api_key
+    from ai_devops_assistant.api.auth import limiter, require_api_key, require_csrf
 
     app.state.limiter = limiter
     app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
@@ -92,14 +92,18 @@ def create_app() -> FastAPI:
     )
 
     auth_deps = [Depends(require_api_key)]
+    # Routers a browser POSTs to also carry the CSRF check. It is a no-op for
+    # API-key clients and for safe methods; only cookie-authenticated writes
+    # have to present the token.
+    write_deps = [Depends(require_api_key), Depends(require_csrf)]
     app.include_router(health.router)
     # No auth dependency: this is where a caller trades an API key for a session.
     app.include_router(auth.router)
     app.include_router(models.router, dependencies=auth_deps)
-    app.include_router(chat.router, dependencies=auth_deps)
-    app.include_router(run_sql.router, dependencies=auth_deps)
-    app.include_router(analyze_logs.router, dependencies=auth_deps)
-    app.include_router(rag.router, dependencies=auth_deps)
+    app.include_router(chat.router, dependencies=write_deps)
+    app.include_router(run_sql.router, dependencies=write_deps)
+    app.include_router(analyze_logs.router, dependencies=write_deps)
+    app.include_router(rag.router, dependencies=write_deps)
     # Behind auth: /metrics/ai/* exposes token counts, model names, latency and
     # error detail — an operational profile of the deployment. Liveness probes
     # use /health, which stays open.
@@ -110,11 +114,32 @@ def create_app() -> FastAPI:
     if settings.ENABLE_WEB_UI:
         from pathlib import Path
 
+        from fastapi.responses import Response
         from fastapi.staticfiles import StaticFiles
+
+        class RevalidatingStaticFiles(StaticFiles):
+            """StaticFiles that makes browsers revalidate before reusing a file.
+
+            The assets are unversioned — index.html always imports "/ui/js/app.js"
+            — so without a Cache-Control header browsers fall back to heuristic
+            caching and keep serving the previous deploy's JS from disk cache.
+            A shipped fix then simply does not reach anyone until a hard reload.
+
+            "no-cache" does not mean "do not store": the file is still cached, the
+            browser just has to revalidate it. ETag/Last-Modified are already sent,
+            so an unchanged asset costs a 304 with an empty body.
+            """
+
+            def file_response(self, *args: object, **kwargs: object) -> Response:
+                response = super().file_response(*args, **kwargs)  # type: ignore[arg-type]
+                response.headers["Cache-Control"] = "no-cache"
+                return response
 
         static_dir = Path(__file__).parent / "static"
         if static_dir.is_dir():
-            app.mount("/ui", StaticFiles(directory=str(static_dir), html=True), name="ui")
+            app.mount(
+                "/ui", RevalidatingStaticFiles(directory=str(static_dir), html=True), name="ui"
+            )
         else:  # pragma: no cover - only if the package was built without assets
             logger.warning("ENABLE_WEB_UI is set but %s does not exist", static_dir)
 

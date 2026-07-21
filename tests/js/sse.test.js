@@ -12,6 +12,52 @@ import { test, describe } from "node:test";
 import { SseParser } from "../../ai_devops_assistant/static/js/sse.js";
 
 describe("SseParser", () => {
+  // sse-starlette terminates lines with CRLF, so these are the byte sequences
+  // /chat/stream actually puts on the wire. Splitting frames on "\n\n" alone
+  // never matches "\r\n\r\n" (the bytes are CR LF CR LF), which silently ate
+  // every event and left the UI blank for the whole response.
+  describe("CRLF framing, as sent by sse-starlette", () => {
+    test("parses a CRLF frame", () => {
+      const parser = new SseParser();
+      const frames = parser.push('event: token\r\ndata: {"t":"hi"}\r\n\r\n');
+      assert.deepEqual(frames, [{ event: "token", data: { t: "hi" } }]);
+    });
+
+    test("parses several CRLF frames from one chunk", () => {
+      const parser = new SseParser();
+      const frames = parser.push(
+        'event: token\r\ndata: {"t":"a"}\r\n\r\nevent: token\r\ndata: {"t":"b"}\r\n\r\n',
+      );
+      assert.equal(frames.length, 2);
+      assert.equal(frames[1].data.t, "b");
+    });
+
+    test("skips a CRLF keepalive comment", () => {
+      const parser = new SseParser();
+      const frames = parser.push(
+        ': ping - 2026-07-21\r\n\r\nevent: token\r\ndata: {"t":"x"}\r\n\r\n',
+      );
+      assert.deepEqual(frames, [{ event: "token", data: { t: "x" } }]);
+    });
+
+    test("handles a CRLF split across two chunks", () => {
+      const parser = new SseParser();
+      // The read boundary falls between the CR and the LF of the frame
+      // separator — the case that turns one frame into two if the CR is
+      // treated as a line end on its own.
+      assert.deepEqual(parser.push('event: token\r\ndata: {"t":"split"}\r\n\r'), []);
+      const frames = parser.push("\n");
+      assert.deepEqual(frames, [{ event: "token", data: { t: "split" } }]);
+    });
+
+    test("does not invent an empty frame from a split CRLF mid-frame", () => {
+      const parser = new SseParser();
+      assert.deepEqual(parser.push("event: token\r"), []);
+      const frames = parser.push('\ndata: {"t":"y"}\r\n\r\n');
+      assert.deepEqual(frames, [{ event: "token", data: { t: "y" } }]);
+    });
+  });
+
   test("parses a single complete frame", () => {
     const parser = new SseParser();
     const frames = parser.push('event: token\ndata: {"t":"hi"}\n\n');

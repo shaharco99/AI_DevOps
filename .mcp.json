@@ -1,0 +1,54 @@
+{
+  "mcpServers": {
+    "kubernetes": {
+      "command": "npx",
+      "args": ["-y", "mcp-server-kubernetes@4.0.7"],
+      "env": {
+        "ALLOW_ONLY_NON_DESTRUCTIVE_TOOLS": "true"
+      }
+    },
+
+    "prometheus": {
+      "command": "docker",
+      "args": [
+        "run", "-i", "--rm",
+        "--network", "${COMPOSE_NETWORK:-ai-devops_devops}",
+        "-e", "PROMETHEUS_URL",
+        "ghcr.io/pab1it0/prometheus-mcp-server:1.4.2"
+      ],
+      "env": {
+        "PROMETHEUS_URL": "${PROMETHEUS_URL:-http://prometheus:9090}"
+      }
+    },
+
+    "postgres": {
+      "command": "docker",
+      "args": [
+        "run", "-i", "--rm",
+        "--network", "${COMPOSE_NETWORK:-ai-devops_devops}",
+        "-e", "DATABASE_URI",
+        "crystaldba/postgres-mcp:0.3.0",
+        "--access-mode=restricted"
+      ],
+      "env": {
+        "DATABASE_URI": "postgresql://${POSTGRES_USER:-devops_user}:${POSTGRES_PASSWORD:-devops_password}@postgres:5432/${POSTGRES_DB:-devops}"
+      }
+    },
+
+    "ai-devops": {
+      "type": "http",
+      "url": "${MCP_SERVER_URL:-http://127.0.0.1:8001/mcp/}"
+    },
+
+    "playwright": {
+      "command": "npx",
+      "args": [
+        "-y", "@playwright/mcp@0.0.78",
+        "--browser", "chromium",
+        "--headless",
+        "--isolated",
+        "--allowed-origins", "${UI_ORIGIN:-http://localhost:8080};http://127.0.0.1:8080"
+      ]
+    }
+  }
+}

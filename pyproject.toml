@@ -240,6 +240,7 @@ markers = [
     "integration: Integration tests",
     "slow: Slow tests",
     "external: Tests that call external services",
+    "e2e: Browser tests; need the 'browser' extra and a Chromium download",
 ]
 
 [tool.coverage.run]

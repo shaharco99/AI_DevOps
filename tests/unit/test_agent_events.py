@@ -9,7 +9,12 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from ai_devops_assistant.agents.agent import DevOpsAgent, _summarise_tool_result
+from ai_devops_assistant.agents.agent import (
+    DevOpsAgent,
+    ToolCall,
+    _summarise_tool_result,
+    _tool_failure,
+)
 from ai_devops_assistant.agents.events import AgentEvent, EventType, error_event, status_event
 
 
@@ -47,6 +52,45 @@ class TestAgentEvent:
         event = error_event("boom")
         assert event.type is EventType.ERROR
         assert event.data == {"message": "boom", "recoverable": False}
+
+
+class TestToolFailure:
+    """What decides whether a tool_end event reads as success or failure.
+
+    BaseTool.__call__ turns an exception into a {"success": False} *return
+    value*, so tool_call.error stays None on a failed tool. Judging on the
+    exception alone rendered every such failure as a green "ok" chip in the UI.
+    """
+
+    def _call(self, result=None, error=None):
+        call = ToolCall("pipeline_status_tool", {})
+        call.result = result
+        call.error = error
+        return call
+
+    def test_success_result_is_not_a_failure(self):
+        assert _tool_failure(self._call(result={"success": True, "rows": []})) is None
+
+    def test_raised_error_is_a_failure(self):
+        assert _tool_failure(self._call(error="boom")) == "boom"
+
+    def test_success_false_result_is_a_failure(self):
+        call = self._call(result={"success": False, "error": "Azure DevOps configuration missing"})
+        assert _tool_failure(call) == "Azure DevOps configuration missing"
+
+    def test_success_false_without_an_error_still_fails(self):
+        assert _tool_failure(self._call(result={"success": False})) == "tool reported failure"
+
+    def test_a_raised_error_wins_over_the_result(self):
+        call = self._call(result={"success": False, "error": "inner"}, error="outer")
+        assert _tool_failure(call) == "outer"
+
+    def test_a_result_without_a_success_key_is_not_a_failure(self):
+        # Not every tool reports a "success" field; absence must not read as failure.
+        assert _tool_failure(self._call(result={"rows": [1, 2]})) is None
+
+    def test_a_non_dict_result_is_not_a_failure(self):
+        assert _tool_failure(self._call(result="plain text")) is None
 
 
 class TestSummariseToolResult:

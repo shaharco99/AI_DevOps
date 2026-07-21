@@ -171,6 +171,74 @@ jobs:
           path: junit-integration.xml
 
   # ========================================================================
+  # Frontend Tests
+  # ========================================================================
+  # The frontend had no CI coverage at all: tests/js existed but nothing ran
+  # them, and nothing drove the UI in a browser. A streaming bug that left the
+  # chat completely blank shipped and survived, because the JS unit tests framed
+  # their fixtures with LF while the server sends CRLF. The browser job is what
+  # closes that gap — it exercises the shipped JS against the real SSE endpoint.
+  frontend-tests:
+    name: Frontend Tests (unit + browser)
+    runs-on: ubuntu-latest
+    needs: [lint]
+
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_USER: devops_user
+          POSTGRES_PASSWORD: devops_password
+          POSTGRES_DB: devops_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+
+      # No npm install: the frontend vendors nothing and node's built-in test
+      # runner needs no dependencies, so there is no lockfile to audit.
+      - name: Run JS unit tests
+        run: node --test tests/js/*.test.js
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -e ".[dev,test,browser]"
+
+      - name: Install Chromium
+        run: python -m playwright install --with-deps chromium
+
+      - name: Run browser end-to-end tests
+        env:
+          DATABASE_URL: "postgresql+asyncpg://devops_user:devops_password@localhost:5432/devops_test"
+        run: pytest tests/e2e -v --junitxml=junit-e2e.xml
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pytest-e2e-results
+          path: junit-e2e.xml
+
+  # ========================================================================
   # Security Scanning (SAST)
   # ========================================================================
   security-scan:
@@ -352,7 +420,7 @@ jobs:
   status-check:
     name: Status Check
     runs-on: ubuntu-latest
-    needs: [lint, unit-tests, integration-tests, security-scan, dependency-scan, docker-build, container-scan, docs]
+    needs: [lint, unit-tests, integration-tests, frontend-tests, security-scan, dependency-scan, docker-build, container-scan, docs]
     if: always()
 
     steps:
@@ -364,6 +432,14 @@ jobs:
           fi
           if [ "${{ needs.unit-tests.result }}" == "failure" ]; then
             echo "❌ Unit tests failed"
+            exit 1
+          fi
+          if [ "${{ needs.integration-tests.result }}" == "failure" ]; then
+            echo "❌ Integration tests failed"
+            exit 1
+          fi
+          if [ "${{ needs.frontend-tests.result }}" == "failure" ]; then
+            echo "❌ Frontend tests failed"
             exit 1
           fi
           echo "✅ All critical checks passed"

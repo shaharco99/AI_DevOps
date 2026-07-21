@@ -224,7 +224,9 @@ class OllamaProvider(LLMProvider):
             LLMProviderError: If the request fails.
         """
         payload = {
-            "model": self.model,
+            # A caller may override the model per request (the UI's model
+            # picker does); fall back to the one this provider was built with.
+            "model": kwargs.get("model") or self.model,
             "messages": messages,
             "stream": False,
             "options": {
@@ -276,7 +278,9 @@ class OllamaProvider(LLMProvider):
             LLMProviderError: If the request fails before any chunk arrives.
         """
         payload = {
-            "model": self.model,
+            # A caller may override the model per request (the UI's model
+            # picker does); fall back to the one this provider was built with.
+            "model": kwargs.get("model") or self.model,
             "messages": messages,
             "stream": True,
             "options": {
@@ -347,7 +351,9 @@ class OpenAIProvider(LLMProvider):
         """
         headers = {"Authorization": f"Bearer {self.api_key}"}
         payload = {
-            "model": self.model,
+            # A caller may override the model per request (the UI's model
+            # picker does); fall back to the one this provider was built with.
+            "model": kwargs.get("model") or self.model,
             "messages": messages,
             "max_tokens": max_tokens,
             "temperature": temperature,
@@ -389,7 +395,9 @@ class OpenAIProvider(LLMProvider):
         """
         headers = {"Authorization": f"Bearer {self.api_key}"}
         payload = {
-            "model": self.model,
+            # A caller may override the model per request (the UI's model
+            # picker does); fall back to the one this provider was built with.
+            "model": kwargs.get("model") or self.model,
             "messages": messages,
             "max_tokens": max_tokens,
             "temperature": temperature,
@@ -477,7 +485,9 @@ class AnthropicProvider(LLMProvider):
         """
         system, conversation = self._split_system(messages)
         request: dict[str, Any] = {
-            "model": self.model,
+            # A caller may override the model per request (the UI's model
+            # picker does); fall back to the one this provider was built with.
+            "model": kwargs.get("model") or self.model,
             "max_tokens": max_tokens,
             "messages": conversation,
             "thinking": {"type": "adaptive"},
@@ -514,7 +524,9 @@ class AnthropicProvider(LLMProvider):
         """
         system, conversation = self._split_system(messages)
         request: dict[str, Any] = {
-            "model": self.model,
+            # A caller may override the model per request (the UI's model
+            # picker does); fall back to the one this provider was built with.
+            "model": kwargs.get("model") or self.model,
             "max_tokens": max_tokens,
             "messages": conversation,
             "thinking": {"type": "adaptive"},
@@ -582,6 +594,23 @@ class FallbackLLMClient(LLMProvider):
     def __init__(self, targets: list[dict]):
         self.targets = targets
 
+    def _plan(self, kwargs: dict) -> list[dict]:
+        """Targets to try, honouring an explicit per-request model.
+
+        Removes ``model`` from kwargs: this class picks the model per target, and
+        leaving it in would forward the same model to every provider below,
+        turning a fallback chain into the same failing call repeated.
+
+        An explicitly requested model is tried first and the configured chain
+        still follows it, so choosing a model does not cost the caller the
+        fallback safety net.
+        """
+        requested = kwargs.pop("model", None)
+        if not requested or not self.targets:
+            return self.targets
+        rest = [t for t in self.targets if t.get("model") != requested]
+        return [{"provider": self.targets[0]["provider"], "model": requested}, *rest]
+
     async def chat(
         self,
         messages: list[dict[str, str]],
@@ -599,7 +628,7 @@ class FallbackLLMClient(LLMProvider):
         """
         last_error = "no targets configured"
 
-        for target in self.targets:
+        for target in self._plan(kwargs):
             provider = target["provider"]
             model = target["model"]
             llm = LLMFactory.create(provider, model=model, **target.get("kwargs", {}))
@@ -648,7 +677,7 @@ class FallbackLLMClient(LLMProvider):
         """
         last_error = "no targets configured"
 
-        for target in self.targets:
+        for target in self._plan(kwargs):
             provider = target["provider"]
             model = target["model"]
             llm = LLMFactory.create(provider, model=model, **target.get("kwargs", {}))

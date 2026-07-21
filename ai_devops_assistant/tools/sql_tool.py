@@ -2,13 +2,16 @@
 
 import logging
 import re
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from typing import Any
 
 from sqlalchemy import inspect, text
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncConnection, AsyncSession
 
 from ai_devops_assistant.config.constants import ERROR_SQL_INJECTION_DETECTED, MAX_SQL_RESULT_ROWS
 from ai_devops_assistant.database.context import get_current_session
+from ai_devops_assistant.database.sources import DEFAULT_SOURCE, registry
 from ai_devops_assistant.tools.base import BaseTool
 from ai_devops_assistant.tools.sql_correction import _convert_sqlite_syntax, validate_and_fix_sql
 
@@ -26,7 +29,9 @@ class SQLQueryTool(BaseTool):
             "Supports SELECT queries only for security.",
         )
         self._session: AsyncSession | None = None
-        self._schema_cache: dict[str, list[str]] | None = None
+        # Keyed by source name: each database has its own schema, and the
+        # correction engine must never repair a query against the wrong one.
+        self._schema_cache: dict[str, dict[str, list[str]]] = {}
 
     @property
     def session(self) -> AsyncSession | None:
@@ -46,19 +51,38 @@ class SQLQueryTool(BaseTool):
         """
         self._session = session
         # A new session may point at a different database, so the cached schema
-        # from the previous one must not be reused.
-        self._schema_cache = None
+        # from the previous one must not be reused. External sources are keyed
+        # separately and are unaffected by which session is bound.
+        self._schema_cache.pop(DEFAULT_SOURCE, None)
 
-    async def _get_schema(self) -> dict[str, list[str]]:
-        """Reflect table -> columns for the current connection, cached.
+    @asynccontextmanager
+    async def _connect(self, source: str) -> AsyncIterator[AsyncConnection]:
+        """A connection to ``source``.
+
+        The default source reuses the request's session connection, so the tool
+        stays inside the caller's transaction. External sources get a short-lived
+        connection from their own pool, returned as soon as the query is done —
+        holding one open across a request would tie up someone else's production
+        database for the length of an LLM call.
+        """
+        if source == DEFAULT_SOURCE:
+            if not self.session:
+                raise RuntimeError("Database session not configured")
+            yield await self.session.connection()
+            return
+
+        async with registry.engine(source).connect() as connection:
+            yield connection
+
+    async def _get_schema(self, source: str) -> dict[str, list[str]]:
+        """Reflect table -> columns for ``source``, cached per source.
 
         Reflection is a per-query round trip otherwise, and the correction engine
         needs the schema on every call.
         """
-        if self._schema_cache is not None:
-            return self._schema_cache
-        if not self.session:
-            return {}
+        cached = self._schema_cache.get(source)
+        if cached is not None:
+            return cached
 
         def _reflect(connection: Any) -> dict[str, list[str]]:
             inspector = inspect(connection)
@@ -68,17 +92,19 @@ class SQLQueryTool(BaseTool):
             }
 
         try:
-            connection = await self.session.connection()
-            self._schema_cache = await connection.run_sync(_reflect)
+            async with self._connect(source) as connection:
+                self._schema_cache[source] = await connection.run_sync(_reflect)
         except Exception as e:
             # Correction is an enhancement; without a schema the query is simply
             # run as written rather than the whole tool failing.
-            logger.warning(f"Could not reflect database schema: {e}")
-            self._schema_cache = {}
-        return self._schema_cache
+            logger.warning(f"Could not reflect schema for source {source!r}: {e}")
+            self._schema_cache[source] = {}
+        return self._schema_cache[source]
 
-    async def _dialect_name(self) -> str:
-        """Name of the current connection's dialect ('sqlite', 'postgresql', ...)."""
+    async def _dialect_name(self, source: str) -> str:
+        """Name of the source's dialect ('sqlite', 'postgresql', 'oracle', ...)."""
+        if source != DEFAULT_SOURCE:
+            return registry.engine(source).dialect.name or ""
         if not self.session:
             return ""
         bind = self.session.get_bind()
@@ -170,18 +196,33 @@ class SQLQueryTool(BaseTool):
     # Narrows BaseTool.execute(**kwargs) to this tool's named parameters. The
     # registry always dispatches by keyword and validate_parameters() guards the
     # required ones, so the narrowing is deliberate; mypy cannot express it.
-    async def execute(self, query: str, limit: int | None = None, **kwargs) -> dict[str, Any]:  # type: ignore[override]
+    async def execute(  # type: ignore[override]
+        self,
+        query: str,
+        limit: int | None = None,
+        source: str = DEFAULT_SOURCE,
+        **kwargs,
+    ) -> dict[str, Any]:
         """Execute SQL query.
 
         Args:
             query: SQL query to execute
             limit: Optional row limit
+            source: Which database to query. Defaults to the application's own.
             **kwargs: Additional parameters
 
         Returns:
             dict: Query results
         """
-        if not self.session:
+        source = source or DEFAULT_SOURCE
+        if source != DEFAULT_SOURCE and source not in registry:
+            # The caller is usually an LLM that guessed a name, so say what exists.
+            known = ", ".join([DEFAULT_SOURCE, *registry.names])
+            return {
+                "success": False,
+                "error": f"Unknown SQL source {source!r}. Available sources: {known}",
+            }
+        if source == DEFAULT_SOURCE and not self.session:
             return {
                 "success": False,
                 "error": "Database session not configured",
@@ -191,15 +232,16 @@ class SQLQueryTool(BaseTool):
             # Apply limit
             actual_limit = min(limit or MAX_SQL_RESULT_ROWS, MAX_SQL_RESULT_ROWS)
 
-            effective_query, corrections = await self._correct(query)
+            effective_query, corrections = await self._correct(query, source)
             if effective_query is None:
                 # Correction failed and explained why (unknown table/column, with
                 # suggestions). That message is more useful than the database's.
                 return {"success": False, "error": corrections["error"]}
 
             # Execute query
-            result = await self.session.execute(text(effective_query))
-            rows = result.fetchall()[:actual_limit]
+            async with self._connect(source) as connection:
+                result = await connection.execute(text(effective_query))
+                rows = result.fetchall()[:actual_limit]
 
             # Format results (SQLAlchemy 2.0 rows convert via ._mapping)
             formatted_rows = [dict(row._mapping) for row in rows]
@@ -209,14 +251,16 @@ class SQLQueryTool(BaseTool):
                 "rows": formatted_rows,
                 "count": len(formatted_rows),
                 "limited": len(rows) >= actual_limit,
+                "source": source,
                 **corrections,
             }
 
         except Exception as e:
-            logger.error(f"SQL execution error: {e}")
+            logger.error(f"SQL execution error on source {source!r}: {e}")
             return {
                 "success": False,
                 "error": f"SQL execution failed: {str(e)}",
+                "source": source,
             }
 
     async def _correct(self, query: str) -> tuple[str | None, dict[str, Any]]:

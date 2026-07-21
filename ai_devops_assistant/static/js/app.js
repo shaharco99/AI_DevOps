@@ -24,6 +24,92 @@ function readCookie(name) {
 }
 
 // ---------------------------------------------------------------------------
+// Session bootstrap
+// ---------------------------------------------------------------------------
+
+/**
+ * Trade an API key for a session cookie.
+ *
+ * The page cannot hold the key itself — anything JavaScript can read, an XSS on
+ * this page can exfiltrate — so /auth/session swaps it for an HttpOnly cookie
+ * and returns only the CSRF token, which is meant to be readable.
+ *
+ * With no API key configured the server is in local demo mode and issues a
+ * session to anyone, so the same call covers both deployments.
+ *
+ * @returns {Promise<boolean>} whether a session was established
+ */
+async function requestSession(apiKey) {
+  try {
+    const resp = await fetch("/auth/session", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ api_key: apiKey ?? null }),
+      credentials: "same-origin",
+    });
+    if (!resp.ok) return false;
+    const data = await resp.json();
+    state.csrfToken = data.csrf_token ?? readCookie("ai_devops_csrf");
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Ask for an API key and keep asking until one is accepted. */
+function showLogin(message) {
+  const existing = document.getElementById("login-overlay");
+  if (existing) {
+    if (message) existing.querySelector(".login-error").textContent = message;
+    return;
+  }
+
+  const overlay = el("div", "login-overlay");
+  overlay.id = "login-overlay";
+  const card = el("div", "login-card");
+  card.appendChild(el("h2", "login-title", "API key required"));
+  card.appendChild(
+    el("p", "login-hint", "This deployment is protected. Enter its API key to continue."),
+  );
+
+  const input = document.createElement("input");
+  input.type = "password";
+  input.className = "login-input";
+  input.id = "login-key";
+  input.placeholder = "API key";
+  input.autocomplete = "off";
+  card.appendChild(input);
+
+  const error = el("div", "login-error", message ?? "");
+  card.appendChild(error);
+
+  const submit = el("button", "login-submit", "Continue");
+  submit.type = "button";
+  submit.id = "login-submit";
+  const attempt = async () => {
+    submit.disabled = true;
+    const ok = await requestSession(input.value.trim());
+    submit.disabled = false;
+    if (ok) {
+      overlay.remove();
+      loadModels();
+    } else {
+      error.textContent = "That key was not accepted.";
+      input.select();
+    }
+  };
+  submit.addEventListener("click", attempt);
+  input.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") attempt();
+  });
+  card.appendChild(submit);
+
+  overlay.appendChild(card);
+  document.body.appendChild(overlay);
+  input.focus();
+}
+
+// ---------------------------------------------------------------------------
 // Sessions
 // ---------------------------------------------------------------------------
 
@@ -159,7 +245,7 @@ async function send() {
   try {
     await streamPost(
       "/chat/stream",
-      { message, session_id: state.sessionId },
+      { message, session_id: state.sessionId, model: dom.model.value || null },
       (frame) => {
         const { event, data } = frame;
         if (event === "status") {
@@ -197,7 +283,13 @@ async function send() {
       { signal: state.controller.signal, csrfToken: state.csrfToken },
     );
   } catch (err) {
-    if (err.name !== "AbortError") {
+    if (err.name === "AbortError") {
+      /* the user pressed Stop; the partial answer stays on screen */
+    } else if (err.status === 401 || err.status === 403) {
+      // The session expired or was never valid. Re-authenticating is the
+      // actionable response; "Connection failed: 401" is not.
+      showLogin("Your session expired. Enter the API key to continue.");
+    } else {
       body.appendChild(el("div", "error-box", `Connection failed: ${err.message}`));
     }
   } finally {
@@ -252,6 +344,12 @@ function applyTheme(theme) {
 async function loadModels() {
   try {
     const resp = await fetch("/models", { credentials: "same-origin" });
+    if (resp.status === 401 || resp.status === 403) {
+      // First contact with a protected deployment. This is the only place the
+      // page learns it needs credentials, since nothing is exchanged up front.
+      showLogin();
+      return;
+    }
     if (!resp.ok) return;
     const data = await resp.json();
     dom.model.replaceChildren();
@@ -337,7 +435,13 @@ function init() {
   loadSessions();
   renderSessions();
   newSession();
-  loadModels();
+
+  // Authenticate lazily: load models, and only deal with credentials if the
+  // server actually refuses. Calling /auth/session on every page load instead
+  // would spend the brute-force budget (10/minute per IP) on visitors who need
+  // no session at all — ten reloads, or a few colleagues behind one NAT
+  // address, and the UI locks itself out.
+  void loadModels();
 }
 
 if (document.readyState === "loading") {

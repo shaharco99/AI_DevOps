@@ -71,8 +71,9 @@ async def add_chat_message(
     role: str,
     content: str,
     tools_used: list | None = None,
+    user_id: str | None = None,
 ) -> ChatMessage:
-    """Add message to chat session.
+    """Add message to chat session, creating the session if it does not exist.
 
     Args:
         session: Database session
@@ -80,6 +81,7 @@ async def add_chat_message(
         role: Message role (user/assistant)
         content: Message content
         tools_used: Optional list of tools used
+        user_id: Owner to record if this call is what creates the session
 
     Returns:
         ChatMessage: Created message
@@ -93,10 +95,20 @@ async def add_chat_message(
     )
     session.add(message)
 
-    # Update message count
+    # Get-or-create the owning session row. Nothing else in the application ever
+    # created one: the chat routes mint a session_id, store messages against it,
+    # and create_chat_session is called from nowhere. So every conversation
+    # accumulated messages with no parent row, and /chat/sessions/{id} answered
+    # 404 for all of them — which is the endpoint the web UI restores a
+    # conversation from when one is picked in the sidebar.
     chat_session = await get_chat_session(session, session_id)
-    if chat_session:
-        chat_session.message_count += 1
+    if chat_session is None:
+        # message_count is set here rather than left to the column default: that
+        # default is applied by the database at INSERT, so on a not-yet-flushed
+        # instance the attribute is still None and incrementing it raises.
+        chat_session = ChatSession(id=session_id, user_id=user_id or "anonymous", message_count=0)
+        session.add(chat_session)
+    chat_session.message_count = (chat_session.message_count or 0) + 1
 
     await session.commit()
     await session.refresh(message)

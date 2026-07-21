@@ -59,6 +59,12 @@ class Settings(BaseSettings):
     # Set False only for local HTTP development; the cookie is Secure otherwise.
     SESSION_COOKIE_SECURE: bool = True
 
+    # Consumed by docker-compose (Grafana's admin password), not by this app.
+    # Declared anyway because .env is shared between the two and Settings forbids
+    # unknown keys — without this, the documented `cp .env.example .env` makes the
+    # app refuse to start.
+    GRAFANA_ADMIN_PASSWORD: str | None = None
+
     # ========================================================================
     # Database Settings
     # ========================================================================
@@ -70,11 +76,28 @@ class Settings(BaseSettings):
     DATABASE_ECHO: bool = False
     DATABASE_SSL_MODE: str = "disable"
 
+    # Extra read-only databases the SQL tool can query by name, as JSON:
+    #   SQL_SOURCES='{"prod_oracle": "oracle+oracledb_async://u:p@host:1521/?service_name=X",
+    #                 "legacy_mssql": "mssql+aioodbc://u:p@host:1433/db?driver=ODBC+Driver+18+for+SQL+Server"}'
+    # The driver must be an async one, since the tool runs on the async engine.
+    # A JSON string rather than a nested model because it arrives from the
+    # environment, where pydantic-settings can only give us a scalar.
+    SQL_SOURCES: str = ""
+    # Applied per external source. They are someone else's production databases,
+    # so the defaults are deliberately smaller and stricter than the app's own.
+    SQL_SOURCE_POOL_SIZE: int = 5
+    SQL_SOURCE_POOL_TIMEOUT: int = 10
+    SQL_SOURCE_CONNECT_TIMEOUT: int = 10
+
     # ========================================================================
     # LLM Settings
     # ========================================================================
     OLLAMA_BASE_URL: str = "http://localhost:11434"
-    LLM_MODEL: str = "llama3"
+    # qwen2.5-coder returns valid JSON plans, so _create_execution_plan can parse
+    # them and the agent actually calls its tools. llama3 / llama3.1 often answer
+    # with prose, planning falls back to "no tools", and the agent then invents
+    # data instead of reading it.
+    LLM_MODEL: str = "qwen2.5-coder:7b"
     LLM_TEMPERATURE: float = 0.7
     LLM_MAX_TOKENS: int = 2048
     LLM_TIMEOUT: int = 60

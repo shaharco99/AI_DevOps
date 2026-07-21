@@ -37,6 +37,33 @@ def _messages_to_trace(messages: list[dict[str, str]]) -> str:
     return "\n".join(f"{m.get('role', '?')}: {m.get('content', '')}" for m in messages)
 
 
+def _task_model(task: "AgentTask") -> str | None:
+    """The per-request model override for a task, if the caller set one.
+
+    Read from the task rather than from the agent, because a single agent
+    instance serves every concurrent request.
+    """
+    model = task.context.get("model") if task.context else None
+    return str(model) if model else None
+
+
+def _tool_failure(tool_call: "ToolCall") -> str | None:
+    """Return the failure reason for a tool call, or None if it succeeded.
+
+    A raised exception is only half the story. BaseTool.__call__ catches
+    exceptions and *returns* {"success": False, "error": ...}, so a tool that
+    failed still leaves tool_call.error as None. Judging success on the
+    exception alone paints every one of those failures as a green chip.
+    """
+    if tool_call.error is not None:
+        return tool_call.error
+    result = tool_call.result
+    if isinstance(result, dict) and result.get("success") is False:
+        error = result.get("error")
+        return str(error) if error else "tool reported failure"
+    return None
+
+
 def _summarise_tool_result(result: Any) -> str:
     """Render a short, safe summary of a tool result for a tool_end event."""
     if result is None:
@@ -242,7 +269,12 @@ class DevOpsAgent:
         }
 
     async def chat_stream(
-        self, message: str, session_id: str | None = None, use_rag: bool = True, **kwargs
+        self,
+        message: str,
+        session_id: str | None = None,
+        use_rag: bool = True,
+        model: str | None = None,
+        **kwargs,
     ) -> AsyncIterator[AgentEvent]:
         """Process a user message, emitting progress events as the work happens.
 
@@ -252,6 +284,10 @@ class DevOpsAgent:
             message: User input message
             session_id: Conversation session ID
             use_rag: Whether to use RAG for context
+            model: Optional per-request model override. Carried on the task
+                rather than on self, because one agent instance serves every
+                concurrent request and storing it here would let one user's
+                choice leak into another's turn.
             **kwargs: Additional parameters
 
         Yields:
@@ -266,7 +302,9 @@ class DevOpsAgent:
                     self.session_manager.get_or_create_session(session_id) if session_id else None
                 )
 
-                task = AgentTask(description=message, context={"session_id": session_id})
+                task = AgentTask(
+                    description=message, context={"session_id": session_id, "model": model}
+                )
 
                 response: AgentResponse | None = None
                 async for event in self._execute_task_stream(task, use_rag=use_rag, memory=memory):
@@ -414,13 +452,15 @@ class DevOpsAgent:
                     tool_calls.append(tool_call)
                     reasoning_steps.append(f"Executed tool: {tool_call.tool_name}")
 
+                    failure = _tool_failure(tool_call)
+
                     yield AgentEvent(
                         type=EventType.TOOL_END,
                         data={
                             "id": call_id,
                             "name": tool_call.tool_name,
-                            "ok": tool_call.error is None,
-                            "error": tool_call.error,
+                            "ok": failure is None,
+                            "error": failure,
                             "duration_ms": (
                                 round(tool_call.execution_time * 1000, 2)
                                 if tool_call.execution_time is not None
@@ -570,10 +610,10 @@ class DevOpsAgent:
         try:
             response = await observability_manager.trace_llm_call(
                 provider=settings.LLM_PROVIDER,
-                model=getattr(self.llm_service, "model", self.config.model_name),
+                model=_task_model(task) or getattr(self.llm_service, "model", None),
                 prompt=planning_prompt,
                 call_fn=lambda: self.llm_service.chat(
-                    [{"role": "user", "content": planning_prompt}]
+                    [{"role": "user", "content": planning_prompt}], model=_task_model(task)
                 ),
             )
 
@@ -669,9 +709,9 @@ class DevOpsAgent:
 
         response = await observability_manager.trace_llm_call(
             provider=settings.LLM_PROVIDER,
-            model=getattr(self.llm_service, "model", self.config.model_name),
+            model=_task_model(task) or getattr(self.llm_service, "model", self.config.model_name),
             prompt=_messages_to_trace(messages),
-            call_fn=lambda: self.llm_service.chat(messages),
+            call_fn=lambda: self.llm_service.chat(messages, model=_task_model(task)),
         )
 
         return response
@@ -723,9 +763,11 @@ class DevOpsAgent:
 
         messages = self._build_response_messages(task, context, system_prompt)
 
+        model = _task_model(task)
+
         started = False
         try:
-            async for chunk in self.llm_service.stream_chat(messages):
+            async for chunk in self.llm_service.stream_chat(messages, model=model):
                 if chunk:
                     started = True
                     yield chunk
@@ -733,7 +775,7 @@ class DevOpsAgent:
             if started:
                 raise
             logger.warning(f"Streaming unavailable, falling back to a single call: {e}")
-            yield await self.llm_service.chat(messages)
+            yield await self.llm_service.chat(messages, model=model)
 
     def _calculate_confidence(
         self, tool_calls: list[ToolCall], reasoning_steps: list[str]

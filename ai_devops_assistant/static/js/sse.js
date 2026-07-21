@@ -21,6 +21,7 @@
 export class SseParser {
   constructor() {
     this.buffer = "";
+    this.pendingCr = "";
   }
 
   /**
@@ -28,7 +29,19 @@ export class SseParser {
    * @returns {Array<{event: string, data: any}>}
    */
   push(chunk) {
-    this.buffer += chunk;
+    // The spec allows CRLF, LF or a lone CR as the line terminator, and
+    // sse-starlette (what /chat/stream uses) sends CRLF. Normalising to LF on
+    // the way in means the framing below only has to handle one form.
+    let text = this.pendingCr + chunk;
+    this.pendingCr = "";
+    // A chunk can end mid-CRLF. Hold the CR back rather than treating it as a
+    // line end, or the LF that follows would look like a second, empty line and
+    // split one frame into two.
+    if (text.endsWith("\r")) {
+      this.pendingCr = "\r";
+      text = text.slice(0, -1);
+    }
+    this.buffer += text.replace(/\r\n|\r/g, "\n");
     const frames = [];
 
     // Frames are separated by a blank line. Split on \n\n, keeping the last
@@ -92,7 +105,12 @@ export async function streamPost(url, body, onEvent, { signal, csrfToken } = {})
   });
 
   if (!response.ok) {
-    throw new Error(`stream failed: ${response.status}`);
+    // The status is carried on the error, not just formatted into its message,
+    // so callers can tell "log in again" (401/403) from a real failure without
+    // parsing prose.
+    const error = new Error(`stream failed: ${response.status}`);
+    error.status = response.status;
+    throw error;
   }
   if (!response.body) {
     throw new Error("stream failed: response has no body");

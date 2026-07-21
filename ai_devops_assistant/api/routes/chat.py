@@ -146,10 +146,14 @@ async def get_session_info(
             "started_at": session.started_at,
             "ended_at": session.ended_at,
             "message_count": session.message_count,
+            # Full content, not a preview. The web UI restores a conversation
+            # from this endpoint when a session is picked in the sidebar, so
+            # truncating here silently rewrote history: every answer longer than
+            # the cut came back mangled, with no indication anything was missing.
             "messages": [
                 {
                     "role": m.role,
-                    "content": m.content[:200],  # Truncate for response
+                    "content": m.content,
                     "created_at": m.created_at,
                 }
                 for m in messages
@@ -206,6 +210,7 @@ async def chat_stream(
                 message=chat_request.message,
                 session_id=session_id,
                 use_rag=True,
+                model=chat_request.model,
             ):
                 # Stop promptly when the user hits Stop; without this the agent
                 # would keep working and burn tokens for a response nobody reads.

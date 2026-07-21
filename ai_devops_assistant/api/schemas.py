@@ -33,6 +33,15 @@ class ChatRequest(BaseModel):
         None,
         description="Optional list of tools to limit agent to specific tools",
     )
+    # Constrained rather than free text: this value is interpolated into the
+    # provider request, so it is kept to the characters real model names use
+    # (llama3, qwen2.5-coder:7b, org/model-v1.5).
+    model: str | None = Field(
+        None,
+        max_length=128,
+        pattern=r"^[A-Za-z0-9._:/-]+$",
+        description="Optional model override for this request",
+    )
 
 
 class ToolCall(BaseModel):
