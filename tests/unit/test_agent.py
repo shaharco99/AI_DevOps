@@ -18,11 +18,11 @@ class TestDevOpsAgent:
     @pytest.mark.asyncio
     async def test_chat_basic_response(self, agent):
         """Test basic chat response."""
-        with patch("ai_devops_assistant.agents.agent.get_llm_service") as mock_llm, patch(
-            "ai_devops_assistant.agents.agent.get_tool_executor"
-        ) as mock_executor, patch(
-            "ai_devops_assistant.agents.agent.get_session_manager"
-        ) as mock_session:
+        with (
+            patch("ai_devops_assistant.agents.agent.get_llm_service") as mock_llm,
+            patch("ai_devops_assistant.agents.agent.get_tool_executor") as mock_executor,
+            patch("ai_devops_assistant.agents.agent.get_session_manager") as mock_session,
+        ):
             # Mock LLM service
             mock_llm_instance = AsyncMock()
             mock_llm_instance.generate_response.return_value = (
@@ -51,11 +51,11 @@ class TestDevOpsAgent:
     @pytest.mark.asyncio
     async def test_chat_with_tools(self, agent):
         """Test chat with tool usage."""
-        with patch("ai_devops_assistant.agents.agent.get_llm_service") as mock_llm, patch(
-            "ai_devops_assistant.agents.agent.get_tool_executor"
-        ) as mock_executor, patch(
-            "ai_devops_assistant.agents.agent.get_session_manager"
-        ) as mock_session:
+        with (
+            patch("ai_devops_assistant.agents.agent.get_llm_service") as mock_llm,
+            patch("ai_devops_assistant.agents.agent.get_tool_executor") as mock_executor,
+            patch("ai_devops_assistant.agents.agent.get_session_manager") as mock_session,
+        ):
             # Mock LLM service - response contains tool call JSON
             tool_response = """I'll check the logs for you.
 
@@ -91,11 +91,11 @@ class TestDevOpsAgent:
     @pytest.mark.asyncio
     async def test_chat_error_handling(self, agent):
         """Test error handling in chat."""
-        with patch("ai_devops_assistant.agents.agent.get_llm_service") as mock_llm, patch(
-            "ai_devops_assistant.agents.agent.get_tool_executor"
-        ) as mock_executor, patch(
-            "ai_devops_assistant.agents.agent.get_session_manager"
-        ) as mock_session:
+        with (
+            patch("ai_devops_assistant.agents.agent.get_llm_service") as mock_llm,
+            patch("ai_devops_assistant.agents.agent.get_tool_executor") as mock_executor,
+            patch("ai_devops_assistant.agents.agent.get_session_manager") as mock_session,
+        ):
             # Mock LLM service to raise exception
             mock_llm_instance = AsyncMock()
             mock_llm_instance.generate_response.side_effect = Exception("LLM error")

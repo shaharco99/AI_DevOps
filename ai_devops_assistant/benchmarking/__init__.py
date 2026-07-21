@@ -1,11 +1,8 @@
 """Model benchmarking utilities."""
 
-from ai_devops_assistant.benchmarking.model_benchmark import (
-    AdvancedModelBenchmark,
-    benchmark_model,  # Backward compatibility
-)
+from ai_devops_assistant.benchmarking.model_benchmark import AdvancedModelBenchmark, benchmark_model
 
-# Backward compatibility alias
+# Backward compatibility aliases
 ModelBenchmark = AdvancedModelBenchmark
 
 __all__ = ["AdvancedModelBenchmark", "ModelBenchmark", "benchmark_model"]

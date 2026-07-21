@@ -13,7 +13,7 @@ import logging
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 from jinja2 import Environment, FileSystemLoader, Template
 
@@ -44,7 +44,7 @@ class PromptManager:
             prompts_dir: Directory containing prompts
         """
         self.prompts_dir = Path(prompts_dir)
-        self.cache = {}
+        self.cache: dict[str, Any] = {}
 
         # Initialize Jinja2 environment
         self.env = Environment(
@@ -53,7 +53,7 @@ class PromptManager:
             lstrip_blocks=True,
         )
 
-    def load_prompt(self, name: str, version: Optional[str] = None) -> Optional[Template]:
+    def load_prompt(self, name: str, version: str | None = None) -> Template | None:
         """Load a prompt template.
 
         Args:
@@ -65,11 +65,7 @@ class PromptManager:
         """
         try:
             # Build file path
-            if version:
-                filename = f"{name}_v{version}.md"
-            else:
-                # Find latest version
-                filename = self._find_latest_prompt(name)
+            filename = self._resolve_prompt_file(name, version)
 
             if not filename:
                 logger.error(f"Prompt not found: {name}")
@@ -90,7 +86,7 @@ class PromptManager:
             logger.error(f"Error loading prompt {name}: {e}")
             return None
 
-    def load_prompt_text(self, name: str, version: Optional[str] = None) -> Optional[str]:
+    def load_prompt_text(self, name: str, version: str | None = None) -> str | None:
         """Load raw prompt text without templating.
 
         Args:
@@ -101,10 +97,7 @@ class PromptManager:
             Raw prompt text or None
         """
         try:
-            if version:
-                filename = f"{name}_v{version}.md"
-            else:
-                filename = self._find_latest_prompt(name)
+            filename = self._resolve_prompt_file(name, version)
 
             if not filename:
                 return None
@@ -121,7 +114,7 @@ class PromptManager:
         self,
         template_or_name: str | Template,
         context: dict[str, Any],
-        version: Optional[str] = None,
+        version: str | None = None,
     ) -> str:
         """Render a prompt with context variables.
 
@@ -143,15 +136,13 @@ class PromptManager:
                 template = template_or_name
 
             # Render with context
-            return template.render(**context)
+            return str(template.render(**context))
 
         except Exception as e:
             logger.error(f"Error rendering prompt: {e}")
             return ""
 
-    def get_prompt_metadata(
-        self, name: str, version: Optional[str] = None
-    ) -> Optional[PromptMetadata]:
+    def get_prompt_metadata(self, name: str, version: str | None = None) -> PromptMetadata | None:
         """Get metadata for a prompt.
 
         Args:
@@ -180,8 +171,8 @@ class PromptManager:
             return None
 
     def _parse_metadata(
-        self, metadata_str: str, name: str, version: Optional[str]
-    ) -> Optional[PromptMetadata]:
+        self, metadata_str: str, name: str, version: str | None
+    ) -> PromptMetadata | None:
         """Parse YAML metadata.
 
         Args:
@@ -201,12 +192,16 @@ class PromptManager:
                     key = key.strip().lower()
                     value = value.strip()
 
+                    # tags parses to a list while every other key stays a string,
+                    # so the parsed form goes in its own variable rather than
+                    # rebinding `value` to a second type.
+                    parsed: Any = value
                     if key == "tags":
-                        value = [v.strip() for v in value.strip("[]").split(",")]
+                        parsed = [v.strip() for v in value.strip("[]").split(",")]
                     elif key == "version":
                         version = value
 
-                    metadata[key] = value
+                    metadata[key] = parsed
 
             return PromptMetadata(
                 name=name,
@@ -245,7 +240,7 @@ class PromptManager:
 
         return sorted(list(vars_set))
 
-    def list_prompts(self, category: Optional[str] = None) -> list[str]:
+    def list_prompts(self, category: str | None = None) -> list[str]:
         """List available prompts.
 
         Args:
@@ -285,7 +280,7 @@ class PromptManager:
         content: str,
         version: str = "1.0",
         category: str = "general",
-        metadata: Optional[dict] = None,
+        metadata: dict | None = None,
     ) -> bool:
         """Save a new prompt.
 
@@ -333,7 +328,23 @@ class PromptManager:
             logger.error(f"Error saving prompt: {e}")
             return False
 
-    def _find_latest_prompt(self, name: str) -> Optional[str]:
+    def _resolve_prompt_file(self, name: str, version: str | None) -> str | None:
+        """Locate a prompt file, searching subdirectories.
+
+        Returns a path relative to prompts_dir, or None. Used by both loaders so
+        an explicit version resolves the same way the latest one does — asking
+        for version="2.0" used to look only in the prompts_dir root and miss
+        every prompt in the repo.
+        """
+        if not version:
+            return self._find_latest_prompt(name)
+
+        matches = list(self.prompts_dir.glob(f"**/{name}_v{version}.md"))
+        if not matches:
+            return None
+        return str(matches[0].relative_to(self.prompts_dir))
+
+    def _find_latest_prompt(self, name: str) -> str | None:
         """Find the latest version of a prompt.
 
         Args:
@@ -362,7 +373,11 @@ class PromptManager:
                 return (0,)
 
             latest = sorted(matches, key=get_version, reverse=True)[0]
-            return latest.name
+            # Relative to prompts_dir, not just the bare name: prompts live in
+            # subdirectories (system/, rag/, agents/), and callers join this to
+            # prompts_dir. Returning latest.name made every prompt in the repo
+            # unresolvable, which is why the agent used a hardcoded string.
+            return str(latest.relative_to(self.prompts_dir))
 
         except Exception as e:
             logger.error(f"Error finding latest prompt: {e}")

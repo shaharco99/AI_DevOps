@@ -76,10 +76,7 @@ async def get_ai_prometheus_metrics() -> Response:
     """
     try:
         metrics_text = monitoring_integration.get_prometheus_metrics()
-        return Response(
-            content=metrics_text,
-            media_type="text/plain; charset=utf-8"
-        )
+        return Response(content=metrics_text, media_type="text/plain; charset=utf-8")
     except Exception as e:
         logger.error(f"Error getting AI Prometheus metrics: {e}")
         raise HTTPException(status_code=500, detail=str(e))

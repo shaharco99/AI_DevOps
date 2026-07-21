@@ -1,0 +1,14 @@
+fileignoreconfig:
+  - filename: agents.py
+    checksum: ab930c25b7f0e3fc295a95e3de43817b12fc20c310d174109d14f453523297c1
+  - filename: .yamllint
+    checksum: 68d946e0e992a12d5bfb0c07a0aa1a69adec8f2b8624443b968e28b6297dec6e
+  - filename: server.py
+    checksum: 13b2615e0bae1abc03e039afb9b8502c200e835749ae6e2d0d8ed25c866cea07
+  - filename: .gitleaks.toml
+    checksum: fff57693c33ca6f1d75c0005d4f55b511c3bcedaabaaa68c565dfd0a26d81db9
+  - filename: .pre-commit-config.yaml
+    checksum: e8f9d948b68d05455bf660a1077a9eb44b5563d3be73494ee3c3feb0a59fd5f5
+  - filename: LLM_CI/.env.template
+    checksum: 3774b7e8522328f089961afd51d2534ec0f939920972837134413c78ee63b4a8
+version: "1.0"

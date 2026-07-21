@@ -28,8 +28,12 @@ classifiers = [
 
 dependencies = [
     # FastAPI & Web
-    "fastapi==0.110.0",
-    "uvicorn[standard]==0.27.0",
+    "fastapi==0.115.6",
+    "uvicorn[standard]==0.34.0",
+    "sse-starlette==2.1.3",
+
+    # MCP protocol server
+    "fastmcp==2.3.4",
     "pydantic==2.11.3",
     "pydantic-settings==2.10.1",
 
@@ -54,18 +58,20 @@ dependencies = [
     "prometheus-client==0.19.0",
 
     # Utilities
-    "requests==2.31.0",
-    "httpx==0.27.2",
-    "python-dotenv==1.0.0",
+    "requests==2.32.3",
+    "httpx==0.28.1",
+    "python-dotenv==1.2.2",
     "pyyaml==6.0.1",
     "tenacity==8.2.3",
+    "slowapi==0.1.9",
+    "redis==5.2.1",
 
     # Logging
     "python-json-logger==2.0.7",
     "opentelemetry-api==1.37.0",
 
     # Security
-    "cryptography==41.0.7",
+    "cryptography==43.0.3",
 ]
 
 [project.scripts]
@@ -97,26 +103,37 @@ dev = [
     "codespell==2.2.6",
     # Structured Logging
     "loguru==0.7.2",
-    # Fine-tuning & ML
+    # Web Scraping (used by rag/scraper.py)
+    "beautifulsoup4==4.12.2",
+    "html5lib==1.1",
+    # Prompt Management
+    "jinja2==3.1.2",
+]
+
+# Fine-tuning and model-registry extras. Split out of [dev] because torch alone
+# is ~2GB and pulls a large CVE surface, and neither the API nor the MCP server
+# imports any of it — ml/finetuning.py and services/model_registry.py are
+# opt-in tooling. Keeping them in [dev] meant every contributor and every CI lint
+# job downloaded the whole ML stack to run ruff.
+ml = [
     "peft==0.8.2",
     "transformers==4.36.2",
     "torch==2.1.2",
     "datasets==2.15.0",
-    # Web Scraping
-    "beautifulsoup4==4.12.2",
-    "playwright==1.40.0",
-    "html5lib==1.1",
-    # Model Registry
     "huggingface-hub==1.11.0",
-    # Prompt Management
-    "jinja2==3.1.2",
+]
+
+# Browser automation for scraper integration tests. Also opt-in: playwright
+# downloads browser binaries on install.
+browser = [
+    "playwright==1.40.0",
 ]
 
 test = [
     "pytest==7.4.3",
     "pytest-asyncio==0.23.2",
     "pytest-cov==4.1.0",
-    "httpx==0.27.2",
+    "httpx==0.28.1",
 ]
 
 [project.urls]
@@ -134,18 +151,21 @@ line-length = 100
 target-version = ["py311"]
 include = '\.pyi?$'
 extend-exclude = '''
-/(
-  # directories
-  \.eggs
-  | \.git
-  | \.hg
-  | \.mypy_cache
-  | \.tox
-  | \.venv
-  | build
-  | dist
-  | migrations
-)/
+(
+  /(
+      # directories
+      \.eggs
+    | \.git
+    | \.hg
+    | \.mypy_cache
+    | \.tox
+    | \.venv
+    | build
+    | dist
+    | migrations
+      # merged from MCP, not yet ported; mirrors the ruff/isort/mypy excludes
+  )/
+)
 '''
 
 [tool.ruff]
@@ -160,6 +180,10 @@ exclude = [
     "dist",
     ".venv",
     "migrations",
+    # Merged from MCP, not yet ported and not on any runtime path. Linting it
+    # now would mean reformatting ~2900 lines that phases 3-5 are about to
+    # rewrite, and would bury the real diff. Each entry is removed by the phase
+    # that ports it; see MERGE_PROGRESS.md "Debt".
 ]
 
 [tool.ruff.per-file-ignores]
@@ -178,6 +202,8 @@ disallow_incomplete_defs = false
 exclude = [
     "migrations/",
     "tests/",
+    # Merged from MCP, not yet ported onto this codebase's contracts and not on
+    # any runtime path. Each entry is removed by the phase that ports it.
 ]
 
 [[tool.mypy.overrides]]
@@ -185,8 +211,23 @@ module = [
     "chromadb.*",
     "kubernetes.*",
     "ollama.*",
+    # HuggingFace datasets/transformers/peft are optional ML extras, not
+    # installed in the default environment. Note that the repo also has a local
+    # datasets/ data directory with no __init__.py, which python treats as a
+    # namespace package and which therefore shadows the real `datasets` library
+    # on sys.path. ml/finetuning.py imports it lazily inside a function, so this
+    # only bites if the ML extra is actually used from the repo root.
+    "datasets.*",
+    "transformers.*",
+    "peft.*",
+    "torch.*",
+    # requests ships no inline types and types-requests is not a dependency.
+    "requests.*",
+    # redis ships no inline types either.
+    "redis.*",
 ]
 ignore_missing_imports = true
+follow_imports = "skip"
 
 [tool.pytest.ini_options]
 minversion = "7.0"
@@ -199,6 +240,7 @@ markers = [
     "integration: Integration tests",
     "slow: Slow tests",
     "external: Tests that call external services",
+    "e2e: Browser tests; need the 'browser' extra and a Chromium download",
 ]
 
 [tool.coverage.run]
@@ -221,6 +263,15 @@ exclude_lines = [
     "@(abc\\.)?abstractmethod",
 ]
 
+[tool.pylint.MASTER]
+# Merged from MCP, not yet ported. Without this, E0401 import-errors for
+# psycopg2/pymysql/pyodbc/pypdf (dependencies that lived in MCP's deleted
+# requirements) drown out real E/F findings in the code that is actually live.
+# Those deps get added back to this file, pinned, by the phase that ports each
+# module. Each entry is removed by the phase that ports it.
+ignore-paths = [
+]
+
 [tool.isort]
 profile = "black"
 line_length = 100
@@ -228,7 +279,13 @@ include_trailing_comma = true
 force_grid_wrap = 0
 use_parentheses = true
 ensure_newline_before_comments = true
-skip_glob = ["*/migrations/*", "*/venv/*", "*/.venv/*"]
+skip_glob = [
+    "*/migrations/*",
+    "*/venv/*",
+    "*/.venv/*",
+    # Merged from MCP, not yet ported. Mirrors the ruff and mypy excludes;
+    # each is removed by the phase that ports it.
+]
 known_first_party = ["ai_devops_assistant"]
 
 [tool.bandit]

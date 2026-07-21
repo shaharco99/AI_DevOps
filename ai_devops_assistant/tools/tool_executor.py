@@ -1,7 +1,7 @@
 """Tool executor and registry."""
 
 import logging
-from typing import Any, Optional
+from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -11,9 +11,8 @@ from ai_devops_assistant.tools.kubernetes_tool import KubernetesTool
 from ai_devops_assistant.tools.log_tool import LogAnalysisTool
 from ai_devops_assistant.tools.metrics_tool import MetricsTool
 from ai_devops_assistant.tools.pipeline_tool import PipelineTool
+from ai_devops_assistant.tools.shell_tool import ShellTool
 from ai_devops_assistant.tools.sql_tool import SQLQueryTool
-
-# from ai_devops_assistant.rag.retriever import get_rag_retriever  # Disabled for now
 
 logger = logging.getLogger(__name__)
 
@@ -31,6 +30,11 @@ class ToolRegistry:
         # SQL tool
         if settings.ENABLE_SQL_TOOL:
             self.tools["sql_query_tool"] = SQLQueryTool()
+
+        # Shell tool. Off by default: it runs processes on the host, and
+        # everything it can read is also reachable through the Kubernetes tool.
+        if settings.ENABLE_SHELL_TOOL:
+            self.tools["shell_tool"] = ShellTool()
 
         # Kubernetes tool
         if settings.ENABLE_K8S_TOOL:
@@ -52,7 +56,7 @@ class ToolRegistry:
 
         logger.info(f"Tool registry initialized with {len(self.tools)} tools")
 
-    def get_tool(self, tool_name: str) -> Optional[BaseTool]:
+    def get_tool(self, tool_name: str) -> BaseTool | None:
         """Get tool by name."""
         return self.tools.get(tool_name)
 
@@ -65,24 +69,29 @@ class ToolRegistry:
         return [tool.get_schema() for tool in self.tools.values()]
 
     def set_session(self, session: AsyncSession) -> None:
-        """Set database session for tools that need it."""
-        if "sql_query_tool" in self.tools:
-            self.tools["sql_query_tool"].set_session(session)
-        if "log_analysis_tool" in self.tools:
-            self.tools["log_analysis_tool"].set_session(session)
+        """Inject the request-scoped DB session into every tool that accepts one.
+
+        Previously this named sql_query_tool and log_analysis_tool explicitly, so a
+        new DB-backed tool silently got no session until someone remembered to edit
+        this method. Discovering the setter keeps that automatic. set_session is not
+        on BaseTool because most tools do not need a session.
+        """
+        for tool in self.tools.values():
+            setter = getattr(tool, "set_session", None)
+            if callable(setter):
+                setter(session)
 
 
 class ToolExecutor:
     """Execute tools with validation and error handling."""
 
-    def __init__(self, registry: Optional[ToolRegistry] = None):
+    def __init__(self, registry: ToolRegistry | None = None):
         """Initialize executor.
 
         Args:
             registry: Tool registry (creates new if not provided)
         """
         self.registry = registry or ToolRegistry()
-        self.rag_retriever = None  # get_rag_retriever() if settings.ENABLE_RAG else None
 
     async def execute_tool(
         self,
@@ -108,42 +117,6 @@ class ToolExecutor:
         logger.info(f"Executing tool: {tool_name}")
         return await tool(**parameters)
 
-    async def execute_rag_retrieval(
-        self,
-        query: str,
-        category: Optional[str] = None,
-    ) -> dict[str, Any]:
-        """Execute RAG retrieval.
-
-        Args:
-            query: Search query
-            category: Optional category filter
-
-        Returns:
-            dict: Retrieved documents
-        """
-        if not self.rag_retriever:
-            return {
-                "success": False,
-                "error": "RAG system not enabled",
-            }
-
-        try:
-            documents = self.rag_retriever.retrieve(query, category)
-            context = self.rag_retriever.format_context(documents)
-            return {
-                "success": True,
-                "documents": documents,
-                "context": context,
-                "count": len(documents),
-            }
-        except Exception as e:
-            logger.error(f"RAG retrieval failed: {e}")
-            return {
-                "success": False,
-                "error": str(e),
-            }
-
     def get_available_tools(self) -> dict[str, str]:
         """Get available tools with descriptions."""
         tools = {}
@@ -153,8 +126,8 @@ class ToolExecutor:
 
 
 # Global instances
-_tool_registry: Optional[ToolRegistry] = None
-_tool_executor: Optional[ToolExecutor] = None
+_tool_registry: ToolRegistry | None = None
+_tool_executor: ToolExecutor | None = None
 
 
 def get_tool_registry() -> ToolRegistry:
@@ -165,7 +138,7 @@ def get_tool_registry() -> ToolRegistry:
     return _tool_registry
 
 
-def get_tool_executor(session: Optional[AsyncSession] = None) -> ToolExecutor:
+def get_tool_executor(session: AsyncSession | None = None) -> ToolExecutor:
     """Get or create tool executor."""
     global _tool_executor
     if _tool_executor is None:

@@ -99,3 +99,20 @@ kubeconfig.yaml
 .env.prod
 secrets/
 credentials/
+
+# From the MCP merge. Only the rules relevant to this project were taken;
+# MCP's file carried a full Python template (pdm, pixi, marimo, scrapy, sage)
+# that would be noise here.
+.ruff_cache/
+htmlcov/
+cover/
+.ipynb_checkpoints
+.envrc
+.cursorignore
+.cursorindexingignore
+
+# Orphaned MCP data: the vault embedding cache. The functions that read these
+# (get_vault_count, _load_vault_embedding_cache) exist nowhere in the codebase,
+# so these files are artifacts of deleted code and must not be committed.
+vault.txt
+vault.txt.emb.npz

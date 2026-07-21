@@ -1,0 +1,237 @@
+/**
+ * Tests for the markdown parser and URL sanitiser.
+ *
+ * Run with `node --test tests/js/`. Uses only node's built-in test runner, so
+ * the frontend still has zero npm dependencies and CI needs no node_modules.
+ */
+
+import assert from "node:assert/strict";
+import { test, describe } from "node:test";
+
+import {
+  parseInline,
+  parseMarkdown,
+  sanitizeUrl,
+} from "../../ai_devops_assistant/static/js/markdown.js";
+
+describe("sanitizeUrl", () => {
+  test("allows http, https and mailto", () => {
+    assert.equal(sanitizeUrl("https://example.com"), "https://example.com");
+    assert.equal(sanitizeUrl("http://example.com"), "http://example.com");
+    assert.equal(sanitizeUrl("mailto:a@b.com"), "mailto:a@b.com");
+  });
+
+  test("allows relative urls", () => {
+    assert.equal(sanitizeUrl("/ui/help"), "/ui/help");
+    assert.equal(sanitizeUrl("docs/page.html"), "docs/page.html");
+  });
+
+  test("blocks javascript: urls", () => {
+    assert.equal(sanitizeUrl("javascript:alert(1)"), null);
+  });
+
+  test("blocks javascript: regardless of case", () => {
+    assert.equal(sanitizeUrl("JaVaScRiPt:alert(1)"), null);
+    assert.equal(sanitizeUrl("JAVASCRIPT:alert(1)"), null);
+  });
+
+  test("blocks javascript: hidden by control characters", () => {
+    // Browsers ignore these when resolving the scheme, so a naive
+    // startsWith("javascript:") check would pass them straight through.
+    assert.equal(sanitizeUrl("java\nscript:alert(1)"), null);
+    assert.equal(sanitizeUrl("java\tscript:alert(1)"), null);
+    assert.equal(sanitizeUrl("java\u0000script:alert(1)"), null);
+    assert.equal(sanitizeUrl("  javascript:alert(1)"), null);
+  });
+
+  test("blocks data: and vbscript: urls", () => {
+    assert.equal(sanitizeUrl("data:text/html,<script>alert(1)</script>"), null);
+    assert.equal(sanitizeUrl("vbscript:msgbox(1)"), null);
+  });
+
+  test("rejects non-strings and empty input", () => {
+    assert.equal(sanitizeUrl(null), null);
+    assert.equal(sanitizeUrl(undefined), null);
+    assert.equal(sanitizeUrl(42), null);
+    assert.equal(sanitizeUrl(""), null);
+    assert.equal(sanitizeUrl("   "), null);
+  });
+});
+
+describe("parseInline", () => {
+  test("plain text becomes a single text node", () => {
+    assert.deepEqual(parseInline("hello world"), [
+      { type: "text", value: "hello world" },
+    ]);
+  });
+
+  test("parses code, strong and em", () => {
+    assert.deepEqual(parseInline("`x`"), [{ type: "code", value: "x" }]);
+    assert.deepEqual(parseInline("**x**"), [{ type: "strong", value: "x" }]);
+    assert.deepEqual(parseInline("*x*"), [{ type: "em", value: "x" }]);
+  });
+
+  test("code spans win over emphasis inside them", () => {
+    const nodes = parseInline("`**not bold**`");
+    assert.deepEqual(nodes, [{ type: "code", value: "**not bold**" }]);
+  });
+
+  test("parses a safe link", () => {
+    assert.deepEqual(parseInline("[docs](https://example.com)"), [
+      { type: "link", value: "docs", href: "https://example.com" },
+    ]);
+  });
+
+  test("an unsafe link stays literal text and is not clickable", () => {
+    const nodes = parseInline("[click](javascript:alert(1))");
+    assert.equal(nodes.length, 1);
+    assert.equal(nodes[0].type, "text");
+    assert.ok(!nodes.some((n) => n.type === "link"));
+  });
+
+  test("html in text is data, never markup", () => {
+    // The parser must not treat this specially; render.js puts it in a text node.
+    const nodes = parseInline("<img src=x onerror=alert(1)>");
+    assert.equal(nodes.length, 1);
+    assert.equal(nodes[0].type, "text");
+    assert.equal(nodes[0].value, "<img src=x onerror=alert(1)>");
+  });
+
+  test("mixes literal text and markup", () => {
+    const nodes = parseInline("run `kubectl get pods` now");
+    assert.deepEqual(nodes, [
+      { type: "text", value: "run " },
+      { type: "code", value: "kubectl get pods" },
+      { type: "text", value: " now" },
+    ]);
+  });
+
+  test("unterminated markers stay literal", () => {
+    assert.deepEqual(parseInline("**not closed"), [
+      { type: "text", value: "**not closed" },
+    ]);
+  });
+});
+
+describe("parseMarkdown", () => {
+  test("empty and non-string input yields no blocks", () => {
+    assert.deepEqual(parseMarkdown(""), []);
+    assert.deepEqual(parseMarkdown(null), []);
+  });
+
+  test("parses headings with their level", () => {
+    const blocks = parseMarkdown("## Findings");
+    assert.equal(blocks.length, 1);
+    assert.equal(blocks[0].type, "heading");
+    assert.equal(blocks[0].level, 2);
+  });
+
+  test("parses a fenced code block with its language", () => {
+    const blocks = parseMarkdown("```sql\nSELECT 1;\n```");
+    assert.deepEqual(blocks, [{ type: "code", lang: "sql", value: "SELECT 1;" }]);
+  });
+
+  test("code without a language tag still parses", () => {
+    const blocks = parseMarkdown("```\nplain\n```");
+    assert.equal(blocks[0].lang, "");
+    assert.equal(blocks[0].value, "plain");
+  });
+
+  test("an unterminated fence keeps its partial content", () => {
+    // This is the normal mid-stream state: the closing fence has not arrived
+    // yet, and dropping the body would make code flicker as it streams in.
+    const blocks = parseMarkdown("```python\nprint(1)");
+    assert.equal(blocks.length, 1);
+    assert.equal(blocks[0].type, "code");
+    assert.equal(blocks[0].value, "print(1)");
+  });
+
+  test("markdown inside a code block is not interpreted", () => {
+    const blocks = parseMarkdown("```\n# not a heading\n**not bold**\n```");
+    assert.equal(blocks[0].type, "code");
+    assert.ok(blocks[0].value.includes("# not a heading"));
+  });
+
+  test("parses bullet and numbered lists", () => {
+    const bullets = parseMarkdown("- one\n- two");
+    assert.equal(bullets[0].type, "list");
+    assert.equal(bullets[0].ordered, false);
+    assert.equal(bullets[0].items.length, 2);
+
+    const numbered = parseMarkdown("1. one\n2. two");
+    assert.equal(numbered[0].ordered, true);
+    assert.equal(numbered[0].items.length, 2);
+  });
+
+  test("joins wrapped lines into one paragraph", () => {
+    const blocks = parseMarkdown("line one\nline two");
+    assert.equal(blocks.length, 1);
+    assert.equal(blocks[0].type, "paragraph");
+  });
+
+  test("a blank line separates paragraphs", () => {
+    const blocks = parseMarkdown("first\n\nsecond");
+    assert.equal(blocks.length, 2);
+  });
+
+  test("parses a realistic mixed reply", () => {
+    const blocks = parseMarkdown(
+      "## Diagnosis\n\nThree pods are failing.\n\n```bash\nkubectl get pods\n```\n\n- check probes\n- check limits",
+    );
+    assert.deepEqual(
+      blocks.map((b) => b.type),
+      ["heading", "paragraph", "code", "list"],
+    );
+  });
+
+  test("never returns raw html as a markup node", () => {
+    const blocks = parseMarkdown("<script>alert(1)</script>");
+    assert.equal(blocks[0].type, "paragraph");
+    assert.equal(blocks[0].inline[0].type, "text");
+  });
+
+  // A line can begin with ``` and still not be a fence. The block scanner
+  // rejects it and the paragraph scanner used to refuse it too, so the index
+  // never advanced and parseMarkdown span forever, hanging the tab. Rendering
+  // runs on every streamed token, so one such line froze the whole response.
+  describe("lines that start with a fence but are not one", () => {
+    test("a single-line fence terminates", () => {
+      const blocks = parseMarkdown("```sh export A=1 ```");
+      assert.deepEqual(
+        blocks.map((b) => b.type),
+        ["paragraph"],
+      );
+    });
+
+    test("a fence with trailing text after the language terminates", () => {
+      const blocks = parseMarkdown("```python print(1)");
+      assert.equal(blocks.length, 1);
+    });
+
+    test("it does not swallow the blocks that follow it", () => {
+      const blocks = parseMarkdown("```sh export A=1 ```\n\n## After\n\ntext");
+      assert.deepEqual(
+        blocks.map((b) => b.type),
+        ["paragraph", "heading", "paragraph"],
+      );
+    });
+
+    test("a real fence on the next line still parses", () => {
+      const blocks = parseMarkdown("```sh export A=1 ```\n\n```sql\nSELECT 1;\n```");
+      assert.deepEqual(
+        blocks.map((b) => b.type),
+        ["paragraph", "code"],
+      );
+      assert.equal(blocks[1].value, "SELECT 1;");
+    });
+
+    test("every prefix of a streamed reply terminates", () => {
+      // renderMarkdown re-parses the whole answer on each token, so every
+      // prefix of it has to be safe, not just the finished text.
+      const reply = "Run this:\n\n```sh export A=1 ```\n\nThen restart.";
+      for (let n = 0; n <= reply.length; n += 1) {
+        parseMarkdown(reply.slice(0, n));
+      }
+    });
+  });
+});

@@ -1,31 +1,40 @@
-# System Prompts Directory
+# Prompts folder (explained simply) 📝
 
-This directory contains versioned system prompts for the AI DevOps Assistant.
+A **prompt** is the set of instructions we hand the AI before it answers — like the
+note you'd give a new babysitter: "here's what to do, here's how to behave." This
+folder keeps all those notes in one place so we can find, reuse, and improve them.
 
-## Structure
+## What's in here
 
-- `system/` - Core system prompts for the assistant
-- `rag/` - RAG-specific prompts for retrieval and synthesis
-- `agents/` - Agent-specific prompts for tool orchestration
-- `tools/` - Tool-specific prompts for individual tools
+We sort prompts into drawers by their job:
 
-## Naming Convention
+| Drawer | What lives there |
+| --- | --- |
+| `system/` | The main "how to behave" note for the assistant |
+| `rag/` | Notes for looking things up in the bookshelf (RAG) and summarizing |
+| `agents/` | Notes that help the agent pick and use its tools |
+| `tools/` | Notes for individual tools |
 
-- Use descriptive names: `devops_analyzer.md`, `root_cause_analysis.md`
-- Include version suffix for versioned prompts: `kubernetes_analyzer_v1.md`
-- Use kebab-case for file names
+## How to name a prompt
 
-## Managing Prompts
+Give it a clear, lowercase-with-dashes name that says what it does, and add a
+version number when it's a versioned one:
 
-Each prompt file should include:
+- Good: `devops-analyzer.md`, `root-cause-analysis.md`
+- Versioned: `kubernetes-analyzer-v1.md`
 
-1. **Purpose**: Clear description of the prompt's intent
-2. **Version**: Version number and date
-3. **Last Updated**: When the prompt was last modified
-4. **Usage**: Instructions on how to use the prompt
-5. **Content**: The actual prompt text
+## What each prompt file should say
 
-### Example Format
+Start every prompt file with a tiny "label" so anyone (human or robot) knows what
+it is at a glance:
+
+1. **Purpose** — one line: what is this note for?
+2. **Version** — which version, and the date
+3. **Last Updated** — when it last changed
+4. **Usage** — when and how to use it
+5. **Content** — the actual instructions
+
+### A quick example
 
 ```markdown
 # Prompt Title
@@ -37,26 +46,26 @@ Each prompt file should include:
 
 ## Usage
 
-Instructions on how and when to use this prompt...
+When and how to use this prompt...
 
 ## Prompt Content
 
 [Your prompt text here]
 ```
 
-## Best Practices
+## Good habits 🌟
 
-1. **Keep it DRY**: Reuse and inherit from base prompts
-2. **Clear Intent**: Start with explicit system instructions
-3. **Examples**: Include examples of input/output
-4. **Iterative**: Version prompts as you refine them
-5. **Test**: Validate against test cases before deploying
-6. **Document**: Always explain the rationale behind changes
+1. **Don't repeat yourself** — build on a base prompt instead of copy-pasting.
+2. **Be clear up front** — say exactly how the AI should act in the first lines.
+3. **Show examples** — a sample question and a sample good answer teach a lot.
+4. **Improve in small steps** — bump the version each time you refine it.
+5. **Test before you ship** — try it on a few real questions first.
+6. **Explain your changes** — leave a note about *why* you changed something.
 
-## Versioning
+## Version numbers (the MAJOR.MINOR.PATCH idea)
 
-Use semantic versioning: MAJOR.MINOR.PATCH
+Think of it like editions of a book:
 
-- MAJOR: Breaking changes to behavior
-- MINOR: New capabilities or enhancements
-- PATCH: Bug fixes or minor refinements
+- **MAJOR** (1.0 → 2.0): the behavior really changed — a new edition.
+- **MINOR** (1.0 → 1.1): added something new, but old uses still work.
+- **PATCH** (1.0.0 → 1.0.1): small fix or wording tweak.

@@ -5,9 +5,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
-import sys
 from pathlib import Path
-from typing import Dict, List, Optional
 
 from ai_devops_assistant.evaluation.benchmark import ModelBenchmarker, quick_evaluate_model
 from ai_devops_assistant.evaluation.llm_evaluator import EvaluationCase, LLMEvaluator
@@ -29,28 +27,30 @@ def _install_model(model: str) -> None:
 
 async def _ingest_url(url: str) -> None:
     pipeline = SimpleRAGPipeline()
-    chunks = await pipeline.ingest_website(url)
+    # ingest_website() has never existed on this class; ingest_url() is the real
+    # entry point, so `ai-devops ingest <url>` raised AttributeError on every run.
+    chunks = await pipeline.ingest_url(url)
     print(f"ingested_chunks={chunks}")
 
 
 async def _evaluate_model(
     model_name: str,
-    categories: Optional[List[str]] = None,
-    output_file: Optional[str] = None,
+    categories: list[str] | None = None,
+    output_file: str | None = None,
 ) -> None:
     """Evaluate a single model."""
     # Create model client
     client = FallbackLLMClient(targets=[{"provider": "ollama", "model": model_name}])
 
     async def model_fn(prompt: str) -> str:
-        return await client.generate(prompt)
+        return str(await client.generate(prompt))
 
     # Run evaluation
     results = await quick_evaluate_model(model_fn, model_name, categories)
 
     if output_file:
         Path(output_file).parent.mkdir(parents=True, exist_ok=True)
-        with open(output_file, 'w') as f:
+        with open(output_file, "w") as f:
             json.dump(results, f, indent=2)
         print(f"Results saved to {output_file}")
     else:
@@ -58,8 +58,8 @@ async def _evaluate_model(
 
 
 async def _benchmark_models(
-    model_names: List[str],
-    categories: Optional[List[str]] = None,
+    model_names: list[str],
+    categories: list[str] | None = None,
     output_dir: str = "evaluation_reports",
 ) -> None:
     """Benchmark multiple models."""
@@ -69,7 +69,7 @@ async def _benchmark_models(
         client = FallbackLLMClient(targets=[{"provider": "ollama", "model": model_name}])
 
         async def model_fn(prompt: str, client=client) -> str:
-            return await client.generate(prompt)
+            return str(await client.generate(prompt))
 
         models[model_name] = model_fn
 
@@ -89,18 +89,25 @@ async def _benchmark_models(
     for model_name, metrics in results.items():
         print(f"\n📊 {model_name}")
         print("-" * 30)
-        print(".4f")
-        print(".4f")
-        print(".4f")
-        print(".4f")
-        print(".4f")
-        print(".2f")
+        # These were bare print(".4f") calls, which print the literal string
+        # ".4f" rather than any metric — a format spec with no value attached.
+        for label, key in (
+            ("Correctness", "correctness"),
+            ("Relevance", "relevance"),
+            ("Coherence", "coherence"),
+            ("Groundedness", "groundedness"),
+            ("Overall", "overall"),
+        ):
+            if key in metrics:
+                print(f"  {label}: {metrics[key]:.4f}")
+        if "latency_ms_avg" in metrics:
+            print(f"  Avg latency: {metrics['latency_ms_avg']:.2f} ms")
         print(f"  Test Cases: {metrics['total_cases']}")
 
     # Show ranking
     if len(results) > 1:
-        print("
-🏆 Ranking by Correctness:"        ranking = sorted(results.items(), key=lambda x: x[1]['correctness'], reverse=True)
+        print("\n🏆 Ranking by Correctness:")
+        ranking = sorted(results.items(), key=lambda x: x[1]["correctness"], reverse=True)
         for i, (model, _) in enumerate(ranking, 1):
             print(f"  {i}. {model}")
 
@@ -108,11 +115,11 @@ async def _benchmark_models(
 async def _run_custom_evaluation(
     test_file: str,
     model_name: str,
-    output_file: Optional[str] = None,
+    output_file: str | None = None,
 ) -> None:
     """Run evaluation with custom test cases."""
     # Load test cases
-    with open(test_file, 'r') as f:
+    with open(test_file) as f:
         test_data = json.load(f)
 
     cases = []
@@ -123,7 +130,7 @@ async def _run_custom_evaluation(
     client = FallbackLLMClient(targets=[{"provider": "ollama", "model": model_name}])
 
     async def model_fn(prompt: str) -> str:
-        return await client.generate(prompt)
+        return str(await client.generate(prompt))
 
     # Run evaluation
     evaluator = LLMEvaluator()
@@ -137,12 +144,17 @@ async def _run_custom_evaluation(
         print(f"Evaluation Report for {model_name}")
         print("=" * 40)
         print(f"Total Cases: {report.total_cases}")
-        print(".4f")
-        print(".4f")
-        print(".4f")
-        print(".4f")
-        print(".4f")
-        print(".2f")
+        for label, value in (
+            ("Correctness", report.correctness_avg),
+            ("Relevance", getattr(report, "relevance_avg", None)),
+            ("Coherence", getattr(report, "coherence_avg", None)),
+            ("Groundedness", getattr(report, "groundedness_avg", None)),
+        ):
+            if value is not None:
+                print(f"{label}: {value:.4f}")
+        latency = getattr(report, "latency_ms_avg", None)
+        if latency is not None:
+            print(f"Avg latency: {latency:.2f} ms")
 
 
 def _list_evaluation_categories() -> None:
@@ -163,10 +175,7 @@ def _list_evaluation_categories() -> None:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(
-        prog="ai-devops",
-        description="AI DevOps Assistant CLI"
-    )
+    parser = argparse.ArgumentParser(prog="ai-devops", description="AI DevOps Assistant CLI")
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
 
     # Models command
@@ -189,42 +198,22 @@ def main() -> None:
     # Single model evaluation
     eval_single = evaluate_sub.add_parser("model", help="Evaluate a single model")
     eval_single.add_argument("model_name", help="Name of the model to evaluate")
-    eval_single.add_argument(
-        "--categories",
-        nargs="*",
-        help="Categories to test (default: all)"
-    )
-    eval_single.add_argument(
-        "--output",
-        help="Output file for results (JSON)"
-    )
+    eval_single.add_argument("--categories", nargs="*", help="Categories to test (default: all)")
+    eval_single.add_argument("--output", help="Output file for results (JSON)")
 
     # Multi-model benchmark
     benchmark = evaluate_sub.add_parser("benchmark", help="Benchmark multiple models")
+    benchmark.add_argument("model_names", nargs="+", help="Names of models to benchmark")
+    benchmark.add_argument("--categories", nargs="*", help="Categories to test (default: all)")
     benchmark.add_argument(
-        "model_names",
-        nargs="+",
-        help="Names of models to benchmark"
-    )
-    benchmark.add_argument(
-        "--categories",
-        nargs="*",
-        help="Categories to test (default: all)"
-    )
-    benchmark.add_argument(
-        "--output-dir",
-        default="evaluation_reports",
-        help="Directory to save reports"
+        "--output-dir", default="evaluation_reports", help="Directory to save reports"
     )
 
     # Custom evaluation
     eval_custom = evaluate_sub.add_parser("custom", help="Run custom evaluation")
     eval_custom.add_argument("test_file", help="JSON file with test cases")
     eval_custom.add_argument("model_name", help="Model to evaluate")
-    eval_custom.add_argument(
-        "--output",
-        help="Output file for detailed report"
-    )
+    eval_custom.add_argument("--output", help="Output file for detailed report")
 
     # List categories
     evaluate_sub.add_parser("categories", help="List available test categories")
@@ -245,23 +234,11 @@ def main() -> None:
 
     elif args.command == "evaluate":
         if args.eval_action == "model":
-            asyncio.run(_evaluate_model(
-                args.model_name,
-                args.categories,
-                args.output
-            ))
+            asyncio.run(_evaluate_model(args.model_name, args.categories, args.output))
         elif args.eval_action == "benchmark":
-            asyncio.run(_benchmark_models(
-                args.model_names,
-                args.categories,
-                args.output_dir
-            ))
+            asyncio.run(_benchmark_models(args.model_names, args.categories, args.output_dir))
         elif args.eval_action == "custom":
-            asyncio.run(_run_custom_evaluation(
-                args.test_file,
-                args.model_name,
-                args.output
-            ))
+            asyncio.run(_run_custom_evaluation(args.test_file, args.model_name, args.output))
         elif args.eval_action == "categories":
             _list_evaluation_categories()
         else:

@@ -1,9 +1,10 @@
 """Kubernetes tool for querying cluster state."""
 
 import logging
-from typing import Any, Optional
+from typing import Any
 
 from kubernetes import client, config
+from kubernetes.client import Configuration
 from kubernetes.client.rest import ApiException
 
 from ai_devops_assistant.config.settings import settings
@@ -37,6 +38,25 @@ class KubernetesTool(BaseTool):
             else:
                 config.load_incluster_config()  # For running in-cluster
 
+            # K8S_VERIFY_SSL was declared in settings but never applied, so TLS
+            # verification was simply whatever the kubeconfig said. It is applied
+            # here, and disabling it is refused in production: turning off
+            # verification against the cluster API exposes every request —
+            # including tokens — to interception.
+            if not settings.K8S_VERIFY_SSL:
+                if settings.is_production:
+                    raise ValueError(
+                        "K8S_VERIFY_SSL=false is not permitted in production; "
+                        "it disables TLS verification against the cluster API"
+                    )
+                logger.warning(
+                    "Kubernetes TLS verification is DISABLED (K8S_VERIFY_SSL=false). "
+                    "Development only."
+                )
+                configuration = Configuration.get_default_copy()
+                configuration.verify_ssl = False
+                Configuration.set_default(configuration)
+
             self.v1 = client.CoreV1Api()
             self.apps_v1 = client.AppsV1Api()
             self._initialized = True
@@ -46,10 +66,13 @@ class KubernetesTool(BaseTool):
             logger.warning(f"Failed to initialize Kubernetes client: {e}")
             self._initialized = False
 
-    async def execute(
+    # Narrows BaseTool.execute(**kwargs) to this tool's named parameters. The
+    # registry always dispatches by keyword and validate_parameters() guards the
+    # required ones, so the narrowing is deliberate; mypy cannot express it.
+    async def execute(  # type: ignore[override]
         self,
         action: str,
-        namespace: Optional[str] = None,
+        namespace: str | None = None,
         **kwargs,
     ) -> dict[str, Any]:
         """Execute Kubernetes query.
@@ -83,6 +106,8 @@ class KubernetesTool(BaseTool):
                 return await self._list_services(namespace)
             elif action == "list_events":
                 return await self._list_events(namespace)
+            elif action == "cluster_overview":
+                return await self._cluster_overview(namespace)
             else:
                 return {
                     "success": False,
@@ -91,6 +116,37 @@ class KubernetesTool(BaseTool):
 
         except Exception as e:
             logger.error(f"Kubernetes query failed: {e}")
+            return {
+                "success": False,
+                "error": str(e),
+            }
+
+    async def _cluster_overview(self, namespace: str) -> dict[str, Any]:
+        """Summarise the cluster: namespaces, and pods/deployments in one of them.
+
+        Ported from MCP's standalone server, where it was the one genuinely useful
+        aggregate. It answers "what am I looking at?" in a single call instead of
+        three, which matters when an agent is paying per round trip.
+        """
+        try:
+            namespaces = [n.metadata.name for n in self.v1.list_namespace().items]
+            pods = [p.metadata.name for p in self.v1.list_namespaced_pod(namespace).items]
+            deployments = [
+                d.metadata.name for d in self.apps_v1.list_namespaced_deployment(namespace).items
+            ]
+            return {
+                "success": True,
+                "namespace": namespace,
+                "namespaces": namespaces,
+                "pods": pods,
+                "deployments": deployments,
+                "counts": {
+                    "namespaces": len(namespaces),
+                    "pods": len(pods),
+                    "deployments": len(deployments),
+                },
+            }
+        except ApiException as e:
             return {
                 "success": False,
                 "error": str(e),
@@ -106,9 +162,9 @@ class KubernetesTool(BaseTool):
                     {
                         "name": pod.metadata.name,
                         "status": pod.status.phase,
-                        "ready": pod.status.conditions[-1].status
-                        if pod.status.conditions
-                        else "Unknown",
+                        "ready": (
+                            pod.status.conditions[-1].status if pod.status.conditions else "Unknown"
+                        ),
                         "restarts": sum(
                             c.restart_count for c in pod.status.container_statuses or []
                         ),
@@ -126,7 +182,7 @@ class KubernetesTool(BaseTool):
                 "error": str(e),
             }
 
-    async def _get_pod(self, namespace: str, pod_name: Optional[str]) -> dict[str, Any]:
+    async def _get_pod(self, namespace: str, pod_name: str | None) -> dict[str, Any]:
         """Get specific pod details."""
         if not pod_name:
             return {
@@ -146,9 +202,11 @@ class KubernetesTool(BaseTool):
                         {
                             "name": c.name,
                             "image": c.image,
-                            "ready": pod.status.container_statuses[i].ready
-                            if pod.status.container_statuses
-                            else False,
+                            "ready": (
+                                pod.status.container_statuses[i].ready
+                                if pod.status.container_statuses
+                                else False
+                            ),
                         }
                         for i, c in enumerate(pod.spec.containers)
                     ],
@@ -195,9 +253,7 @@ class KubernetesTool(BaseTool):
                 "error": str(e),
             }
 
-    async def _get_deployment(
-        self, namespace: str, deployment_name: Optional[str]
-    ) -> dict[str, Any]:
+    async def _get_deployment(self, namespace: str, deployment_name: str | None) -> dict[str, Any]:
         """Get specific deployment details."""
         if not deployment_name:
             return {
@@ -311,6 +367,7 @@ class KubernetesTool(BaseTool):
                             "get_deployment",
                             "list_services",
                             "list_events",
+                            "cluster_overview",
                         ],
                         "description": "Action to perform",
                     },

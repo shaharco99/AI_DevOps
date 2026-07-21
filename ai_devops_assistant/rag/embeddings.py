@@ -1,7 +1,7 @@
 """Embeddings initialization and management."""
 
 import logging
-from typing import Any
+from typing import Any, cast
 
 import ollama
 
@@ -56,10 +56,10 @@ class EmbeddingService:
             response: Any
             try:
                 response = ollama.embed(model=self.model_name, input=text)
-                return response["embeddings"][0]
+                return cast(list[float], response["embeddings"][0])
             except Exception:
                 response = ollama.embeddings(model=self.model_name, prompt=text)
-                return response["embedding"]
+                return cast(list[float], response["embedding"])
         except Exception as e:
             logger.error(f"Failed to embed text: {e}")
             raise
@@ -83,7 +83,7 @@ class EmbeddingService:
             response: Any
             try:
                 response = ollama.embed(model=self.model_name, input=texts)
-                return response["embeddings"]
+                return cast(list[list[float]], response["embeddings"])
             except Exception:
                 return [self.embed(text) for text in texts]
         except Exception as e:

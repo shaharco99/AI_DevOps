@@ -5,19 +5,25 @@ services:
   postgres:
     image: postgres:15-alpine
     container_name: ai-devops-postgres
+    restart: unless-stopped
     environment:
-      POSTGRES_USER: devops_user
-      POSTGRES_PASSWORD: devops_password
-      POSTGRES_DB: devops
+      POSTGRES_USER: ${POSTGRES_USER:-devops_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-devops_password}
+      POSTGRES_DB: ${POSTGRES_DB:-devops}
       POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=en_US.UTF-8"
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     networks:
       - devops
+    deploy:
+      resources:
+        limits:
+          cpus: "1"
+          memory: 512M
     healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U devops_user -d devops" ]
+      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-devops_user} -d ${POSTGRES_DB:-devops}" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -26,8 +32,9 @@ services:
   # Ollama LLM Service
   # ========================================================================
   ollama:
-    image: ollama/ollama:latest
+    image: ollama/ollama:0.5.4
     container_name: ai-devops-ollama
+    restart: unless-stopped
     environment:
       OLLAMA_HOST: 0.0.0.0:11434
     ports:
@@ -36,12 +43,18 @@ services:
       - ollama_data:/root/.ollama
     networks:
       - devops
+    deploy:
+      resources:
+        limits:
+          cpus: "4"
+          memory: 8G
     healthcheck:
       test: [ "CMD", "ollama", "list" ]
       interval: 30s
       timeout: 10s
       retries: 3
-    # Pull llama3 model on startup
+    # Serve only; pull a model manually the first time:
+    #   docker exec ai-devops-ollama ollama pull llama3
     command: serve
 
   # ========================================================================
@@ -52,28 +65,44 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: ai-devops-backend
+    restart: unless-stopped
     environment:
-      DATABASE_URL: postgresql+asyncpg://devops_user:devops_password@postgres:5432/devops
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-devops_user}:${POSTGRES_PASSWORD:-devops_password}@postgres:5432/${POSTGRES_DB:-devops}
       OLLAMA_BASE_URL: http://ollama:11434
       LLM_PROVIDER: ${LLM_PROVIDER:-ollama}
+      # Without this the container falls back to the Settings default (llama3),
+      # ignoring whatever LLM_MODEL says in .env.
+      LLM_MODEL: ${LLM_MODEL:-qwen2.5-coder:7b}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-claude-opus-4-8}
       CHROMA_PERSIST_DIR: /data/chroma
       PROMETHEUS_URL: http://prometheus:9090
-      API_ENVIRONMENT: development
+      API_ENVIRONMENT: ${API_ENVIRONMENT:-development}
       API_LOG_LEVEL: INFO
+      API_KEY: ${API_KEY:-}
+      # Conversation memory. Without this the in-process store is used, which
+      # loses history across workers and restarts — and WEB_CONCURRENCY below
+      # is exactly what makes that visible.
+      REDIS_URL: redis://redis:6379/0
+      WEB_CONCURRENCY: ${WEB_CONCURRENCY:-1}
     ports:
       - "8000:8000"
     volumes:
-      - ./ai_devops_assistant:/app/ai_devops_assistant
       - chroma_data:/data/chroma
     depends_on:
       postgres:
         condition: service_healthy
       ollama:
         condition: service_healthy
+      redis:
+        condition: service_healthy
     networks:
       - devops
+    deploy:
+      resources:
+        limits:
+          cpus: "2"
+          memory: 1G
     healthcheck:
       test: [ "CMD", "curl", "-f", "http://localhost:8000/health" ]
       interval: 30s
@@ -81,21 +110,69 @@ services:
       retries: 3
 
   # ========================================================================
+  # MCP Protocol Server
+  # ========================================================================
+  # The same image as the backend, a different entrypoint. Separate container
+  # rather than separate image: one build, but independent scaling, independent
+  # NetworkPolicy and an independent blast radius. It serves the same
+  # ToolRegistry the REST API does, so the two can never expose different tools.
+  mcp-server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ai-devops-mcp
+    restart: unless-stopped
+    command: [ "python", "-m", "ai_devops_assistant.mcp_server" ]
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-devops_user}:${POSTGRES_PASSWORD:-devops_password}@postgres:5432/${POSTGRES_DB:-devops}
+      OLLAMA_BASE_URL: http://ollama:11434
+      LLM_PROVIDER: ${LLM_PROVIDER:-ollama}
+      CHROMA_PERSIST_DIR: /data/chroma
+      PROMETHEUS_URL: http://prometheus:9090
+      API_ENVIRONMENT: ${API_ENVIRONMENT:-development}
+      API_LOG_LEVEL: INFO
+      # Required when API_ENVIRONMENT=production; the server refuses to start
+      # without it, because the MCP transport executes tools.
+      MCP_AUTH_TOKEN: ${MCP_AUTH_TOKEN:-}
+      MCP_PORT: 8001
+    ports:
+      # Loopback only. MCP clients run alongside; nothing needs this on 0.0.0.0.
+      - "127.0.0.1:8001:8001"
+    volumes:
+      - chroma_data:/data/chroma
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - devops
+    deploy:
+      resources:
+        limits:
+          cpus: "1"
+          memory: 512M
+
+  # ========================================================================
   # Prometheus Monitoring
   # ========================================================================
   prometheus:
-    image: prom/prometheus:latest
+    image: prom/prometheus:v2.53.0
     container_name: ai-devops-prometheus
+    restart: unless-stopped
     ports:
-      - "9090:9090"
+      - "127.0.0.1:9090:9090"
     volumes:
-      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus_data:/prometheus
     command:
       - "--config.file=/etc/prometheus/prometheus.yml"
       - "--storage.tsdb.path=/prometheus"
     networks:
       - devops
+    deploy:
+      resources:
+        limits:
+          cpus: "1"
+          memory: 512M
     healthcheck:
       test:
         [
@@ -114,20 +191,29 @@ services:
   # Grafana Visualization
   # ========================================================================
   grafana:
-    image: grafana/grafana:latest
+    image: grafana/grafana:11.1.0
     container_name: ai-devops-grafana
+    restart: unless-stopped
     environment:
-      GF_SECURITY_ADMIN_PASSWORD: admin
+      # No default: compose fails with a clear message if it is unset, rather
+      # than silently standing up Grafana with admin/admin on a shared network.
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?set GRAFANA_ADMIN_PASSWORD in .env}
       GF_INSTALL_PLUGINS: grafana-worldmap-panel
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
     volumes:
       - grafana_data:/var/lib/grafana
       - ./monitoring/grafana/provisioning:/etc/grafana/provisioning
     depends_on:
-      - prometheus
+      prometheus:
+        condition: service_healthy
     networks:
       - devops
+    deploy:
+      resources:
+        limits:
+          cpus: "1"
+          memory: 512M
     healthcheck:
       test: [ "CMD", "curl", "-f", "http://localhost:3000/api/health" ]
       interval: 30s
@@ -140,12 +226,18 @@ services:
   redis:
     image: redis:7-alpine
     container_name: ai-devops-redis
+    restart: unless-stopped
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
     volumes:
       - redis_data:/data
     networks:
       - devops
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M
     healthcheck:
       test: [ "CMD", "redis-cli", "ping" ]
       interval: 10s

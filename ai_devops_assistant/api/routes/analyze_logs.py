@@ -70,7 +70,10 @@ async def analyze_logs(
         logger.error(f"Log analysis error: {e}", exc_info=True)
         error_str = str(e).lower()
         status_code = 500
-        if any(term in error_str for term in ["connection refused", "connect", "pool", "database", "timeout"]):
+        if any(
+            term in error_str
+            for term in ["connection refused", "connect", "pool", "database", "timeout"]
+        ):
             status_code = 503
         raise HTTPException(
             status_code=status_code,

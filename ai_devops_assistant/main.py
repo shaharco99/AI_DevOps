@@ -51,7 +51,16 @@ async def lifespan(app: FastAPI):
 
 
 def create_app() -> FastAPI:
-    """Create and configure FastAPI application."""
+    """Create and configure FastAPI application.
+
+    Raises:
+        RuntimeError: If production security settings are unsafe. Failing here
+            is deliberate — an unauthenticated production deployment should not
+            be reachable, and the previous behaviour (log a warning, keep going)
+            meant it was.
+    """
+    settings.validate_production_security()
+
     app = FastAPI(
         title=settings.APP_NAME,
         description="An AI-powered DevOps assistant for analyzing logs, infrastructure, and providing intelligent recommendations.",
@@ -59,20 +68,104 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
 
-    # Include routes
-    from ai_devops_assistant.api.routes import analyze_logs, chat, health, metrics, run_sql
+    # Rate limiting (decorator-based limits on chat/run_sql endpoints)
+    from slowapi import _rate_limit_exceeded_handler
+    from slowapi.errors import RateLimitExceeded
 
+    from ai_devops_assistant.api.auth import limiter, require_api_key, require_csrf
+
+    app.state.limiter = limiter
+    app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+    # Include routes; expensive/mutating routes require X-API-Key when API_KEY is set
+    from fastapi import Depends
+
+    from ai_devops_assistant.api.routes import (
+        analyze_logs,
+        auth,
+        chat,
+        health,
+        metrics,
+        models,
+        rag,
+        run_sql,
+    )
+
+    auth_deps = [Depends(require_api_key)]
+    # Routers a browser POSTs to also carry the CSRF check. It is a no-op for
+    # API-key clients and for safe methods; only cookie-authenticated writes
+    # have to present the token.
+    write_deps = [Depends(require_api_key), Depends(require_csrf)]
     app.include_router(health.router)
-    app.include_router(chat.router)
-    app.include_router(run_sql.router)
-    app.include_router(analyze_logs.router)
-    app.include_router(metrics.router)
+    # No auth dependency: this is where a caller trades an API key for a session.
+    app.include_router(auth.router)
+    app.include_router(models.router, dependencies=auth_deps)
+    app.include_router(chat.router, dependencies=write_deps)
+    app.include_router(run_sql.router, dependencies=write_deps)
+    app.include_router(analyze_logs.router, dependencies=write_deps)
+    app.include_router(rag.router, dependencies=write_deps)
+    # Behind auth: /metrics/ai/* exposes token counts, model names, latency and
+    # error detail — an operational profile of the deployment. Liveness probes
+    # use /health, which stays open.
+    app.include_router(metrics.router, dependencies=auth_deps)
+
+    # Web UI. Mounted at /ui rather than / so it cannot shadow an API route, and
+    # served same-origin, which is why no CORS entry is needed for it.
+    if settings.ENABLE_WEB_UI:
+        from pathlib import Path
+
+        from fastapi.responses import Response
+        from fastapi.staticfiles import StaticFiles
+
+        class RevalidatingStaticFiles(StaticFiles):
+            """StaticFiles that makes browsers revalidate before reusing a file.
+
+            The assets are unversioned — index.html always imports "/ui/js/app.js"
+            — so without a Cache-Control header browsers fall back to heuristic
+            caching and keep serving the previous deploy's JS from disk cache.
+            A shipped fix then simply does not reach anyone until a hard reload.
+
+            "no-cache" does not mean "do not store": the file is still cached, the
+            browser just has to revalidate it. ETag/Last-Modified are already sent,
+            so an unchanged asset costs a 304 with an empty body.
+            """
+
+            def file_response(self, *args: object, **kwargs: object) -> Response:
+                response = super().file_response(*args, **kwargs)  # type: ignore[arg-type]
+                response.headers["Cache-Control"] = "no-cache"
+                return response
+
+        static_dir = Path(__file__).parent / "static"
+        if static_dir.is_dir():
+            app.mount(
+                "/ui", RevalidatingStaticFiles(directory=str(static_dir), html=True), name="ui"
+            )
+        else:  # pragma: no cover - only if the package was built without assets
+            logger.warning("ENABLE_WEB_UI is set but %s does not exist", static_dir)
 
     # Add middleware
+    from fastapi.middleware.cors import CORSMiddleware
+    from starlette.middleware.trustedhost import TrustedHostMiddleware
+
     from ai_devops_assistant.api.middleware import ErrorHandlingMiddleware, LoggingMiddleware
 
     app.add_middleware(LoggingMiddleware)
     app.add_middleware(ErrorHandlingMiddleware)
+    # "*" means no Host restriction — skip the middleware entirely. Outside
+    # production, allow the test client's default host so local pytest runs pass.
+    allowed_hosts = settings.ALLOWED_HOSTS
+    if "*" not in allowed_hosts:
+        if not settings.is_production:
+            allowed_hosts = [*allowed_hosts, "testserver"]
+        app.add_middleware(TrustedHostMiddleware, allowed_hosts=allowed_hosts)
+    if settings.CORS_ORIGINS:
+        app.add_middleware(
+            CORSMiddleware,
+            allow_origins=settings.CORS_ORIGINS,
+            allow_credentials=True,
+            allow_methods=["*"],
+            allow_headers=["*"],
+        )
 
     logger.debug("FastAPI application created successfully")
     return app

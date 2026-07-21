@@ -15,7 +15,7 @@ Example:
 import json
 import logging
 from dataclasses import dataclass
-from typing import Optional
+from typing import Any, cast
 
 import aiohttp
 import requests
@@ -30,12 +30,12 @@ class ModelInfo:
     name: str
     id: str
     description: str
-    size_gb: Optional[float]
-    parameters: Optional[str]
+    size_gb: float | None
+    parameters: str | None
     license: str
     tags: list[str]
-    downloads: Optional[int]
-    rating: Optional[float]
+    downloads: int | None
+    rating: float | None
     url: str
 
 
@@ -54,7 +54,7 @@ class ModelRegistry:
         """
         raise NotImplementedError
 
-    async def get_model_info(self, model_id: str) -> Optional[ModelInfo]:
+    async def get_model_info(self, model_id: str) -> ModelInfo | None:
         """Get detailed information about a specific model.
 
         Args:
@@ -85,14 +85,14 @@ class HuggingFaceRegistry(ModelRegistry):
     BASE_URL = "https://huggingface.co/api"
     MODELS_ENDPOINT = "/models"
 
-    def __init__(self, api_key: Optional[str] = None):
+    def __init__(self, api_key: str | None = None):
         """Initialize HuggingFace registry.
 
         Args:
             api_key: Optional HuggingFace API key
         """
         self.api_key = api_key
-        self.session: Optional[aiohttp.ClientSession] = None
+        self.session: aiohttp.ClientSession | None = None
 
     async def _get_session(self) -> aiohttp.ClientSession:
         """Get or create aiohttp session."""
@@ -134,7 +134,7 @@ class HuggingFaceRegistry(ModelRegistry):
             logger.error(f"Error searching HuggingFace models: {e}")
             return []
 
-    async def get_model_info(self, model_id: str) -> Optional[ModelInfo]:
+    async def get_model_info(self, model_id: str) -> ModelInfo | None:
         """Get HuggingFace model information.
 
         Args:
@@ -189,7 +189,12 @@ class OllamaRegistry(ModelRegistry):
         """
         self.base_url = base_url
 
-    def search_models(self, query: str, limit: int = 20) -> list[ModelInfo]:
+    # OllamaRegistry is deliberately synchronous: it shells out to the ollama
+    # CLI rather than doing async HTTP like HuggingFaceRegistry, and every
+    # caller treats it as sync (see CompositeRegistry and cli.py, which do not
+    # await these). The async base signature does not fit; mypy cannot express
+    # a sync override of an async method.
+    def search_models(self, query: str, limit: int = 20) -> list[ModelInfo]:  # type: ignore[override]
         """Search Ollama models.
 
         Args:
@@ -232,7 +237,7 @@ class OllamaRegistry(ModelRegistry):
             logger.error(f"Error searching Ollama models: {e}")
             return []
 
-    def get_model_info(self, model_id: str) -> Optional[ModelInfo]:
+    def get_model_info(self, model_id: str) -> ModelInfo | None:  # type: ignore[override]
         """Get Ollama model information.
 
         Args:
@@ -248,7 +253,7 @@ class OllamaRegistry(ModelRegistry):
             logger.error(f"Error getting Ollama model info: {e}")
             return None
 
-    def download_model(
+    def download_model(  # type: ignore[override]
         self, model_id: str, destination: str = None, progress_callback=None
     ) -> bool:
         """Pull/download an Ollama model.
@@ -293,7 +298,12 @@ class CompositeRegistry(ModelRegistry):
 
     def __init__(self):
         """Initialize with multiple registries."""
-        self.registries = {
+        # Deliberately Any rather than dict[str, ModelRegistry]: the registries are
+        # heterogeneous. HuggingFaceRegistry is async while OllamaRegistry is sync
+        # (it shells out to the ollama CLI), and the call sites below await one but
+        # not the other. Typing this as the async base would be a lie about
+        # OllamaRegistry. Unifying the two is tracked separately.
+        self.registries: dict[str, Any] = {
             "huggingface": HuggingFaceRegistry(),
             "ollama": OllamaRegistry(),
         }
@@ -326,7 +336,7 @@ class CompositeRegistry(ModelRegistry):
 
         return results[:limit]
 
-    async def get_model_info(self, model_id: str) -> Optional[ModelInfo]:
+    async def get_model_info(self, model_id: str) -> ModelInfo | None:
         """Get model info from appropriate registry.
 
         Args:
@@ -339,7 +349,7 @@ class CompositeRegistry(ModelRegistry):
         try:
             info = self.registries["ollama"].get_model_info(model_id)
             if info:
-                return info
+                return cast("ModelInfo | None", info)
         except Exception as e:
             logger.debug(f"Ollama lookup failed: {e}")
 
@@ -347,7 +357,7 @@ class CompositeRegistry(ModelRegistry):
         try:
             info = await self.registries["huggingface"].get_model_info(model_id)
             if info:
-                return info
+                return cast("ModelInfo | None", info)
         except Exception as e:
             logger.debug(f"HuggingFace lookup failed: {e}")
 

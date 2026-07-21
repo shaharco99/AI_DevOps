@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>AI DevOps Assistant</title>
+    <link rel="stylesheet" href="/ui/css/app.css" />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><text y='14' font-size='14'>&#129302;</text></svg>"
+    />
+  </head>
+  <body>
+    <div class="layout">
+      <aside class="sidebar">
+        <div class="sidebar-header">
+          <span class="brand">AI DevOps</span>
+          <button id="new-chat" type="button" class="new-chat" title="New chat">+</button>
+        </div>
+        <nav id="session-list" class="session-list" aria-label="Chat sessions"></nav>
+      </aside>
+
+      <main class="main">
+        <header class="topbar">
+          <select id="model" class="model-picker" aria-label="Model"></select>
+          <button id="theme-toggle" type="button" class="icon-button" title="Toggle theme">
+            &#9789;
+          </button>
+        </header>
+
+        <div id="messages" class="messages" aria-live="polite"></div>
+
+        <div class="composer">
+          <textarea
+            id="input"
+            class="input"
+            rows="1"
+            placeholder="Ask anything… (Enter to send, Shift+Enter for a new line)"
+            aria-label="Message"
+          ></textarea>
+          <input id="file" type="file" hidden aria-hidden="true" />
+          <button id="upload" type="button" class="icon-button" title="Add a document to the knowledge base">
+            &#128206;
+          </button>
+          <button id="send" type="button" class="send">Send</button>
+          <button id="stop" type="button" class="stop" hidden>Stop</button>
+        </div>
+      </main>
+    </div>
+
+    <script type="module" src="/ui/js/app.js"></script>
+  </body>
+</html>

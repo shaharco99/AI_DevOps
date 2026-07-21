@@ -1,7 +1,7 @@
 """RAG retriever for semantic search."""
 
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from ai_devops_assistant.config.constants import RAG_SCORE_THRESHOLD, RAG_TOP_K
 from ai_devops_assistant.rag.vector_store import get_vector_store_service
@@ -35,13 +35,13 @@ class RAGRetriever:
     def retrieve(
         self,
         query: str,
-        category: Optional[str] = None,
-        top_k: Optional[int] = None,
-        score_threshold: Optional[float] = None,
-        metadata_filters: Optional[Dict[str, Any]] = None,
+        category: str | None = None,
+        top_k: int | None = None,
+        score_threshold: float | None = None,
+        metadata_filters: dict[str, Any] | None = None,
         include_content: bool = True,
         include_metadata: bool = True,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """Retrieve relevant documents with advanced filtering.
 
         Args:
@@ -118,12 +118,8 @@ class RAGRetriever:
             return []
 
     def retrieve_with_hybrid(
-        self,
-        query: str,
-        keyword_weight: float = 0.3,
-        semantic_weight: float = 0.7,
-        **kwargs
-    ) -> List[Dict[str, Any]]:
+        self, query: str, keyword_weight: float = 0.3, semantic_weight: float = 0.7, **kwargs
+    ) -> list[dict[str, Any]]:
         """Retrieve using hybrid search (keyword + semantic).
 
         Args:
@@ -153,7 +149,7 @@ class RAGRetriever:
             logger.error(f"Failed hybrid search: {e}")
             return self.retrieve(query, **kwargs)
 
-    def _keyword_search(self, query: str, **kwargs) -> List[Dict[str, Any]]:
+    def _keyword_search(self, query: str, **kwargs) -> list[dict[str, Any]]:
         """Simple keyword-based search fallback."""
         try:
             vector_store = get_vector_store_service()
@@ -174,15 +170,17 @@ class RAGRetriever:
                     score += content.count(term)
 
                 if score > 0:
-                    scored_docs.append({
-                        "content": doc.get("content", ""),
-                        "metadata": metadata,
-                        "score": min(score / len(query_terms), 1.0),  # Normalize
-                    })
+                    scored_docs.append(
+                        {
+                            "content": doc.get("content", ""),
+                            "metadata": metadata,
+                            "score": min(score / len(query_terms), 1.0),  # Normalize
+                        }
+                    )
 
             # Sort by score and limit
             scored_docs.sort(key=lambda x: x["score"], reverse=True)
-            return scored_docs[:kwargs.get("top_k", self.top_k)]
+            return scored_docs[: kwargs.get("top_k", self.top_k)]
 
         except Exception as e:
             logger.error(f"Keyword search failed: {e}")
@@ -190,11 +188,11 @@ class RAGRetriever:
 
     def _combine_hybrid_results(
         self,
-        semantic: List[Dict[str, Any]],
-        keyword: List[Dict[str, Any]],
+        semantic: list[dict[str, Any]],
+        keyword: list[dict[str, Any]],
         semantic_weight: float,
-        keyword_weight: float
-    ) -> List[Dict[str, Any]]:
+        keyword_weight: float,
+    ) -> list[dict[str, Any]]:
         """Combine semantic and keyword results."""
         # Create combined scores
         combined_scores = {}
@@ -235,13 +233,13 @@ class RAGRetriever:
         results.sort(key=lambda x: x["score"], reverse=True)
         return results
 
-    def _apply_diversity(self, results: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    def _apply_diversity(self, results: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """Apply diversity bias to results."""
         if not results or self.diversity_bias <= 0:
             return results
 
         # Simple diversity based on source
-        seen_sources = set()
+        seen_sources: set[str] = set()
         diverse_results = []
 
         for result in results:
@@ -255,12 +253,12 @@ class RAGRetriever:
 
         return diverse_results
 
-    def _rerank_results(self, query: str, results: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    def _rerank_results(self, query: str, results: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """Rerank results based on query relevance."""
         # Simple reranking based on exact term matches and position
         for result in results:
             content = result.get("content", "").lower()
-            score_boost = 0
+            score_boost = 0.0
 
             # Boost for exact phrase matches
             if query.lower() in content:
@@ -276,56 +274,6 @@ class RAGRetriever:
         # Re-sort after reranking
         results.sort(key=lambda x: x.get("score", 0), reverse=True)
         return results
-    ) -> list[dict]:
-        """Retrieve relevant documents.
-
-        Args:
-            query: Search query
-            category: Optional category filter
-
-        Returns:
-            list: List of retrieved documents
-        """
-        try:
-            vector_store = get_vector_store_service()
-
-            # Build metadata filter if category specified
-            where_filter = None
-            if category:
-                where_filter = {"category": category}
-
-            # Search
-            results = vector_store.search(
-                query=query,
-                k=self.top_k,
-                where=where_filter,
-            )
-
-            # Format results
-            documents = []
-            if results and results["ids"] and results["ids"][0]:
-                for i, doc_id in enumerate(results["ids"][0]):
-                    if results["distances"] and i < len(results["distances"][0]):
-                        # Chroma returns distances, convert to similarity score
-                        distance = results["distances"][0][i]
-                        similarity = 1 / (1 + distance)  # Convert distance to similarity
-
-                        if similarity >= self.score_threshold:
-                            documents.append(
-                                {
-                                    "id": doc_id,
-                                    "content": results["documents"][0][i],
-                                    "metadata": results["metadatas"][0][i],
-                                    "similarity": similarity,
-                                }
-                            )
-
-            logger.info(f"Retrieved {len(documents)} documents for query: {query}")
-            return documents
-
-        except Exception as e:
-            logger.error(f"Retrieval failed: {e}")
-            return []
 
     def retrieve_by_category(
         self,

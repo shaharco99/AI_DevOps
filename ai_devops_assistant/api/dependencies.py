@@ -6,15 +6,21 @@ from collections.abc import AsyncGenerator
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ai_devops_assistant.config.settings import settings
+from ai_devops_assistant.database.context import reset_current_session, set_current_session
 from ai_devops_assistant.database.session import AsyncSessionLocal
 
 logger = logging.getLogger(__name__)
 
 
 async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
-    """Get database session for routes."""
+    """Get database session for routes.
+
+    Also binds the session to the request context so tools can reach it without
+    it being stored on a process-wide singleton — see database/context.py.
+    """
     try:
         async with AsyncSessionLocal() as session:
+            token = set_current_session(session)
             try:
                 yield session
             except Exception as e:
@@ -22,6 +28,7 @@ async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
                 await session.rollback()
                 raise
             finally:
+                reset_current_session(token)
                 await session.close()
     except Exception as e:
         logger.error(f"Database connection error: {e}")

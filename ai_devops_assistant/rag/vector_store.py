@@ -2,7 +2,7 @@
 
 import logging
 import os
-from typing import Optional
+from typing import Any
 
 import chromadb
 from chromadb.config import Settings
@@ -23,8 +23,8 @@ class VectorStoreService:
             persist_dir: Directory to persist vector database
         """
         self.persist_dir = persist_dir
-        self.client: Optional[chromadb.Client] = None
-        self.collection: Optional[chromadb.Collection] = None
+        self.client: chromadb.Client | None = None
+        self.collection: chromadb.Collection | None = None
         self._initialized = False
 
     def initialize(self) -> None:
@@ -38,14 +38,18 @@ class VectorStoreService:
 
             logger.info(f"Initializing Chroma with persist dir: {self.persist_dir}")
 
-            # Create Chroma client with persistence
-            chroma_settings = Settings(
-                chroma_db_impl="duckdb+parquet",
-                persist_directory=self.persist_dir,
-                anonymized_telemetry=settings.CHROMA_ANONYMIZED_TELEMETRY,
+            # PersistentClient, not Client(Settings(chroma_db_impl=...)).
+            # chroma_db_impl is a chromadb <=0.3 setting. Modern versions accept
+            # it silently — pydantic ignores the unknown field — and then
+            # chromadb.Client() raises a migration error, so this failed at
+            # runtime while looking correct on inspection. The agent's broad
+            # except turned that into "RAG pipeline not available".
+            self.client = chromadb.PersistentClient(
+                path=self.persist_dir,
+                settings=Settings(
+                    anonymized_telemetry=settings.CHROMA_ANONYMIZED_TELEMETRY,
+                ),
             )
-
-            self.client = chromadb.Client(chroma_settings)
 
             # Get or create collection
             self.collection = self.client.get_or_create_collection(
@@ -64,7 +68,7 @@ class VectorStoreService:
         self,
         documents: list[str],
         ids: list[str],
-        metadatas: Optional[list[dict]] = None,
+        metadatas: list[dict] | None = None,
     ) -> None:
         """Add documents to vector store.
 
@@ -102,8 +106,8 @@ class VectorStoreService:
         self,
         query: str,
         k: int = 5,
-        where: Optional[dict] = None,
-    ) -> List[Dict[str, Any]]:
+        where: dict | None = None,
+    ) -> list[dict[str, Any]]:
         """Search vector store.
 
         Args:
@@ -149,7 +153,7 @@ class VectorStoreService:
             logger.error(f"Search failed: {e}")
             raise
 
-    def get_all_documents(self, limit: int = 1000) -> List[Dict[str, Any]]:
+    def get_all_documents(self, limit: int = 1000) -> list[dict[str, Any]]:
         """Get all documents (limited for performance).
 
         Args:
@@ -167,11 +171,13 @@ class VectorStoreService:
 
             if results and results["documents"]:
                 for i, doc in enumerate(results["documents"]):
-                    documents.append({
-                        "content": doc,
-                        "metadata": results["metadatas"][i] if results["metadatas"] else {},
-                        "id": results["ids"][i] if results["ids"] else f"doc_{i}",
-                    })
+                    documents.append(
+                        {
+                            "content": doc,
+                            "metadata": results["metadatas"][i] if results["metadatas"] else {},
+                            "id": results["ids"][i] if results["ids"] else f"doc_{i}",
+                        }
+                    )
 
             return documents
 
@@ -191,7 +197,7 @@ class VectorStoreService:
         """Clear all documents from collection."""
         self.delete_all()
 
-    def get_document(self, doc_id: str) -> Optional[dict]:
+    def get_document(self, doc_id: str) -> dict | None:
         """Get document by ID.
 
         Args:
@@ -273,14 +279,14 @@ class VectorStoreService:
             raise ValueError("Vector store not initialized")
 
         try:
-            return self.collection.count()
+            return int(self.collection.count())
         except Exception as e:
             logger.error(f"Failed to get count: {e}")
             raise
 
 
 # Global instance
-_vector_store_service: Optional[VectorStoreService] = None
+_vector_store_service: VectorStoreService | None = None
 
 
 def get_vector_store_service() -> VectorStoreService:

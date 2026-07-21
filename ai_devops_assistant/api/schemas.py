@@ -1,7 +1,7 @@
 """API request and response schemas."""
 
 from datetime import datetime
-from typing import Any, Optional
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -28,10 +28,19 @@ class ChatRequest(BaseModel):
     """Chat request."""
 
     message: str = Field(..., description="User message")
-    session_id: Optional[str] = Field(None, description="Optional session ID for context")
-    include_tools: Optional[list[str]] = Field(
+    session_id: str | None = Field(None, description="Optional session ID for context")
+    include_tools: list[str] | None = Field(
         None,
         description="Optional list of tools to limit agent to specific tools",
+    )
+    # Constrained rather than free text: this value is interpolated into the
+    # provider request, so it is kept to the characters real model names use
+    # (llama3, qwen2.5-coder:7b, org/model-v1.5).
+    model: str | None = Field(
+        None,
+        max_length=128,
+        pattern=r"^[A-Za-z0-9._:/-]+$",
+        description="Optional model override for this request",
     )
 
 
@@ -40,7 +49,7 @@ class ToolCall(BaseModel):
 
     tool_name: str = Field(..., description="Name of the tool")
     parameters: dict[str, Any] = Field(..., description="Tool parameters")
-    result: Optional[Any] = Field(None, description="Tool execution result")
+    result: Any | None = Field(None, description="Tool execution result")
 
 
 class ChatResponse(BaseModel):
@@ -48,11 +57,11 @@ class ChatResponse(BaseModel):
 
     session_id: str = Field(..., description="Session ID")
     message: str = Field(..., description="Assistant response")
-    tool_calls: Optional[list[ToolCall]] = Field(
+    tool_calls: list[ToolCall] | None = Field(
         None,
         description="Tools called to generate response",
     )
-    thinking: Optional[str] = Field(
+    thinking: str | None = Field(
         None,
         description="Agent's reasoning process (if available)",
     )
@@ -67,7 +76,7 @@ class SQLQueryRequest(BaseModel):
     """SQL query request."""
 
     query: str = Field(..., description="SQL query to execute")
-    limit: Optional[int] = Field(1000, description="Maximum rows to return")
+    limit: int | None = Field(1000, description="Maximum rows to return")
 
 
 class SQLQueryResponse(BaseModel):
@@ -87,8 +96,8 @@ class LogAnalysisRequest(BaseModel):
     """Log analysis request."""
 
     query: str = Field(..., description="Search query for logs")
-    limit: Optional[int] = Field(100, description="Maximum logs to return")
-    time_range_hours: Optional[int] = Field(1, description="Time range in hours")
+    limit: int | None = Field(100, description="Maximum logs to return")
+    time_range_hours: int | None = Field(1, description="Time range in hours")
 
 
 class LogEntry(BaseModel):
@@ -98,7 +107,7 @@ class LogEntry(BaseModel):
     level: str = Field(..., description="Log level (INFO, ERROR, WARNING, etc.)")
     message: str = Field(..., description="Log message")
     source: str = Field(..., description="Source of log")
-    metadata: Optional[dict[str, Any]] = Field(None, description="Additional metadata")
+    metadata: dict[str, Any] | None = Field(None, description="Additional metadata")
 
 
 class LogAnalysisResponse(BaseModel):
@@ -106,7 +115,7 @@ class LogAnalysisResponse(BaseModel):
 
     logs: list[LogEntry] = Field(..., description="Matched log entries")
     count: int = Field(..., description="Total logs returned")
-    analysis: Optional[str] = Field(None, description="AI analysis of logs")
+    analysis: str | None = Field(None, description="AI analysis of logs")
 
 
 # ============================================================================
@@ -118,7 +127,7 @@ class MetricsQueryRequest(BaseModel):
     """Metrics query request."""
 
     query: str = Field(..., description="Prometheus query string")
-    duration: Optional[str] = Field("1h", description="Query duration")
+    duration: str | None = Field("1h", description="Query duration")
 
 
 class MetricPoint(BaseModel):
@@ -156,8 +165,8 @@ class PipelineRun(BaseModel):
     branch: str = Field(..., description="Branch name")
     commit: str = Field(..., description="Commit hash")
     started_at: datetime = Field(..., description="Start time")
-    ended_at: Optional[datetime] = Field(None, description="End time")
-    duration_seconds: Optional[int] = Field(None, description="Duration in seconds")
+    ended_at: datetime | None = Field(None, description="End time")
+    duration_seconds: int | None = Field(None, description="Duration in seconds")
 
 
 class PipelineStatusResponse(BaseModel):
@@ -176,6 +185,28 @@ class ErrorDetail(BaseModel):
     """Error detail."""
 
     error: str = Field(..., description="Error message")
-    code: Optional[str] = Field(None, description="Error code")
-    details: Optional[dict[str, Any]] = Field(None, description="Additional details")
+    code: str | None = Field(None, description="Error code")
+    details: dict[str, Any] | None = Field(None, description="Additional details")
     timestamp: datetime = Field(..., description="Error timestamp")
+
+
+# ============================================================================
+# Auth Schemas
+# ============================================================================
+
+
+class SessionRequest(BaseModel):
+    """Request to exchange an API key for a browser session."""
+
+    api_key: str | None = Field(None, description="API key to exchange")
+
+
+class SessionResponse(BaseModel):
+    """Issued browser session.
+
+    The session token itself is not in the body on purpose — it is set as an
+    HttpOnly cookie so JavaScript cannot read or leak it.
+    """
+
+    csrf_token: str = Field(..., description="Token to echo back in X-CSRF-Token")
+    expires_in: int = Field(..., description="Session lifetime in seconds")

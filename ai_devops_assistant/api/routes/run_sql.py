@@ -2,11 +2,13 @@
 
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from ai_devops_assistant.api.auth import limiter
 from ai_devops_assistant.api.dependencies import get_db_session
 from ai_devops_assistant.api.schemas import SQLQueryRequest, SQLQueryResponse
+from ai_devops_assistant.config.settings import settings
 from ai_devops_assistant.tools.sql_tool import SQLQueryTool
 
 logger = logging.getLogger(__name__)
@@ -15,14 +17,17 @@ router = APIRouter(prefix="/run_sql", tags=["sql"])
 
 
 @router.post("", response_model=SQLQueryResponse)
+@limiter.limit(settings.RATE_LIMIT_SQL)
 async def run_sql(
-    request: SQLQueryRequest,
+    request: Request,
+    sql_request: SQLQueryRequest,
     db_session: AsyncSession = Depends(get_db_session),
 ) -> SQLQueryResponse:
     """Execute a safe SQL query and return results.
 
     Args:
-        request: SQL query request
+        request: Raw HTTP request (required by the rate limiter)
+        sql_request: SQL query request
         db_session: Database session
 
     Returns:
@@ -34,7 +39,7 @@ async def run_sql(
         sql_tool.set_session(db_session)
 
         # Validate query safety before execution
-        is_safe, validation_error = sql_tool.validate_sql_injection(request.query)
+        is_safe, validation_error = sql_tool.validate_sql_injection(sql_request.query)
         if not is_safe:
             raise HTTPException(
                 status_code=400,
@@ -42,10 +47,10 @@ async def run_sql(
             )
 
         # Execute query
-        logger.info(f"Executing SQL query: {request.query[:100]}...")
+        logger.info(f"Executing SQL query: {sql_request.query[:100]}...")
         result = await sql_tool.execute(
-            query=request.query,
-            limit=request.limit,
+            query=sql_request.query,
+            limit=sql_request.limit,
         )
 
         if not result.get("success"):

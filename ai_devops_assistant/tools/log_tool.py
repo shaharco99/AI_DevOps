@@ -2,11 +2,12 @@
 
 import logging
 from datetime import datetime, timedelta
-from typing import Any, Optional
+from typing import Any
 
 from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from ai_devops_assistant.database.context import get_current_session
 from ai_devops_assistant.database.models import ApplicationLog
 from ai_devops_assistant.tools.base import BaseTool
 
@@ -22,17 +23,30 @@ class LogAnalysisTool(BaseTool):
             name="log_analysis_tool",
             description="Search and analyze application logs and pipeline logs.",
         )
-        self.session: Optional[AsyncSession] = None
+        self._session: AsyncSession | None = None
+
+    @property
+    def session(self) -> AsyncSession | None:
+        """The caller's session.
+
+        Prefers the request-scoped context so this shared tool instance never
+        serves one request using another's session. self._session remains for
+        direct construction in tests and scripts.
+        """
+        return get_current_session() or self._session
 
     def set_session(self, session: AsyncSession) -> None:
         """Set database session."""
-        self.session = session
+        self._session = session
 
-    async def execute(
+    # Narrows BaseTool.execute(**kwargs) to this tool's named parameters. The
+    # registry always dispatches by keyword and validate_parameters() guards the
+    # required ones, so the narrowing is deliberate; mypy cannot express it.
+    async def execute(  # type: ignore[override]
         self,
         query: str,
         log_type: str = "application",
-        level: Optional[str] = None,
+        level: str | None = None,
         time_range_hours: int = 24,
         limit: int = 100,
         **kwargs,
@@ -76,7 +90,7 @@ class LogAnalysisTool(BaseTool):
     async def _search_application_logs(
         self,
         query: str,
-        level: Optional[str] = None,
+        level: str | None = None,
         time_range_hours: int = 24,
         limit: int = 100,
     ) -> dict[str, Any]:
@@ -133,7 +147,7 @@ class LogAnalysisTool(BaseTool):
             return "No logs found matching the query."
 
         # Count by level
-        level_counts = {}
+        level_counts: dict[str, int] = {}
         for log in logs:
             level = log.get("level", "UNKNOWN")
             level_counts[level] = level_counts.get(level, 0) + 1

@@ -18,7 +18,7 @@ spec:
       enableServiceLinks: false
       containers:
       - name: chroma
-        image: chromadb/chroma:latest
+        image: chromadb/chroma:0.5.4
         ports:
         - containerPort: 8000
         volumeMounts:

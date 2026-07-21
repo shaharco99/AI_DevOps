@@ -2,6 +2,7 @@
 
 import logging
 from collections.abc import AsyncGenerator
+from typing import Any
 
 from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
@@ -10,7 +11,10 @@ from ai_devops_assistant.config.settings import settings
 
 logger = logging.getLogger(__name__)
 
-engine_kwargs = {
+# Annotated because the values are heterogeneous (bool, int, dict); without it
+# the type is inferred as dict[str, bool] from this first entry and every pool
+# setting below is an error.
+engine_kwargs: dict[str, Any] = {
     "echo": settings.DATABASE_ECHO,
 }
 
@@ -24,6 +28,10 @@ if url.drivername.startswith("sqlite"):
 else:
     engine_kwargs["pool_size"] = settings.DATABASE_POOL_SIZE
     engine_kwargs["max_overflow"] = settings.DATABASE_MAX_OVERFLOW
+    engine_kwargs["pool_timeout"] = settings.DATABASE_POOL_TIMEOUT
+    # Detect stale/killed connections and recycle before typical idle-timeout cutoffs
+    engine_kwargs["pool_pre_ping"] = True
+    engine_kwargs["pool_recycle"] = settings.DATABASE_POOL_RECYCLE
 
 # Create async engine
 engine = create_async_engine(database_url, **engine_kwargs)

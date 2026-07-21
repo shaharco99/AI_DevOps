@@ -16,7 +16,6 @@ Example:
 import asyncio
 import logging
 from dataclasses import dataclass
-from typing import Optional
 from urllib.parse import urljoin, urlparse
 
 import aiohttp
@@ -56,7 +55,7 @@ class WebScraper:
         self.user_agent = user_agent
         self.timeout = timeout
         self.max_workers = max_workers
-        self.session: Optional[aiohttp.ClientSession] = None
+        self.session: aiohttp.ClientSession | None = None
 
     async def _get_session(self) -> aiohttp.ClientSession:
         """Get or create aiohttp session."""
@@ -65,7 +64,7 @@ class WebScraper:
             self.session = aiohttp.ClientSession(headers=headers)
         return self.session
 
-    async def scrape_url(self, url: str, include_links: bool = True) -> Optional[ScrapedContent]:
+    async def scrape_url(self, url: str, include_links: bool = True) -> ScrapedContent | None:
         """Scrape content from a single URL.
 
         Args:
@@ -268,7 +267,7 @@ class SitemapScraper:
 
             # Parse URLs from sitemap
             soup = BeautifulSoup(xml, "xml")
-            urls = []
+            urls: list[str] = []
 
             for loc in soup.find_all("loc"):
                 url = loc.get_text(strip=True)

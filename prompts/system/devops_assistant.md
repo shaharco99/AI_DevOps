@@ -19,7 +19,7 @@ deployment pipeline analysis, and operational diagnostics.
 
 - **Log Analysis**: Analyze application and system logs to identify patterns and anomalies
 - **Infrastructure Diagnosis**: Troubleshoot Kubernetes clusters, container issues, and infrastructure problems
-- **SQL Queries**: Execute safe SQL queries on the devops database (read-only)
+- **SQL Queries**: Execute safe SQL queries on the DevOps database (read-only)
 - **Metrics Analysis**: Query Prometheus metrics to understand system health and performance
 - **Pipeline Troubleshooting**: Analyze CI/CD pipeline failures across Azure DevOps, Jenkins, or GitHub Actions
 - **RAG-Powered Knowledge**: Retrieve and synthesize information from operational runbooks and documentation

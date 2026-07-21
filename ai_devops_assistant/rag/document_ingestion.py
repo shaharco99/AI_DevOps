@@ -3,7 +3,7 @@
 import logging
 import uuid
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import Any
 
 from ai_devops_assistant.config.settings import settings
 from ai_devops_assistant.rag.vector_store import get_vector_store_service
@@ -31,7 +31,7 @@ class TextChunker:
         self.chunk_overlap = chunk_overlap
         self.strategy = strategy
 
-    def chunk_text(self, text: str) -> List[str]:
+    def chunk_text(self, text: str) -> list[str]:
         """Split text into chunks using specified strategy.
 
         Args:
@@ -47,7 +47,7 @@ class TextChunker:
         else:
             return self._chunk_fixed(text)
 
-    def _chunk_fixed(self, text: str) -> List[str]:
+    def _chunk_fixed(self, text: str) -> list[str]:
         """Fixed-size chunking."""
         chunks = []
         start = 0
@@ -59,10 +59,11 @@ class TextChunker:
             start = end - self.chunk_overlap
         return chunks
 
-    def _chunk_by_sentence(self, text: str) -> List[str]:
+    def _chunk_by_sentence(self, text: str) -> list[str]:
         """Chunk by sentences."""
         import re
-        sentences = re.split(r'(?<=[.!?])\s+', text)
+
+        sentences = re.split(r"(?<=[.!?])\s+", text)
         chunks = []
         current_chunk = ""
 
@@ -79,9 +80,9 @@ class TextChunker:
 
         return chunks
 
-    def _chunk_by_paragraph(self, text: str) -> List[str]:
+    def _chunk_by_paragraph(self, text: str) -> list[str]:
         """Chunk by paragraphs."""
-        paragraphs = text.split('\n\n')
+        paragraphs = text.split("\n\n")
         chunks = []
         current_chunk = ""
 
@@ -114,11 +115,8 @@ class DocumentLoader:
         }
 
     def load_text(
-        self,
-        content: str,
-        metadata: Dict[str, Any],
-        chunk_strategy: str = "fixed"
-    ) -> List[Dict[str, Any]]:
+        self, content: str, metadata: dict[str, Any], chunk_strategy: str = "fixed"
+    ) -> list[dict[str, Any]]:
         """Load text content.
 
         Args:
@@ -135,25 +133,29 @@ class DocumentLoader:
         documents = []
         for i, chunk in enumerate(chunks):
             doc_metadata = dict(metadata)
-            doc_metadata.update({
-                "chunk_index": i,
-                "total_chunks": len(chunks),
-                "chunk_strategy": chunk_strategy,
-            })
-            documents.append({
-                "content": chunk,
-                "metadata": doc_metadata,
-                "id": str(uuid.uuid4()),
-            })
+            doc_metadata.update(
+                {
+                    "chunk_index": i,
+                    "total_chunks": len(chunks),
+                    "chunk_strategy": chunk_strategy,
+                }
+            )
+            documents.append(
+                {
+                    "content": chunk,
+                    "metadata": doc_metadata,
+                    "id": str(uuid.uuid4()),
+                }
+            )
 
         return documents
 
     def load_file(
         self,
-        file_path: Union[str, Path],
-        metadata: Optional[Dict[str, Any]] = None,
-        chunk_strategy: str = "fixed"
-    ) -> List[Dict[str, Any]]:
+        file_path: str | Path,
+        metadata: dict[str, Any] | None = None,
+        chunk_strategy: str = "fixed",
+    ) -> list[dict[str, Any]]:
         """Load document from file.
 
         Args:
@@ -169,8 +171,8 @@ class DocumentLoader:
             raise FileNotFoundError(f"File not found: {file_path}")
 
         # Read file content
-        if path.suffix.lower() in ['.md', '.txt', '.py', '.yaml', '.yml', '.json']:
-            with open(path, 'r', encoding='utf-8') as f:
+        if path.suffix.lower() in [".md", ".txt", ".py", ".yaml", ".yml", ".json"]:
+            with open(path, encoding="utf-8") as f:
                 content = f.read()
         else:
             raise ValueError(f"Unsupported file type: {path.suffix}")
@@ -188,11 +190,8 @@ class DocumentLoader:
         return self.load_text(content, file_metadata, chunk_strategy)
 
     def load_url(
-        self,
-        url: str,
-        metadata: Optional[Dict[str, Any]] = None,
-        chunk_strategy: str = "fixed"
-    ) -> List[Dict[str, Any]]:
+        self, url: str, metadata: dict[str, Any] | None = None, chunk_strategy: str = "fixed"
+    ) -> list[dict[str, Any]]:
         """Load document from URL (requires content to be provided).
 
         Args:
@@ -237,10 +236,7 @@ class DocumentIngestionService:
         self.vector_store = get_vector_store_service()
 
     def ingest_text(
-        self,
-        content: str,
-        metadata: Dict[str, Any],
-        chunk_strategy: Optional[str] = None
+        self, content: str, metadata: dict[str, Any], chunk_strategy: str | None = None
     ) -> int:
         """Ingest text content.
 
@@ -270,9 +266,9 @@ class DocumentIngestionService:
 
     def ingest_file(
         self,
-        file_path: Union[str, Path],
-        metadata: Optional[Dict[str, Any]] = None,
-        chunk_strategy: Optional[str] = None
+        file_path: str | Path,
+        metadata: dict[str, Any] | None = None,
+        chunk_strategy: str | None = None,
     ) -> int:
         """Ingest document from file.
 
@@ -300,30 +296,10 @@ class DocumentIngestionService:
         logger.info(f"Ingested {len(documents)} chunks from file: {file_path}")
         return len(documents)
 
-    def ingest_documents(
+    def ingest_document(
         self,
-        documents: List[Dict[str, Any]],
-    ) -> int:
-        """Ingest multiple documents.
-
-        Args:
-            documents: List of document dicts with 'content', 'metadata', 'id' keys
-
-        Returns:
-            Total number of chunks ingested
-        """
-        if not documents:
-            return 0
-
-        # Add to vector store
-        self.vector_store.add_documents(
-            documents=[doc["content"] for doc in documents],
-            ids=[doc.get("id", str(uuid.uuid4())) for doc in documents],
-            metadatas=[doc.get("metadata", {}) for doc in documents],
-        )
-
-        logger.info(f"Ingested {len(documents)} documents")
-        return len(documents)
+        title: str,
+        content: str,
         source: str,
         category: str = "general",
     ) -> None:
@@ -339,8 +315,10 @@ class DocumentIngestionService:
             ValueError: If ingestion fails
         """
         try:
-            # Chunk document
-            chunks = self.chunk_text(content)
+            # Chunk document. The chunkers live on the loader (see DocumentLoader.load_text);
+            # this class has no chunk_text of its own.
+            chunker = self.loader.chunkers.get(self.chunk_strategy, self.loader.chunkers["fixed"])
+            chunks = chunker.chunk_text(content)
             logger.info(f"Ingesting '{title}' with {len(chunks)} chunks")
 
             # Generate IDs and metadatas

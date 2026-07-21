@@ -2,16 +2,15 @@
 
 from __future__ import annotations
 
-import asyncio
 import contextvars
-import json
 import logging
 import threading
 import time
 import uuid
 from collections import defaultdict, deque
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Union
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -73,28 +72,30 @@ class TraceSpan:
     name: str
     service: str
     start_time: float = field(default_factory=time.time)
-    end_time: Optional[float] = None
-    duration_ms: Optional[float] = None
+    end_time: float | None = None
+    duration_ms: float | None = None
     trace_id: str = field(default_factory=get_trace_id)
     span_id: str = field(default_factory=generate_span_id)
-    parent_span_id: Optional[str] = None
-    tags: Dict[str, Any] = field(default_factory=dict)
-    events: List[Dict[str, Any]] = field(default_factory=list)
-    error: Optional[str] = None
+    parent_span_id: str | None = None
+    tags: dict[str, Any] = field(default_factory=dict)
+    events: list[dict[str, Any]] = field(default_factory=list)
+    error: str | None = None
 
-    def add_event(self, name: str, attributes: Optional[Dict[str, Any]] = None) -> None:
+    def add_event(self, name: str, attributes: dict[str, Any] | None = None) -> None:
         """Add an event to the span."""
-        self.events.append({
-            "name": name,
-            "timestamp": time.time(),
-            "attributes": attributes or {},
-        })
+        self.events.append(
+            {
+                "name": name,
+                "timestamp": time.time(),
+                "attributes": attributes or {},
+            }
+        )
 
     def set_tag(self, key: str, value: Any) -> None:
         """Set a tag on the span."""
         self.tags[key] = value
 
-    def finish(self, error: Optional[str] = None) -> None:
+    def finish(self, error: str | None = None) -> None:
         """Finish the span."""
         self.end_time = time.time()
         self.duration_ms = (self.end_time - self.start_time) * 1000
@@ -112,23 +113,23 @@ class LLMTrace:
     trace_id: str = field(default_factory=get_trace_id)
     span_id: str = field(default_factory=generate_span_id)
     started_at: float = field(default_factory=time.perf_counter)
-    metadata: Dict[str, Any] = field(default_factory=dict)
-    prompt_tokens: Optional[int] = None
-    completion_tokens: Optional[int] = None
-    total_tokens: Optional[int] = None
-    temperature: Optional[float] = None
-    max_tokens: Optional[int] = None
-    response: Optional[str] = None
-    error: Optional[str] = None
-    latency_ms: Optional[float] = None
+    metadata: dict[str, Any] = field(default_factory=dict)
+    prompt_tokens: int | None = None
+    completion_tokens: int | None = None
+    total_tokens: int | None = None
+    temperature: float | None = None
+    max_tokens: int | None = None
+    response: str | None = None
+    error: str | None = None
+    latency_ms: float | None = None
 
     def complete(
         self,
-        response: Optional[str] = None,
-        error: Optional[str] = None,
-        prompt_tokens: Optional[int] = None,
-        completion_tokens: Optional[int] = None,
-        total_tokens: Optional[int] = None,
+        response: str | None = None,
+        error: str | None = None,
+        prompt_tokens: int | None = None,
+        completion_tokens: int | None = None,
+        total_tokens: int | None = None,
     ) -> None:
         """Emit structured completion log."""
         self.latency_ms = round((time.perf_counter() - self.started_at) * 1000, 2)
@@ -172,10 +173,14 @@ class MetricsCollector:
         self._lock = threading.Lock()
 
         # Metrics storage
-        self.llm_requests = deque(maxlen=max_history)
-        self.errors = deque(maxlen=max_history)
-        self.latencies = defaultdict(lambda: deque(maxlen=max_history))
-        self.token_usage = defaultdict(lambda: deque(maxlen=max_history))
+        self.llm_requests: deque[dict[str, Any]] = deque(maxlen=max_history)
+        self.errors: deque[dict[str, Any]] = deque(maxlen=max_history)
+        self.latencies: defaultdict[str, deque[float]] = defaultdict(
+            lambda: deque(maxlen=max_history)
+        )
+        self.token_usage: defaultdict[str, deque[int]] = defaultdict(
+            lambda: deque(maxlen=max_history)
+        )
 
         # Aggregated metrics
         self.total_requests = 0
@@ -185,26 +190,30 @@ class MetricsCollector:
     def record_llm_request(self, trace: LLMTrace) -> None:
         """Record an LLM request for metrics collection."""
         with self._lock:
-            self.llm_requests.append({
-                "timestamp": time.time(),
-                "provider": trace.provider,
-                "model": trace.model,
-                "latency_ms": trace.latency_ms,
-                "prompt_tokens": trace.prompt_tokens,
-                "completion_tokens": trace.completion_tokens,
-                "total_tokens": trace.total_tokens,
-                "error": trace.error is not None,
-            })
+            self.llm_requests.append(
+                {
+                    "timestamp": time.time(),
+                    "provider": trace.provider,
+                    "model": trace.model,
+                    "latency_ms": trace.latency_ms,
+                    "prompt_tokens": trace.prompt_tokens,
+                    "completion_tokens": trace.completion_tokens,
+                    "total_tokens": trace.total_tokens,
+                    "error": trace.error is not None,
+                }
+            )
 
             self.total_requests += 1
             if trace.error:
                 self.total_errors += 1
-                self.errors.append({
-                    "timestamp": time.time(),
-                    "provider": trace.provider,
-                    "model": trace.model,
-                    "error": trace.error,
-                })
+                self.errors.append(
+                    {
+                        "timestamp": time.time(),
+                        "provider": trace.provider,
+                        "model": trace.model,
+                        "error": trace.error,
+                    }
+                )
 
             if trace.total_tokens:
                 self.total_tokens += trace.total_tokens
@@ -217,7 +226,7 @@ class MetricsCollector:
             if trace.total_tokens:
                 self.token_usage[trace.model].append(trace.total_tokens)
 
-    def get_metrics_summary(self) -> Dict[str, Any]:
+    def get_metrics_summary(self) -> dict[str, Any]:
         """Get current metrics summary."""
         with self._lock:
             current_time = time.time()
@@ -276,20 +285,24 @@ class MetricsCollector:
 
         # Per-model metrics
         for model, avg_latency in metrics["average_latencies_by_model"].items():
-            lines.extend([
-                f"# HELP ai_llm_latency_ms_avg Average latency in milliseconds for {model}",
-                f"# TYPE ai_llm_latency_ms_avg gauge",
-                f'ai_llm_latency_ms_avg{{model="{model}"}} {avg_latency}',
-                "",
-            ])
+            lines.extend(
+                [
+                    f"# HELP ai_llm_latency_ms_avg Average latency in milliseconds for {model}",
+                    "# TYPE ai_llm_latency_ms_avg gauge",
+                    f'ai_llm_latency_ms_avg{{model="{model}"}} {avg_latency}',
+                    "",
+                ]
+            )
 
         for model, avg_tokens in metrics["average_tokens_by_model"].items():
-            lines.extend([
-                f"# HELP ai_llm_tokens_avg Average tokens per request for {model}",
-                f"# TYPE ai_llm_tokens_avg gauge",
-                f'ai_llm_tokens_avg{{model="{model}"}} {avg_tokens}',
-                "",
-            ])
+            lines.extend(
+                [
+                    f"# HELP ai_llm_tokens_avg Average tokens per request for {model}",
+                    "# TYPE ai_llm_tokens_avg gauge",
+                    f'ai_llm_tokens_avg{{model="{model}"}} {avg_tokens}',
+                    "",
+                ]
+            )
 
         return "\n".join(lines)
 
@@ -299,15 +312,15 @@ class ObservabilityManager:
 
     def __init__(self):
         self.metrics_collector = MetricsCollector()
-        self.active_traces: Dict[str, TraceSpan] = {}
+        self.active_traces: dict[str, TraceSpan] = {}
         self._lock = threading.Lock()
 
     def start_trace(
         self,
         name: str,
         service: str = "ai-devops-assistant",
-        parent_span_id: Optional[str] = None,
-        tags: Optional[Dict[str, Any]] = None,
+        parent_span_id: str | None = None,
+        tags: dict[str, Any] | None = None,
     ) -> TraceSpan:
         """Start a new trace span."""
         span = TraceSpan(
@@ -325,7 +338,7 @@ class ObservabilityManager:
 
         return span
 
-    def finish_trace(self, span: TraceSpan, error: Optional[str] = None) -> None:
+    def finish_trace(self, span: TraceSpan, error: str | None = None) -> None:
         """Finish a trace span."""
         span.finish(error)
 
@@ -353,19 +366,14 @@ class ObservabilityManager:
             logger.info("Trace span completed", extra=log_data)
 
     async def trace_llm_call(
-        self,
-        provider: str,
-        model: str,
-        prompt: str,
-        call_fn: callable,
-        **kwargs
+        self, provider: str, model: str, prompt: str, call_fn: Callable[..., Any], **kwargs
     ) -> str:
         """Trace an LLM call with automatic metrics collection."""
         # Start trace span
         span = self.start_trace(
             name=f"llm_call_{provider}_{model}",
             service="llm_service",
-            tags={"provider": provider, "model": model, "operation": "generate"}
+            tags={"provider": provider, "model": model, "operation": "generate"},
         )
 
         # Create LLM trace
@@ -377,11 +385,14 @@ class ObservabilityManager:
             max_tokens=kwargs.get("max_tokens"),
         )
 
-        span.add_event("llm_request_started", {
-            "prompt_length": len(prompt),
-            "temperature": kwargs.get("temperature"),
-            "max_tokens": kwargs.get("max_tokens"),
-        })
+        span.add_event(
+            "llm_request_started",
+            {
+                "prompt_length": len(prompt),
+                "temperature": kwargs.get("temperature"),
+                "max_tokens": kwargs.get("max_tokens"),
+            },
+        )
 
         try:
             # Make the call
@@ -390,15 +401,18 @@ class ObservabilityManager:
             # Complete trace
             trace.complete(
                 response=response,
-                prompt_tokens=getattr(response, 'prompt_tokens', None),
-                completion_tokens=getattr(response, 'completion_tokens', None),
-                total_tokens=getattr(response, 'total_tokens', None),
+                prompt_tokens=getattr(response, "prompt_tokens", None),
+                completion_tokens=getattr(response, "completion_tokens", None),
+                total_tokens=getattr(response, "total_tokens", None),
             )
 
-            span.add_event("llm_request_completed", {
-                "response_length": len(response) if isinstance(response, str) else 0,
-                "tokens_used": trace.total_tokens,
-            })
+            span.add_event(
+                "llm_request_completed",
+                {
+                    "response_length": len(response) if isinstance(response, str) else 0,
+                    "tokens_used": trace.total_tokens,
+                },
+            )
 
             self.finish_trace(span)
             self.metrics_collector.record_llm_request(trace)
@@ -417,9 +431,9 @@ class ObservabilityManager:
 
     def get_metrics_endpoint(self) -> str:
         """Get Prometheus metrics for HTTP endpoint."""
-        return self.metrics_collector.get_prometheus_metrics()
+        return str(self.metrics_collector.get_prometheus_metrics())
 
-    def get_health_status(self) -> Dict[str, Any]:
+    def get_health_status(self) -> dict[str, Any]:
         """Get system health status."""
         metrics = self.metrics_collector.get_metrics_summary()
 
@@ -447,7 +461,7 @@ observability_manager = ObservabilityManager()
 
 
 # Convenience functions
-def start_request_trace(request_id: Optional[str] = None) -> str:
+def start_request_trace(request_id: str | None = None) -> str:
     """Start tracing for a new request."""
     req_id = request_id or generate_request_id()
     trace_id = generate_trace_id()
@@ -456,16 +470,14 @@ def start_request_trace(request_id: Optional[str] = None) -> str:
     set_trace_id(trace_id)
 
     # Start root span
-    span = observability_manager.start_trace(
-        name="http_request",
-        service="ai-devops-assistant",
-        tags={"request_id": req_id}
+    observability_manager.start_trace(
+        name="http_request", service="ai-devops-assistant", tags={"request_id": req_id}
     )
 
     return req_id
 
 
-def finish_request_trace(error: Optional[str] = None) -> None:
+def finish_request_trace(error: str | None = None) -> None:
     """Finish tracing for the current request."""
     # Find and finish the root span
     current_span_id = get_span_id()
@@ -476,21 +488,21 @@ def finish_request_trace(error: Optional[str] = None) -> None:
                 observability_manager.finish_trace(span, error)
 
 
-# Context manager for automatic trace management
-class trace_context:
+# Context manager for automatic trace management.
+# Lowercase name is deliberate: this is used as `with trace_context(...)`, following
+# the contextlib naming convention rather than the CapWords class convention.
+class trace_context:  # noqa: N801
     """Context manager for automatic span tracing."""
 
     def __init__(self, name: str, service: str = "ai-devops-assistant", **tags):
         self.name = name
         self.service = service
         self.tags = tags
-        self.span: Optional[TraceSpan] = None
+        self.span: TraceSpan | None = None
 
     def __enter__(self) -> TraceSpan:
         self.span = observability_manager.start_trace(
-            name=self.name,
-            service=self.service,
-            tags=self.tags
+            name=self.name, service=self.service, tags=self.tags
         )
         return self.span
 
