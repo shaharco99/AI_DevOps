@@ -1,14 +1,10 @@
 [files]
 extend-exclude = [
-
-]
-
-[default]
-extend-ignore-re = [
-    # Example: ignore string which contains $0, which is used widely in tests
-    #".*\\$0.*",
-    # Example:  ignore generated content like `boxed....nner()`, `Defaul...efault`
-    #"\\w*\\.{3,4}\\w*",
+    # These tests feed deliberately misspelled SQL (`nmae`, `SELCT`) to the
+    # auto-correction engine.
+    "tests/unit/test_sql_correction.py",
+    "tests/unit/test_sql_correction_advanced.py",
+    "tests/integration/test_sql_tool_correction.py",
 ]
 
 [default.extend-words]
@@ -17,7 +13,10 @@ Ot = "Ot"
 fo = "fo"
 Fo = "Fo"
 ba = "ba"
+# Azure Kubernetes Service, HashiCorp Vault, and an accepted spelling.
+AKS = "AKS"
+Hashi = "Hashi"
+unparseable = "unparseable"
 
 [default.extend-identifiers]
-#datas = "datas"
 excute = "excute"
