@@ -1,4 +1,4 @@
-# ADR-0001: ai-devops is the merge base
+# ADR-0001: ai-DevOps is the merge base
 
 Date: 2026-07-18 · Status: accepted
 
@@ -12,7 +12,7 @@ chat whose streaming and upload were both broken.
 
 ## Decision
 
-Merge MCP into ai-devops, preserving history. ai-devops contributes the
+Merge MCP into ai-DevOps, preserving history. ai-DevOps contributes the
 infrastructure; MCP contributes domain logic.
 
 ## Consequences
@@ -23,5 +23,5 @@ MCP's desktop GUI is retired rather than ported: it cannot serve a web backend,
 and its two headline features did not work.
 
 The alternative — a fresh repository — would have rebuilt CI, the Helm chart and
-branch protection for no benefit, since ai-devops's CI was already the stronger
+branch protection for no benefit, since ai-DevOps's CI was already the stronger
 of the two.

@@ -8,6 +8,7 @@ Updated: 2026-07-18 | Phase: 2 | Branch: `feature/merge-mcp`
 **The merge is complete.** All 8 phases done, all lint exclusions cleared.
 
 Remaining follow-ups, none blocking:
+
 - `OllamaRegistry` still implements the async `ModelRegistry` base synchronously
   (CLI-only code; `CompositeRegistry.registries` is typed `Any` because of it).
 - `QueryRouter`/`ReflectionAgent` (plan 7.4) were not ported. `enable_reflection`
@@ -22,7 +23,8 @@ Remaining follow-ups, none blocking:
 
 ## Gate status: 5/5 green
 
-`ruff` · `black` · `isort` · `pylint 9.78` · `mypy 0 errors` · `pytest 478` (492 w/ Postgres+Redis) + 38 JS · **zero lint exclusions**
+`ruff` · `black` · `isort` · `pylint 9.78` · `mypy 0 errors` · `pytest 478` (492 w/ Postgres+Redis),
+38 JS · **zero lint exclusions**
 Always verify with the CI-pinned linter versions (see Key facts).
 Suite grew 37 -> 478 Python + 38 JS across the merge.
 JS tests: `node --test tests/js/*.test.js` (node's built-in runner, zero npm deps).
@@ -33,7 +35,7 @@ JS tests: `node --test tests/js/*.test.js` (node's built-in runner, zero npm dep
   - [x] 0.1 commit MCP dirty tree on RAG + tag `pre-merge-snapshot` (950cefc)
   - [x] 0.2 secret sweep — clean, see Key facts
   - [x] 0.3 accept DB binaries + gitignore `*.db`
-  - [x] 0.4 baseline CI — 4/5 gates green; mypy red (above)
+  - [x] 0.4 baseline CI — 4/5 gates green; MyPy red (above)
 - [x] 1 History merge — merge commit `e7cbec1`, 178 files, blame preserved
   - [x] 1.1 relocate (10 src + 12 tests/fixtures + 8 docs, all rename-only)
   - [x] 1.2 delete 6 dead modules, each verified unreferenced first
@@ -49,7 +51,7 @@ JS tests: `node --test tests/js/*.test.js` (node's built-in runner, zero npm dep
   - [x] 3.1 purified: `validate_and_fix_sql(sql, schema)`, no module globals
   - [x] 3.2 guard runs before AND after correction
   - [x] 3.3 dialect gate — landmine confirmed real, then defused
-  - [x] 3.4 NL->SQL returns (sql, params); no interpolation
+  - [x] 3.4 NL->SQL returns (SQL, params); no interpolation
   - [x] 3.5 tests ported; all phase-3 lint exclusions removed
 - [x] 4 MCP server — verified with a real MCP client: handshake, tools/list, tools/call
   - [x] 4.1 adapter; MCP + REST share one registry, asserted by test
@@ -59,7 +61,7 @@ JS tests: `node --test tests/js/*.test.js` (node's built-in runner, zero npm dep
   - [x] 4.5 refuses to start in production without MCP_AUTH_TOKEN
 - [x] 5 LLM consolidation — one abstraction; `_legacy/` deleted; real streaming live
   - [x] 5.1 messages-first ABC; chat/stream_chat abstract, generate inherited
-  - [x] 5.2 `get_llm_service()` -> `LLMFactory`; anthropic_service deleted
+  - [x] 5.2 `get_llm_service()` -> `LLMFactory`; Anthropic_service deleted
   - [x] 5.3 system prompt ported to `prompts/system/devops_assistant_v2.0.md`
   - [x] 5.4 real token deltas; placeholder chunking removed
 - [x] 6 Security — all 15 items closed; verified by building the real image
@@ -81,7 +83,7 @@ JS tests: `node --test tests/js/*.test.js` (node's built-in runner, zero npm dep
   detect-secrets on the tree = 2 false positives; credential-pattern scan across all 546
   history objects = 0 hits. No rotation, no history rewrite.
 - `DB/database.db` 0B, `Tests_DB.db` 8KB → accepted, not purged.
-- ai-devops deps already `==` pinned; missing piece is a hash lockfile.
+- ai-DevOps deps already `==` pinned; missing piece is a hash lockfile.
 - **RAG was entirely dead**, not merely misconfigured: 4 files had syntax errors since
   f00ee1d, so `import ai_devops_assistant.rag` raised and agent.py logged "RAG pipeline
   not available". Fixed in e6c31c2 + c98f56c. The Chroma `chroma_db_impl` issue the plan
@@ -95,15 +97,15 @@ JS tests: `node --test tests/js/*.test.js` (node's built-in runner, zero npm dep
 Measured on the merged tree, compared against the pre-merge baseline:
 
 | Check | Result |
-|---|---|
+| --- | --- |
 | Path collisions | **0** — set comparison of both file lists before merging |
 | Merge conflicts | **0** |
 | File count | 138 + 40 = **178**, set-compared: nothing extra, nothing missing |
 | Blame | `git blame sql_correction.py` shows `LLM_CI/database_tools.py`, orig. author/date |
 | MCP history | 44 commits reachable; merge commit has 2 parents |
-| mypy | **124 errors / 28 files — identical to baseline**, merge added zero |
-| pylint | 9.78/10 (baseline 9.77) |
-| ruff / black / isort | pass; 68 files still checked (unchanged), `agent.py` still linted |
+| MyPy | **124 errors / 28 files — identical to baseline**, merge added zero |
+| Pylint | 9.78/10 (baseline 9.77) |
+| Ruff / Black / isort | pass; 68 files still checked (unchanged), `agent.py` still linted |
 | pytest | 37 collected, 37 pass; **0** collected from `tests/mcp` |
 | App | `create_app()` builds, **16 routes — identical surface** |
 | Merged code inert | no MCP module in `sys.modules` after `create_app()` |
@@ -112,8 +114,8 @@ Measured on the merged tree, compared against the pre-merge baseline:
 
 <!-- deviations from the plan only; format: date — decision — why -->
 
-- 2026-07-18 — bumped the web stack (fastapi 0.115.6, starlette 0.41.3, httpx 0.28.1,
-  uvicorn 0.34.0, python-dotenv 1.2.2). fastmcp's transitive mcp SDK needs httpx>=0.28,
+- 2026-07-18 — bumped the web stack (FastAPI 0.115.6, starlette 0.41.3, httpx 0.28.1,
+  uvicorn 0.34.0, Python-dotenv 1.2.2). fastmcp's transitive mcp SDK needs httpx>=0.28,
   which breaks starlette 0.36's TestClient. Shipping unsatisfied pins was the alternative.
   Full suite verified on the new stack before the pins changed.
 
@@ -150,7 +152,7 @@ gates run over the whole tree. See "Now" for non-blocking follow-ups.
 
 <!-- newest first: YYYY-MM-DD | phase | what landed | commit -->
 
-- 2026-07-18 | 7 | loaders, /rag/ingest, ADRs; exclusions cleared (+29) | c73a464
+- 2026-07-18 | 7 | loaders, /RAG/ingest, ADRs; exclusions cleared (+29) | c73a464
 - 2026-07-18 | 7 | session bleed fixed, Redis store, dead code (+19) | b039178
 - 2026-07-18 | 6 | fail-closed config, LLM01 fencing, lockfile (+61 tests) | 5683dcb
 - 2026-07-18 | 5 | messages-first providers; _legacy deleted (+57 tests) | 54b8daf
@@ -160,12 +162,12 @@ gates run over the whole tree. See "Now" for non-blocking follow-ups.
 - 2026-07-18 | 2 | SSE endpoint POST /chat/stream (+17 tests) | 6dc5dc6
 - 2026-07-18 | 2 | cookie session auth (+25 tests) | 5a254f2
 - 2026-07-18 | 2 | chat_stream() + events (+24 tests) | e2eb8f1
-- 2026-07-18 | – | **mypy 124 -> 0; all 5 gates green** | 081a1cc,78ef815,5f624ef
+- 2026-07-18 | – | **MyPy 124 -> 0; all 5 gates green** | 081a1cc,78ef815,5f624ef
 - 2026-07-18 | 1 | time-boxed lint exclusions, 5 tools | da2c12f
 - 2026-07-18 | 1 | union config + regenerated secrets baseline | b51a7e8
 - 2026-07-18 | 1 | **MCP merged, 0 conflicts, history preserved** | e7cbec1
 - 2026-07-18 | 1 | MCP-side: relocate, delete dead, drop configs | f62355c..a46d1c2
-- 2026-07-18 | 0 | ruff/black/isort green + RAG bugs they exposed | c98f56c
+- 2026-07-18 | 0 | Ruff/Black/isort green + RAG bugs they exposed | c98f56c
 - 2026-07-18 | 0 | repaired 4 unparseable files; RAG imports again | e6c31c2
 - 2026-07-18 | 0 | MCP: snapshot commit + tag, `*.db` ignored | 950cefc (MCP repo)
 - 2026-07-18 | 0 | plan approved, progress tracker created | –

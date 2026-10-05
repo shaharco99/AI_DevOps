@@ -51,6 +51,8 @@ class PromptManager:
             loader=FileSystemLoader(str(self.prompts_dir)),
             trim_blocks=True,
             lstrip_blocks=True,
+            # Templates render LLM prompt text, not HTML; escaping would corrupt them.
+            autoescape=False,  # nosec B701
         )
 
     def load_prompt(self, name: str, version: str | None = None) -> Template | None:

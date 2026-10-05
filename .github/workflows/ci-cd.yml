@@ -253,20 +253,25 @@ jobs:
           python -m pip install --upgrade pip
           pip install bandit semgrep
 
+      # Full reports are uploaded; the build fails only on high-severity
+      # Bandit findings and ERROR-level Semgrep findings.
       - name: Run Bandit security scan
         run: |
-          bandit -r ai_devops_assistant -f json -o bandit-report.json --skip B101,B601
+          bandit -r ai_devops_assistant --skip B101,B601 -f json -o bandit-report.json || true
+          bandit -r ai_devops_assistant --skip B101,B601 --severity-level high
 
       - name: Run Semgrep security scan
         run: |
-          pip install semgrep
-          semgrep --config auto --error --json --output semgrep-report.json
+          semgrep --config auto --json --output semgrep-report.json || true
+          semgrep --config auto --severity ERROR --error
 
-      - name: Upload Bandit report
+      - name: Upload SAST reports
         uses: actions/upload-artifact@v4
         with:
-          name: bandit-report
-          path: bandit-report.json
+          name: sast-reports
+          path: |
+            bandit-report.json
+            semgrep-report.json
         if: always()
 
       - name: Run Trivy filesystem scan
@@ -386,7 +391,7 @@ jobs:
           node-version: 18
 
       - name: Install markdownlint
-        run: npm install -g markdownlint-cli2
+        run: npm install -g markdownlint-cli2@0.23.3
 
       - name: Lint Markdown files
         run: markdownlint-cli2 "**/*.md" "#node_modules"

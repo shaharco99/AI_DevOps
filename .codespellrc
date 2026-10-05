@@ -7,10 +7,6 @@ skip = .git,.*,*.pyc,.env.example,*.lock,*.egg-info,build,dist,node_modules
 # Ignore common false positives
 ignore-words-list = cna,nd,sav,ser,ans,pres,hist,thru,teh,uint
 
-# Directories to check recursively
-dirs = .
-include_lines = 0
-
 # Custom dictionary
 # dict =
 
@@ -19,4 +15,3 @@ quiet-level = 2
 
 # Only check these file types
 check-filenames = true
-check-hidden = false

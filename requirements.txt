@@ -16,9 +16,6 @@ asyncpg==0.29.0
 alembic==1.13.0
 
 # AI/ML
-langchain==0.1.7
-langchain-community==0.0.20
-langchain-core==0.1.23
 chromadb==0.4.22
 ollama==0.6.1
 anthropic==0.116.0
