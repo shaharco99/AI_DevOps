@@ -1,13 +1,11 @@
 name: Scheduled Security Scan
 
 on:
+  # Pushes and pull requests are scanned by ci-cd.yml; this catches new CVEs
+  # in unchanged code.
   schedule:
-    # Run daily at 2 AM UTC
-    - cron: '0 2 * * *'
-  push:
-    branches: [ main ]
-  pull_request:
-    branches: [ main ]
+    - cron: '0 2 * * 1'
+  workflow_dispatch:
 
 jobs:
   security-scan:
@@ -21,7 +19,7 @@ jobs:
       uses: actions/checkout@v4
 
     - name: Run Trivy filesystem scan
-      uses: aquasecurity/trivy-action@0.24.0
+      uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8 # v0.36.0
       with:
         scan-type: 'fs'
         scan-ref: '.'
@@ -56,7 +54,9 @@ jobs:
 
     - name: Run dependency vulnerability scan
       run: |
-        pip-audit -r requirements.txt -f json -o pip-audit-report.json
+        # chromadb advisories have no fix and do not apply here; see .trivyignore
+        pip-audit -r requirements.lock --require-hashes -f json -o pip-audit-report.json \
+          --ignore-vuln PYSEC-2026-3813 --ignore-vuln PYSEC-2026-3814
 
     - name: Upload security reports
       uses: actions/upload-artifact@v4

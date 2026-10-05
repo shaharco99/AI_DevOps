@@ -67,9 +67,10 @@ def run_command(cmd: str, capture: bool = True, timeout: int = 10) -> tuple[bool
         Tuple of (success, output)
     """
     try:
+        # Every caller passes a hardcoded command; the shell is needed for redirects.
         result = subprocess.run(
             cmd,
-            shell=True,
+            shell=True,  # nosec B602 # nosemgrep
             capture_output=capture,
             text=True,
             timeout=timeout,

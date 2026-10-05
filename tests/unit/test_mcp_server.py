@@ -34,7 +34,7 @@ class RecordingServer:
         self.registered: list[dict] = []
         self.fail_on = fail_on
 
-    def add_tool(self, fn, name: str, description: str):
+    def tool(self, fn, *, name: str, description: str):
         if name == self.fail_on:
             raise RuntimeError(f"simulated registration failure for {name}")
 
@@ -116,6 +116,23 @@ class TestBuildToolCallable:
         result = await fn(query="x")
         assert result["success"] is False
         assert "tool exploded" in result["error"]
+
+    @pytest.mark.asyncio
+    async def test_each_call_binds_a_database_session(self):
+        """MCP calls skip the REST dependency that binds a session, so the
+        SQL and log tools always answered "Database session not configured"."""
+        from ai_devops_assistant.database.context import get_current_session
+
+        seen = []
+
+        class SessionProbe(DummyTool):
+            async def execute(self, **kwargs):
+                seen.append(get_current_session())
+                return {"success": True}
+
+        await build_tool_callable(SessionProbe())(query="x")
+        assert seen[0] is not None
+        assert get_current_session() is None, "the binding must not leak past the call"
 
     def test_the_callable_carries_the_tools_name_and_description(self):
         fn = build_tool_callable(DummyTool(name="kubernetes_tool"))

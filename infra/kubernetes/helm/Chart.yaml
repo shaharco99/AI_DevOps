@@ -13,13 +13,13 @@ keywords:
   - monitoring
   - observability
 
-home: https://github.com/yourusername/ai-devops-assistant
+home: https://github.com/shaharco99/AI_DevOps
 sources:
-  - https://github.com/yourusername/ai-devops-assistant
+  - https://github.com/shaharco99/AI_DevOps
 
 maintainers:
-  - name: AI DevOps Team
-    email: devops@company.com
+  - name: shaharco99
+    url: https://github.com/shaharco99
 
 dependencies:
   - name: postgresql

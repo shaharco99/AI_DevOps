@@ -14,7 +14,7 @@ The adapter is thin because BaseTool already provides what MCP needs:
   ``{"success": False, "error": ...}``, so a failing tool returns a result
   rather than tearing down the connection.
 
-``register_registry_tools`` takes anything with an ``add_tool`` method rather
+``register_registry_tools`` takes anything with a ``tool`` method rather
 than importing FastMCP, which keeps this module free of protocol-library
 imports and lets the tests drive it with a recorder.
 """
@@ -32,10 +32,10 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-class SupportsAddTool(Protocol):
+class SupportsTool(Protocol):
     """The slice of a FastMCP server this adapter uses."""
 
-    def add_tool(self, fn: Any, name: str, description: str) -> Any:  # pragma: no cover
+    def tool(self, fn: Any, *, name: str, description: str) -> Any:  # pragma: no cover
         ...
 
 
@@ -98,11 +98,24 @@ def build_tool_callable(tool: BaseTool) -> Any:
     """
 
     async def _invoke(*args: Any, **kwargs: Any) -> dict[str, Any]:
+        # Imported here so importing this module does not create a DB engine.
+        from ai_devops_assistant.database.context import reset_current_session, set_current_session
+        from ai_devops_assistant.database.session import AsyncSessionLocal
+
         # Drop unset optionals so a tool's own defaults apply rather than None.
         supplied = {k: v for k, v in kwargs.items() if v is not None}
-        # BaseTool.__call__ validates and never raises, so protocol-level errors
-        # stay protocol-level and tool failures are reported as data.
-        return await tool(**supplied)
+        # The REST path binds a session per request in get_db_session(); MCP
+        # calls bypass that, so bind one per call or the SQL and log tools
+        # report "Database session not configured". The session only connects
+        # if a tool actually uses it.
+        async with AsyncSessionLocal() as session:
+            token = set_current_session(session)
+            try:
+                # BaseTool.__call__ validates and never raises, so protocol-level
+                # errors stay protocol-level and tool failures are reported as data.
+                return await tool(**supplied)
+            finally:
+                reset_current_session(token)
 
     try:
         schema = tool.get_schema().get("parameters") or {}
@@ -141,11 +154,11 @@ def describe_tool(tool: BaseTool) -> dict[str, Any]:
     }
 
 
-def register_registry_tools(server: SupportsAddTool, registry: ToolRegistry) -> list[str]:
+def register_registry_tools(server: SupportsTool, registry: ToolRegistry) -> list[str]:
     """Register every tool in the registry with an MCP server.
 
     Args:
-        server: An object with add_tool(fn, name, description) — a FastMCP
+        server: An object with tool(fn, name=..., description=...) — a FastMCP
             instance in production.
         registry: The same ToolRegistry the REST API uses.
 
@@ -156,7 +169,8 @@ def register_registry_tools(server: SupportsAddTool, registry: ToolRegistry) -> 
 
     for name, tool in registry.tools.items():
         try:
-            server.add_tool(
+            # FastMCP 3's add_tool() takes a Tool object; tool() still takes a function.
+            server.tool(
                 build_tool_callable(tool),
                 name=name,
                 description=tool.description,

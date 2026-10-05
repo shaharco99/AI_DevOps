@@ -44,13 +44,15 @@ class PromptManager:
             prompts_dir: Directory containing prompts
         """
         self.prompts_dir = Path(prompts_dir)
-        self.cache: dict[str, Any] = {}
+        self.cache: dict[str, Template] = {}
 
         # Initialize Jinja2 environment
         self.env = Environment(
             loader=FileSystemLoader(str(self.prompts_dir)),
             trim_blocks=True,
             lstrip_blocks=True,
+            # Templates render LLM prompt text, not HTML; escaping would corrupt them.
+            autoescape=False,  # nosec B701
         )
 
     def load_prompt(self, name: str, version: str | None = None) -> Template | None:

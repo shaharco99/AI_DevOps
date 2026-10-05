@@ -75,7 +75,10 @@ def create_app() -> FastAPI:
     from ai_devops_assistant.api.auth import limiter, require_api_key, require_csrf
 
     app.state.limiter = limiter
-    app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+    # slowapi types the handler for RateLimitExceeded; Starlette expects Exception.
+    app.add_exception_handler(
+        RateLimitExceeded, _rate_limit_exceeded_handler  # type: ignore[arg-type]
+    )
 
     # Include routes; expensive/mutating routes require X-API-Key when API_KEY is set
     from fastapi import Depends

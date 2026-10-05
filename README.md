@@ -1,20 +1,34 @@
-# AI DevOps Assistant 🤖🔧
+# AI DevOps Assistant
 
-Imagine a robot friend who looks after your servers.
+[![CI/CD Pipeline](https://github.com/shaharco99/AI_DevOps/actions/workflows/ci-cd.yml/badge.svg?branch=master)](https://github.com/shaharco99/AI_DevOps/actions/workflows/ci-cd.yml)
 
-You ask it *"Why did my build break?"* — and instead of guessing, **it goes and
-looks**. It runs a database query, reads your logs, checks Kubernetes, pulls the
-graphs. Then it tells you what it found in plain words.
+An LLM agent that answers operational questions — *"why did the nightly build
+fail?"* — by querying real systems instead of guessing: a read-only SQL tool,
+application logs, Prometheus, CI pipelines (Azure DevOps, Jenkins, GitHub
+Actions) and Kubernetes. It runs on a local model through Ollama or on Claude.
 
-That robot is this project: a FastAPI server with an AI agent inside, a chat
-website at `/ui`, and a toolbox the agent can reach into.
+What the repository contains:
+
+- **Backend** — FastAPI, async SQLAlchemy (Postgres or SQLite), streaming chat
+  over Server-Sent Events, a no-build web UI at `/ui`, and RAG over uploaded
+  documents (Chroma).
+- **MCP server** — the same tools exposed over the Model Context Protocol, so
+  MCP-aware editors can call them.
+- **Deployment** — Docker Compose stack (backend, MCP server, Postgres, Redis,
+  Ollama, Prometheus, Grafana), a Helm chart with HPA, PodDisruptionBudget,
+  NetworkPolicy, ServiceMonitor, Ingress and External Secrets, and Grafana
+  dashboards with Prometheus alert rules.
+- **CI/CD** — GitHub Actions: lint and type checks, unit/integration tests on
+  Python 3.11 and 3.12 against Postgres, browser end-to-end tests, Bandit,
+  Semgrep, Trivy (filesystem and image), pip-audit, Helm lint, Docker build, and
+  a release workflow. See [CI/CD and security](#cicd-and-security).
 
 ---
 
 ## Contents
 
 1. [How it works (the big picture)](#how-it-works-the-big-picture)
-2. [The robot's toolbox](#the-robots-toolbox)
+2. [Tools](#tools)
 3. [Demo in 5 minutes](#demo-in-5-minutes)
 4. [Demoing the web UI](#demoing-the-web-ui)
 5. [Example prompts (per tool)](#example-prompts-per-tool)
@@ -25,8 +39,9 @@ website at `/ui`, and a toolbox the agent can reach into.
 10. [Configuration](#configuration)
 11. [MCP servers for your editor](#mcp-servers-for-your-editor)
 12. [Tests and linting](#tests-and-linting)
-13. [Map of the repository](#map-of-the-repository)
-14. [License](#license)
+13. [CI/CD and security](#cicd-and-security)
+14. [Map of the repository](#map-of-the-repository)
+15. [License](#license)
 
 ---
 
@@ -54,7 +69,7 @@ Two honest caveats about that loop:
 
 ---
 
-## The robot's toolbox
+## Tools
 
 | Tool name | What it does | On by default? | Needs |
 | --- | --- | --- | --- |
@@ -109,14 +124,8 @@ Open **<http://localhost:8000/ui/>** — the trailing slash matters.
 | `/docs` | interactive API explorer |
 | `/health` | liveness check |
 
-Four things that trip people up:
+Three things that trip people up:
 
-- **`cp .env.example .env` currently stops the app from starting.** The template
-  ships `GRAFANA_ADMIN_PASSWORD`, which Docker Compose requires — but `Settings`
-  rejects any key it does not declare, so `uvicorn` dies at import with
-  `Extra inputs are not permitted`. Until that is fixed, comment the line out of
-  `.env` when running the app directly. The compose path needs it, so put it
-  back before `docker compose up`.
 - The setting is **`LLM_MODEL`**, not `OLLAMA_MODEL`. The wrong name is ignored
   in silence, and you get `model 'llama3' not found`.
 - The default model is `llama3`, which you probably have not pulled — and which
@@ -316,19 +325,13 @@ Same agent, same tools, different brain. Switch back with
 
 An honest list — all of these are reachable during a demo.
 
-- **The stock `.env` template will not boot the app.** `Settings` declares no
-  `extra` policy, so pydantic-settings defaults to forbidding unknown keys, and
-  the `GRAFANA_ADMIN_PASSWORD` that `.env.example` and Docker Compose both need
-  crashes the process at import. Either declare it on `Settings` or set
-  `extra = "ignore"` on its `Config` — declaring it is safer, since ignoring
-  silently swallows typos in real setting names.
 - **The planner can crash the endpoint.** If the model emits tool parameters as
   a list (`["list_pods", "-n", "default"]`) instead of an object, `/chat`
   returns **500** with a Pydantic validation error. Seen with `llama3.1` on
   Kubernetes questions.
 - **No re-planning.** One plan, executed straight through.
-  `max_tool_iterations` and `enable_reflection` exist in the config but **are
-  never read** — they constrain nothing.
+  `max_tool_iterations` caps how many tool calls one plan may make;
+  `enable_reflection` is declared but never read.
 - **Empty tables answer "0".** Truthful, but it looks broken. Run the seed
   script.
 - **Two LLM abstractions.** `services/llm_service.py` is what `/chat` uses;
@@ -485,6 +488,32 @@ you chasing ghosts. Line length is 100.
 
 ---
 
+## CI/CD and security
+
+`.github/workflows/ci-cd.yml` runs on every push and pull request to `master`:
+
+| Job | What it checks |
+| --- | --- |
+| Lint and Static Analysis | Ruff, isort, Black, MyPy, Pylint (errors) on Python 3.11 and 3.12 |
+| Unit / Integration Tests | pytest against a Postgres service container |
+| Frontend Tests | Node unit tests for the UI, then Playwright driving Chromium against the real server |
+| Security Scan (SAST) | Bandit, Semgrep (fails on high / ERROR findings; full reports kept), Trivy filesystem |
+| Dependency Vulnerability Scan | pip-audit over the hashed `requirements.lock` |
+| Docker Build / Container Scan | builds the image, scans it with Trivy |
+| Helm Lint and Render | `helm lint`, `helm template` with default and production values |
+| Documentation | markdownlint, codespell, typos |
+
+Dependencies are installed from `requirements.lock` (pip-compile with hashes),
+the same file the Docker image installs, so CI tests what ships. Other workflows:
+`dependency-review.yml` on pull requests, `security.yml` (a scheduled Trivy,
+CodeQL, Bandit and pip-audit scan, currently disabled), and `release.yml`, which builds and pushes
+the image to GHCR with an SBOM and provenance attestation on a published
+release (no release has been published yet, so it has not run).
+
+Two chromadb advisories have no fixed release and are ignored with a written
+justification in `.trivyignore`: both are in the Chroma server, and this app
+only uses the embedded client.
+
 ## Map of the repository
 
 ```text
@@ -500,10 +529,12 @@ ai_devops_assistant/
   static/            the web UI — plain HTML/CSS/JS
   config/settings.py every setting lives here
 scripts/             seed_demo_data.py
-infra/               Docker, Helm, Kubernetes
+infra/kubernetes/    raw manifests, and the Helm chart under helm/
+monitoring/          Prometheus config and alert rules, Grafana dashboards
+.github/workflows/   CI/CD, security scans, release
 docs/adr/            architecture decisions
 ```
 
 ## License
 
-MIT — see the LICENSE file.
+MIT — see [LICENSE](LICENSE).

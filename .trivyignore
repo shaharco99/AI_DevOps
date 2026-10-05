@@ -1,0 +1,8 @@
+# chromadb 0.4.22 - no fixed release exists. Both advisories are in the Chroma
+# server (tenant authorization; loading a remote model with
+# trust_remote_code). This app only uses the embedded PersistentClient
+# (rag/vector_store.py) and never runs the Chroma server from this package.
+# Re-check when a fixed chromadb release ships. Same IDs are ignored for
+# pip-audit in .github/workflows/ci-cd.yml and security.yml.
+CVE-2026-45833
+CVE-2026-45830

@@ -132,7 +132,7 @@ class TestRequestScopedDatabaseSession:
 
         assert SQLQueryTool().session is None
 
-    def test_context_is_isolated_between_async_tasks(self):
+    async def test_context_is_isolated_between_async_tasks(self):
         """asyncio copies the context per task, which is why this works."""
         import asyncio
 
@@ -146,7 +146,7 @@ class TestRequestScopedDatabaseSession:
         async def main():
             return await asyncio.gather(worker("session-a"), worker("session-b"))
 
-        assert asyncio.run(main()) == ["session-a", "session-b"]
+        assert await main() == ["session-a", "session-b"]
 
 
 class TestMemorySerialization:

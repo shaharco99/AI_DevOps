@@ -4,7 +4,6 @@ Every parser is an attack surface, so the tests care as much about what is
 refused as about what is read.
 """
 
-import asyncio
 import json
 
 import pytest
@@ -97,18 +96,18 @@ class TestSupportedExtensions:
 
 
 class TestAsyncExtraction:
-    def test_it_returns_the_same_text(self):
-        assert asyncio.run(extract_text_async("a.txt", b"hello")) == "hello"
+    async def test_it_returns_the_same_text(self):
+        assert await extract_text_async("a.txt", b"hello") == "hello"
 
-    def test_errors_propagate_through_the_thread(self):
+    async def test_errors_propagate_through_the_thread(self):
         with pytest.raises(UnsupportedDocumentError):
-            asyncio.run(extract_text_async("a.exe", b"x"))
+            await extract_text_async("a.exe", b"x")
 
-    def test_size_errors_propagate_too(self):
+    async def test_size_errors_propagate_too(self):
         with pytest.raises(DocumentTooLargeError):
-            asyncio.run(extract_text_async("big.txt", b"x" * (MAX_UPLOAD_BYTES + 1)))
+            await extract_text_async("big.txt", b"x" * (MAX_UPLOAD_BYTES + 1))
 
-    def test_a_slow_parser_is_abandoned_rather_than_hanging_a_worker(self, monkeypatch):
+    async def test_a_slow_parser_is_abandoned_rather_than_hanging_a_worker(self, monkeypatch):
         import ai_devops_assistant.rag.loaders as loaders
 
         def _slow(filename, data):
@@ -121,5 +120,5 @@ class TestAsyncExtraction:
         monkeypatch.setattr(loaders, "PARSE_TIMEOUT_SECONDS", 0.1)
 
         with pytest.raises(UnsupportedDocumentError) as exc:
-            asyncio.run(loaders.extract_text_async("slow.pdf", b"x"))
+            await loaders.extract_text_async("slow.pdf", b"x")
         assert "longer than" in str(exc.value)
