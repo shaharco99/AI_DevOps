@@ -2,9 +2,9 @@ name: CI/CD Pipeline
 
 on:
   push:
-    branches: [main, develop]
+    branches: [master]
   pull_request:
-    branches: [main]
+    branches: [master]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -101,17 +101,8 @@ jobs:
         run: |
           pytest tests/unit -v \
             --cov=ai_devops_assistant \
-            --cov-report=xml \
             --cov-report=term-missing \
             --junitxml=junit.xml
-
-      - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v3
-        with:
-          file: ./coverage.xml
-          flags: unit-${{ matrix.python-version }}
-          name: ai-devops-unit-${{ matrix.python-version }}
-          fail_ci_if_error: false
 
       - name: Upload test results
         if: always()
@@ -279,7 +270,7 @@ jobs:
         if: always()
 
       - name: Run Trivy filesystem scan
-        uses: aquasecurity/trivy-action@0.24.0
+        uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8 # v0.36.0
         with:
           scan-type: fs
           scan-ref: .
@@ -366,7 +357,7 @@ jobs:
           tags: ai-devops-assistant:scan
 
       - name: Scan image with Trivy
-        uses: aquasecurity/trivy-action@0.24.0
+        uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8 # v0.36.0
         with:
           image-ref: ai-devops-assistant:scan
           format: sarif

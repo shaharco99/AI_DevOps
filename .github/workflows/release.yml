@@ -75,7 +75,7 @@ jobs:
         push-to-registry: true
 
     - name: Attach SBOM to the release
-      uses: softprops/action-gh-release@v1
+      uses: softprops/action-gh-release@v2
       with:
         files: sbom.cyclonedx.json
 
@@ -103,7 +103,7 @@ jobs:
         echo "Chart packaged successfully"
 
     - name: Create GitHub release assets
-      uses: softprops/action-gh-release@v1
+      uses: softprops/action-gh-release@v2
       with:
         files: infra/kubernetes/helm/*.tgz
       env:

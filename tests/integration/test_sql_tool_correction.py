@@ -9,6 +9,7 @@ import pytest
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
+from ai_devops_assistant.database.sources import DEFAULT_SOURCE
 from ai_devops_assistant.tools.sql_tool import SQLQueryTool
 
 
@@ -51,7 +52,9 @@ class TestSchemaReflection:
     async def test_setting_a_new_session_invalidates_the_cache(self, sql_tool):
         await sql_tool._get_schema()
         sql_tool.set_session(sql_tool.session)
-        assert sql_tool._schema_cache is None, "a new session may be a different database"
+        assert (
+            DEFAULT_SOURCE not in sql_tool._schema_cache
+        ), "a new session may be a different database"
 
 
 class TestCorrection:

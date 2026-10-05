@@ -145,8 +145,8 @@ class SourceRegistry:
     """Lazily-built async engines, one per configured source."""
 
     def __init__(self, sources: dict[str, str] | None = None) -> None:
-        self._urls: dict[str, str] = sources if sources is not None else _parse_sources(
-            settings.SQL_SOURCES
+        self._urls: dict[str, str] = (
+            sources if sources is not None else _parse_sources(settings.SQL_SOURCES)
         )
         self._engines: dict[str, AsyncEngine] = {}
 

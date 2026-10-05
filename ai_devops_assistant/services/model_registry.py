@@ -115,7 +115,7 @@ class HuggingFaceRegistry(ModelRegistry):
         """
         try:
             session = await self._get_session()
-            params = {
+            params: dict[str, str | int] = {
                 "search": query,
                 "limit": limit,
                 "task": model_type,

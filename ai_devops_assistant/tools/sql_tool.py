@@ -74,7 +74,7 @@ class SQLQueryTool(BaseTool):
         async with registry.engine(source).connect() as connection:
             yield connection
 
-    async def _get_schema(self, source: str) -> dict[str, list[str]]:
+    async def _get_schema(self, source: str = DEFAULT_SOURCE) -> dict[str, list[str]]:
         """Reflect table -> columns for ``source``, cached per source.
 
         Reflection is a per-query round trip otherwise, and the correction engine
@@ -101,7 +101,7 @@ class SQLQueryTool(BaseTool):
             self._schema_cache[source] = {}
         return self._schema_cache[source]
 
-    async def _dialect_name(self, source: str) -> str:
+    async def _dialect_name(self, source: str = DEFAULT_SOURCE) -> str:
         """Name of the source's dialect ('sqlite', 'postgresql', 'oracle', ...)."""
         if source != DEFAULT_SOURCE:
             return registry.engine(source).dialect.name or ""
@@ -263,7 +263,9 @@ class SQLQueryTool(BaseTool):
                 "source": source,
             }
 
-    async def _correct(self, query: str) -> tuple[str | None, dict[str, Any]]:
+    async def _correct(
+        self, query: str, source: str = DEFAULT_SOURCE
+    ) -> tuple[str | None, dict[str, Any]]:
         """Repair hallucinated table/column names before executing.
 
         Returns (sql_to_run, extra_result_fields). sql_to_run is None when
@@ -284,12 +286,12 @@ class SQLQueryTool(BaseTool):
            something the guard has never seen, so it is checked again. Never
            execute SQL the guard has not approved in its final form.
         """
-        schema = await self._get_schema()
+        schema = await self._get_schema(source)
         if not schema:
             return query, {}
 
         candidate = query
-        if await self._dialect_name() == "sqlite":
+        if await self._dialect_name(source) == "sqlite":
             candidate = _convert_sqlite_syntax(candidate)
 
         ok, message, fixed = validate_and_fix_sql(candidate, schema)

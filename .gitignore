@@ -116,3 +116,6 @@ cover/
 # so these files are artifacts of deleted code and must not be committed.
 vault.txt
 vault.txt.emb.npz
+
+# Playwright MCP session artifacts
+.playwright-mcp/

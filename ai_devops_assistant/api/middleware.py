@@ -35,7 +35,7 @@ class LoggingMiddleware(BaseHTTPMiddleware):
         )
 
         try:
-            response = await call_next(request)
+            response: Response = await call_next(request)
         except Exception as e:
             logger.error(f"Request failed: {e}", exc_info=True)
             return JSONResponse(
@@ -74,7 +74,7 @@ class ErrorHandlingMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
         """Handle errors globally."""
         try:
-            response = await call_next(request)
+            response: Response = await call_next(request)
             return response
         except ValueError as e:
             logger.error(f"Validation error: {e}")

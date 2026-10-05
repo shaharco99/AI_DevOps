@@ -97,8 +97,6 @@ dev = [
     "semgrep==1.45.0",
     # Dependency Analysis
     "pip-audit==2.6.1",
-    # Documentation & Markdown
-    "markdownlint-cli2==0.11.0",
     # Spell Check
     "codespell==2.2.6",
     # Structured Logging
@@ -225,6 +223,9 @@ module = [
     "requests.*",
     # redis ships no inline types either.
     "redis.*",
+    # Pulled in by `limits`. 3.x uses Python 3.12 `type` statements, which
+    # mypy rejects under python_version = "3.11" before checking anything else.
+    "deprecated.*",
 ]
 ignore_missing_imports = true
 follow_imports = "skip"

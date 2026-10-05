@@ -59,6 +59,7 @@ async def analyze_logs(
                     level=log["level"],
                     message=log["message"],
                     source=log.get("source", "unknown"),
+                    metadata=None,
                 )
             )
 
