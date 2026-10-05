@@ -175,10 +175,6 @@ exclude = [
     "dist",
     ".venv",
     "migrations",
-    # Merged from MCP, not yet ported and not on any runtime path. Linting it
-    # now would mean reformatting ~2900 lines that phases 3-5 are about to
-    # rewrite, and would bury the real diff. Each entry is removed by the phase
-    # that ports it; see MERGE_PROGRESS.md "Debt".
 ]
 
 [tool.ruff.per-file-ignores]

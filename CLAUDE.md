@@ -6,8 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 AI DevOps Assistant: a FastAPI backend where an agent answers DevOps questions by calling tools — SQL queries, Kubernetes state, log analysis, Prometheus metrics, CI pipeline status — plus RAG retrieval over a Chroma vector store. Python 3.11+, fully async (SQLAlchemy async + asyncpg).
 
-The `MCP` project was merged in (see `MERGE_PROGRESS.md` for the record and
-`docs/adr/` for the decisions). It contributed the SQL auto-correction engine
+The `MCP` project was merged in (see `docs/adr/` for the decisions). It contributed the SQL auto-correction engine
 (`tools/sql_correction.py`), the MCP protocol server (`mcp_server/`), and the
 document loaders (`rag/loaders.py`). The web chat UI at `/ui` and the streaming
 `/chat/stream` endpoint were built during that work.
@@ -65,7 +64,7 @@ pre-commit run --all-files                         # runs the whole gate, auto-f
 
 **Always lint with the pinned versions.** CI installs runtime dependencies from the hashed `requirements.lock` (as the Dockerfile does) and tools from `pyproject.toml`'s `[dev]` extra (`ruff==0.1.11`, `black==23.12.1`, `isort==5.13.2`, `mypy==1.7.1`, `pylint==3.0.3`). A newer ruff in a local venv reports ~30 findings CI never sees, which sends you chasing phantoms. If the venv has drifted, build a scratch venv with the pinned versions and lint from that.
 
-Line length is 100 (Black + Ruff). CI (`.github/workflows/ci-cd.yml`) also runs Bandit, Semgrep, Trivy, pip-audit, Helm lint, markdownlint, codespell and typos; the weekly `security.yml` adds CodeQL. Workflows trigger on `master`, the default branch.
+Line length is 100 (Black + Ruff). CI (`.github/workflows/ci-cd.yml`) also runs Bandit, Semgrep, Trivy, pip-audit, Helm lint, markdownlint, codespell and typos; `security.yml` (scheduled, currently disabled) adds CodeQL. Workflows trigger on `master`, the default branch.
 
 After changing `requirements.txt`, regenerate the lock:
 `pip-compile --generate-hashes --output-file=requirements.lock --strip-extras requirements.txt` (Python 3.11).

@@ -41,6 +41,7 @@ What the repository contains:
 12. [Tests and linting](#tests-and-linting)
 13. [CI/CD and security](#cicd-and-security)
 14. [Map of the repository](#map-of-the-repository)
+15. [License](#license)
 
 ---
 
@@ -504,8 +505,8 @@ you chasing ghosts. Line length is 100.
 
 Dependencies are installed from `requirements.lock` (pip-compile with hashes),
 the same file the Docker image installs, so CI tests what ships. Other workflows:
-`dependency-review.yml` on pull requests, a weekly `security.yml` scan
-(Trivy, CodeQL, Bandit, pip-audit), and `release.yml`, which builds and pushes
+`dependency-review.yml` on pull requests, `security.yml` (a scheduled Trivy,
+CodeQL, Bandit and pip-audit scan, currently disabled), and `release.yml`, which builds and pushes
 the image to GHCR with an SBOM and provenance attestation on a published
 release (no release has been published yet, so it has not run).
 
@@ -529,3 +530,7 @@ monitoring/          Prometheus config and alert rules, Grafana dashboards
 .github/workflows/   CI/CD, security scans, release
 docs/adr/            architecture decisions
 ```
+
+## License
+
+MIT — see [LICENSE](LICENSE).
