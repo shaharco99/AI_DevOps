@@ -46,7 +46,9 @@ pytest tests/unit --cov=ai_devops_assistant --cov-report=term-missing
 
 pytest-asyncio runs in `asyncio_mode = "auto"` — write async tests as plain `async def`, no decorator needed. `tests/conftest.py` provides `test_db_session` (in-memory aiosqlite with all tables created) and `mock_settings`. Markers: `unit`, `integration`, `slow`, `external`.
 
-Coverage is thin (~660 test lines against ~10.6k source lines) and concentrated in API/tools. `rag/`, `services/multi_llm.py`, `observability/`, `ml/`, `evaluation/`, and `benchmarking/` have **no tests at all** — changes there are unguarded, so exercise them manually.
+About 500 Python tests plus browser e2e tests (`tests/e2e`, Playwright). `rag/` beyond the document loaders, `services/multi_llm.py`, `observability/`, `ml/`, `evaluation/` and `benchmarking/` have **no tests** — exercise changes there manually.
+
+Do not call `asyncio.run()` inside a test: it closes the event loop that later pytest-asyncio tests reuse, and unrelated tests fail depending on order. Write an `async def` test instead.
 
 `tests/conftest.py:mock_settings` uses keys like `enable_sql`, which do **not** match the real `Settings` field names (`ENABLE_SQL_TOOL`). It cannot be used for monkeypatching as-is.
 
@@ -61,9 +63,12 @@ pylint ai_devops_assistant --disable=all --enable=E,F --fail-under=9.0
 pre-commit run --all-files                         # runs the whole gate, auto-fixes most issues
 ```
 
-**Always lint with the pinned versions.** CI installs from `pyproject.toml`'s `[dev]` extra (`ruff==0.1.11`, `black==23.12.1`, `isort==5.13.2`, `mypy==1.7.1`, `pylint==3.0.3`). A newer ruff in a local venv reports ~30 findings CI never sees, which sends you chasing phantoms. If the venv has drifted, build a scratch venv with the pinned versions and lint from that.
+**Always lint with the pinned versions.** CI installs runtime dependencies from the hashed `requirements.lock` (as the Dockerfile does) and tools from `pyproject.toml`'s `[dev]` extra (`ruff==0.1.11`, `black==23.12.1`, `isort==5.13.2`, `mypy==1.7.1`, `pylint==3.0.3`). A newer ruff in a local venv reports ~30 findings CI never sees, which sends you chasing phantoms. If the venv has drifted, build a scratch venv with the pinned versions and lint from that.
 
-Line length is 100 (Black + Ruff). CI (`.github/workflows/ci-cd.yml`) also runs bandit, semgrep, Trivy, CodeQL, pip-audit, markdownlint, and codespell.
+Line length is 100 (Black + Ruff). CI (`.github/workflows/ci-cd.yml`) also runs Bandit, Semgrep, Trivy, pip-audit, Helm lint, markdownlint, codespell and typos; the weekly `security.yml` adds CodeQL. Workflows trigger on `master`, the default branch.
+
+After changing `requirements.txt`, regenerate the lock:
+`pip-compile --generate-hashes --output-file=requirements.lock --strip-extras requirements.txt` (Python 3.11).
 
 All five gates pass with **no exclusions**. JS tests run separately:
 `node --test tests/js/*.test.js` (node's built-in runner, zero npm dependencies).
@@ -81,11 +86,11 @@ The core path spans several modules and is the main thing to understand before c
 2. `api/routes/chat.py` → `agents/agent.py:get_agent(db_session)`. **`agents/agent.py` is the live agent** used by `/chat`.
 3. `_execute_task` runs **a single linear pass**: `_gather_context` (recent messages + RAG + role context) → `_create_execution_plan` (one LLM call returning a JSON step array) → `for step in plan` dispatching tools or reasoning steps → `_generate_final_response`.
 4. Tool calls go through `tools/tool_executor.py`: `ToolRegistry` instantiates tools at startup **gated by `ENABLE_*` feature flags in settings**, and `ToolExecutor` dispatches by name. Registered names: `sql_query_tool`, `kubernetes_tool`, `log_analysis_tool`, `metrics_tool`, `pipeline_status_tool`.
-5. The SQL and log tools need a DB session injected via `ToolRegistry.set_session(session)` — routes pass the request-scoped `AsyncSession` from `api/dependencies.py:get_db_session`.
+5. The SQL and log tools read the request's `AsyncSession` from a ContextVar (`database/context.py`), bound by `api/dependencies.py:get_db_session`.
 
-There is **no re-planning and no reflection**: the plan is generated once and executed straight through. `AgentConfig.max_tool_iterations` and `enable_reflection` are declared but never read anywhere in the codebase — nothing bounds the loop except plan length. Don't trust those fields to constrain behavior.
+There is **no re-planning and no reflection**: the plan is generated once and executed straight through. `AgentConfig.max_tool_iterations` caps the tool calls one plan may make; `enable_reflection` is declared but never read.
 
-`/chat` is request/response only. No SSE, no WebSocket, and **no frontend of any kind exists** — no static assets, no templates, no HTML/JS/CSS anywhere. `stream_generate`/`stream_chat` exist on the LLM services but are not surfaced over HTTP. (Phase 2 of the merge adds both.)
+`/chat` returns the whole answer; `/chat/stream` runs the same pipeline and streams `status`, `plan`, `token` and `done` events as SSE. The web UI in `static/` (plain HTML/CSS/JS, no build step) is mounted at `/ui` and uses the streaming endpoint.
 
 ### Tool contract
 
@@ -120,16 +125,14 @@ Async SQLAlchemy models in `database/models.py` (pipeline logs, metric snapshots
 
 Verified hazards that cost real debugging time. Check these before changing related code.
 
-- **`get_agent()` binds one session forever.** `agents/agent.py:get_agent()` caches a module-global agent and binds the *first* request's `AsyncSession` into it. Later requests reuse a stale, likely-closed session. Worse, concurrent requests share one agent *and* one `conversation_memory` — that's conversation bleed between users, not just a stale handle. Don't add per-user state to the agent object.
-- **Session memory is in-process.** `agents/memory.py:SessionManager` is a plain dict, lost on restart and not shared across workers. The Dockerfile encourages `WEB_CONCURRENCY>1`, under which a user's turns hit different workers and see different histories. Durable history is separate, in Postgres via `database/queries.py:add_chat_message`.
-- **Redis is running and completely unused.** It's in `docker-compose.yml` with a healthcheck and volume, and nothing in the Python code connects to it. It's the intended home for shared sessions and a distributed rate limiter.
-- **Auth silently disappears.** `api/auth.py` is a single static `X-API-Key`. If `settings.API_KEY` is unset, `require_api_key` becomes a no-op and only logs a warning — it does not fail closed. `/metrics` and `/metrics/ai/*` have no auth dependency at all (`main.py` omits `dependencies=auth_deps` for that router only). `SECRET_KEY` ships with a placeholder default and `ALLOWED_HOSTS` defaults to `["*"]`.
-- **Broad excepts hide real breakage.** RAG was entirely dead for months — four files had syntax errors, so `import ai_devops_assistant.rag` raised and the agent logged "RAG pipeline not available" and carried on. Tests never noticed because they never import RAG. When something is mysteriously "unavailable", check that it actually imports before believing the log line.
-- **`rag/vector_store.py` may still be broken.** It initializes Chroma with `chroma_db_impl="duckdb+parquet"`, a settings key removed in chromadb 0.4.x — and `chromadb==0.4.22` is pinned. This was masked by the import failure above and is still unverified.
-- **Known dead code** (don't build on it): `agents/tool_agent.py` (361 lines, zero references anywhere, and passes capabilities as strings where the agent compares enum members); `ToolExecutor.execute_rag_retrieval` (its `rag_retriever` is hardcoded `None`, so it always returns failure); `agent.py:_retrieve_rag_context` and several sibling helpers left from an earlier single-shot design.
+- **Per-request state lives in ContextVars.** The agent and tool registry are process-wide singletons, so the DB session is bound per request in `database/context.py` (REST: `api/dependencies.py:get_db_session`; MCP: `mcp_server/adapters.py:build_tool_callable`). Never store a session or per-user state on the agent or a tool.
+- **Chat sessions use Redis when `REDIS_URL` is set** (`agents/session_store.py`) and fall back to an in-process dict otherwise — with `WEB_CONCURRENCY>1` that fallback gives each worker its own history.
+- **Auth is off when `API_KEY` is unset** (local demo mode). In production `validate_production_security()` refuses to start without `API_KEY`, with the placeholder `SECRET_KEY`, or with `ALLOWED_HOSTS=["*"]`.
+- **Broad excepts hide real breakage.** RAG was dead for months because four files had syntax errors and the agent logged "RAG pipeline not available" and carried on. When something is "unavailable", check that it actually imports.
+- **Unit-test doubles can lie.** The MCP tests use a fake server, so they cannot catch fastmcp API changes. Start the server and call a tool with a real MCP client after touching `mcp_server/` or upgrading fastmcp.
+- **The prompts on disk are not the live prompts.** The agent uses `SYSTEM_PROMPT` in `agents/prompts.py`; `prompts/` and `PromptManager` are not on the request path.
 
 ## Repo conventions
 
-- The repo's working rules live in `README.md` ("House rules" and "Secrets" sections). Key points: understand existing flow before changing it, keep changes small and focused, branch with `git switch -c feature/<name>`, run `pre-commit run --all-files` before pushing, never commit secrets (use `.env` locally; `.env.local` is gitignored).
+- Working rules: understand existing flow before changing it, keep changes small and focused, branch with `git switch -c feature/<name>`, run `pre-commit run --all-files` before pushing, never commit secrets (use `.env` locally; `.env.local` is gitignored).
 - Deployment targets: `docker-compose.yml` for local, `infra/kubernetes/` raw manifests + Helm chart in `infra/kubernetes/helm/` (HPA, PDB, NetworkPolicy, ServiceMonitor, ExternalSecrets). CI also exists for Azure Pipelines (`azure-pipelines.yml`) and Jenkins (`Jenkinsfile`).
-- While the merge is active, update `MERGE_PROGRESS.md` at the end of each session: current phase, next action, one Log line, and any deviation from the plan under Decisions.

@@ -376,6 +376,28 @@ jobs:
         if: always()
 
   # ========================================================================
+  # Helm Chart
+  # ========================================================================
+  helm:
+    name: Helm Lint and Render
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+
+      # Subchart archives are vendored under charts/, so no repo access is needed.
+      - name: Lint chart
+        run: helm lint infra/kubernetes/helm
+
+      - name: Render with default and production values
+        run: |
+          helm template ci infra/kubernetes/helm > /dev/null
+          helm template ci infra/kubernetes/helm -f infra/kubernetes/helm/values-production.yaml > /dev/null
+
+  # ========================================================================
   # Documentation & Markdown Linting
   # ========================================================================
   docs:
@@ -416,7 +438,7 @@ jobs:
   status-check:
     name: Status Check
     runs-on: ubuntu-latest
-    needs: [lint, unit-tests, integration-tests, frontend-tests, security-scan, dependency-scan, docker-build, container-scan, docs]
+    needs: [lint, unit-tests, integration-tests, frontend-tests, security-scan, dependency-scan, docker-build, container-scan, helm, docs]
     if: always()
 
     steps:
@@ -436,6 +458,10 @@ jobs:
           fi
           if [ "${{ needs.frontend-tests.result }}" == "failure" ]; then
             echo "❌ Frontend tests failed"
+            exit 1
+          fi
+          if [ "${{ needs.helm.result }}" == "failure" ]; then
+            echo "❌ Helm chart failed to lint or render"
             exit 1
           fi
           echo "✅ All critical checks passed"

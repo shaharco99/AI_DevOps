@@ -189,6 +189,10 @@ class Settings(BaseSettings):
         env_file = ".env"
         env_file_encoding = "utf-8"
         case_sensitive = True
+        # .env is shared with Docker Compose, which reads keys the app does not
+        # (POSTGRES_USER, WEB_CONCURRENCY, ...). The default "forbid" made the
+        # documented `cp .env.example .env` crash the app at import.
+        extra = "ignore"
 
     @property
     def is_development(self) -> bool:
