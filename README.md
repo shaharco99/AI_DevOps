@@ -510,6 +510,10 @@ CodeQL, Bandit and pip-audit scan, currently disabled), and `release.yml`, which
 the image to GHCR with an SBOM and provenance attestation on a published
 release (no release has been published yet, so it has not run).
 
+Two chromadb advisories have no fixed release and are ignored with a written
+justification in `.trivyignore`: both are in the Chroma server, and this app
+only uses the embedded client.
+
 ## Map of the repository
 
 ```text
