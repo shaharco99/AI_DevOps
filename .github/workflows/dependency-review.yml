@@ -26,7 +26,7 @@ jobs:
     - name: Check licenses
       run: |
         pip install pip-licenses
-        pip install -r requirements.txt
+        pip install --require-hashes -r requirements.lock
         pip-licenses --format=json --output-file=licenses.json
 
     - name: Validate license compatibility

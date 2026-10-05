@@ -54,7 +54,7 @@ jobs:
 
     - name: Run dependency vulnerability scan
       run: |
-        pip-audit -r requirements.txt -f json -o pip-audit-report.json
+        pip-audit -r requirements.lock --require-hashes -f json -o pip-audit-report.json
 
     - name: Upload security reports
       uses: actions/upload-artifact@v4
